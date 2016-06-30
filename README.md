@@ -44,7 +44,7 @@ To run BayesTyper use the following command-line:
 
 <br/>
 ##### Set of variants (`<variants>`)
-Set of variants (VCF format) to be genotyped by BayesTyper (required). Only the 5 first columns in the VCF file are required.  
+Set of variants (VCF format) to be genotyped by BayesTyper (required). Only the eight first columns in the VCF file are required.  
 
 <br/>
 ##### Sample information (`<samples>`)
