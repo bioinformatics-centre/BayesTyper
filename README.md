@@ -6,7 +6,7 @@
 
 Full documentation of all tools in BayesTyperUtils will follow in July 2016. 
 
-The latest static build available under release.
+The latest static build available under releases.
 
 <br/>
 ### Compilation
