@@ -6,13 +6,15 @@
 
 Full documentation of all tools in BayesTyperUtils will follow in July 2016. 
 
+The latest static build available under release.
+
 <br/>
 ### Compilation
 
 The following software and libraries needs to be installed in order to compile BayesTyper:
 * g++ (C++11 support required)
 * [CMake](https://cmake.org/) (version 2.8.0 or higher)
-* [Boost](http://www.boost.org) (works with version 1.56.0)
+* [Boost](http://www.boost.org) (tested with version 1.55.0 and 1.56.0)
 
 <br/>
 ##### BayesTyper
@@ -83,7 +85,7 @@ Notice that the pipeline requires **16GB** of memory and 24 threads. The latter 
 ##### Merging
 Merge the two input variant sets (1000 genomes CEU variants and Platypus predictions) into a single call-set:
 
-&nbsp;&nbsp;`./bayesTyperUtils/bin/BayesTyperUtils combine -v CEU:variants_ceu_chr22.vcf,PP:variants_pp_chr22.vcf -o variants_merged_chr22`
+&nbsp;&nbsp;`BayesTyperUtils combine -v CEU:variants_ceu_chr22.vcf,PP:variants_pp_chr22.vcf -o variants_merged_chr22`
 
 <br/>
 ##### K-mer counting
@@ -97,7 +99,7 @@ Download and install [KMC2](http://sun.aei.polsl.pl/REFRESH/index.php?page=proje
 ##### Genotyping
 Genotype the merged variant set using the counted k-mers:
 
-&nbsp;&nbsp;`./bayesTyper/build/bayesTyper -v variants_merged_chr22.vcf -s sample.txt -g chr22.fa -d decoy.fa -p 24` 
+&nbsp;&nbsp;`bayesTyper -v variants_merged_chr22.vcf -s sample.txt -g chr22.fa -d decoy.fa -p 24` 
 
 *sample.txt* contains the sample name, gender and a path to the k-mer counts.
 
@@ -105,7 +107,7 @@ Genotype the merged variant set using the counted k-mers:
 ##### Filtering
 Filter genotyped alleles with insufficient k-mer information:
 
-&nbsp;&nbsp;`./bayesTyperUtils/bin/BayesTyperUtils filter -v bayesTyper_genotypes.vcf -o bayesTyper_genotypes_filtered --min-nok 3 --min-gpp 0.9 --filter-dependencies --keep-filtered-variants` 
+&nbsp;&nbsp;`BayesTyperUtils filter -v bayesTyper_genotypes.vcf -o bayesTyper_genotypes_filtered --min-nok 3 --min-gpp 0.9 --filter-dependencies --keep-filtered-variants` 
 
 
 
