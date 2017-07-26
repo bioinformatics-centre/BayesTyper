@@ -32,12 +32,12 @@ BayesTyper currently needs to be build from source; a pre-compiled version will 
    * For low coverage data (<20X), include singleton k-mers by using `-ci1` instead of `-ci2` 
 2. Prepare a tsv file with sample information. One sample per row with columns "sample_id", "sex" and "path_to_kmc3_output" (e.g. sample_1 &nbsp;&nbsp;&nbsp; F &nbsp;&nbsp;&nbsp; kmc3_counts/sample_1)
 3. Prepare the variant input
-   * `BayesTyperTools combine -o bayesTyper_input -v gatk1:sample_1_gatk.vcf,gatk2:sample_2_gatk.vcf,varDB:SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh38.vcf`
+   * `bayesTyperTools combine -o bayesTyper_input -v gatk1:sample_1_gatk.vcf,gatk2:sample_2_gatk.vcf,varDB:SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh38.vcf`
 4. Run BayesTyper
-   * `BayesTyper -o integrated_calls -s samples.tsv -v bayesTyper_input.vcf -g hg38.fa -p <threads> > bayesTyper_log.txt`
+   * `bayesTyper -o integrated_calls -s samples.tsv -v bayesTyper_input.vcf -g hg38.fa -p <threads> > bayesTyper_log.txt`
 5. Filter output
    1. Get coverage stats for filters: `grep "Estimated" bayesTyper_log.txt | cut -f10,18,21 -d ' ' | tr ' ' '\t' > kmer_coverage_estimates.txt`
-   2. Run filtering: `BayesTyperTools filter -o integrated_calls_filtered -v integrated_calls.vcf -g hg38.fa --kmer-coverage-filename kmer_coverage_estimates.txt`
+   2. Run filtering: `bayesTyperTools filter -o integrated_calls_filtered -v integrated_calls.vcf -g hg38.fa --kmer-coverage-filename kmer_coverage_estimates.txt`
 
 ## Variant databases ##
 * [BayesTyper_varDB_hg19](http://people.binf.ku.dk/~lassemaretty/bayesTyper/SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh37.vcf)
