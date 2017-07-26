@@ -1,5 +1,7 @@
 # BayesTyper #
-BayesTyper performs genotyping of all types of variation (including structural and complex variation) based on an input set of variants and read k-mer counts. Internally, BayesTyper uses exact alignment of k-mers to a graph representation of the input variation and reference sequence in combination with a probabilistic model of k-mer counts to do genotyping. The variant representation ensures that the resulting calls are not biased towards the reference sequence. A manuscript describing the method is currently in revision.
+BayesTyper performs genotyping of all types of variation (including structural and complex variation) based on an input set of variants and read k-mer counts. Internally, BayesTyper uses exact alignment of k-mers to a graph representation of the input variation and reference sequence in combination with a probabilistic model of k-mer counts to do genotyping. The variant representation ensures that the resulting calls are not biased towards the reference sequence. 
+
+The BayesTyper was used to integrate mapping- and assembly-based calls in the [GenomeDenmark project](http://www.nature.com/nature/journal/vaop/ncurrent/full/nature23264.html). A manuscript describing the method is currently in revision.
 
 ## Use cases ##
 
@@ -39,9 +41,21 @@ BayesTyper currently needs to be build from source; a pre-compiled version will 
    1. Get coverage stats for filters: `grep "Estimated" bayesTyper_log.txt | cut -f10,18,21 -d ' ' | tr ' ' '\t' > kmer_coverage_estimates.txt`
    2. Run filtering: `bayesTyperTools filter -o integrated_calls_filtered -v integrated_calls.vcf -g hg38.fa --kmer-coverage-filename kmer_coverage_estimates.txt`
 
-## Variant databases ##
-* [BayesTyper_varDB_hg19](http://people.binf.ku.dk/~lassemaretty/bayesTyper/SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh37.vcf)
-* [BayesTyper_varDB_hg38](http://people.binf.ku.dk/~lassemaretty/bayesTyper/SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh38.vcf)
+## Variant database ##
+The variant databases were constructed by combining
+* [dbSNP](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC29783/)
+   * Rare SNVs were excluded
+* [1000 Genomes Project](https://www.nature.com/nature/journal/v526/n7571/full/nature15394.html)
+* [Genome of the Netherlands Project](https://www.nature.com/articles/ncomms12989)
+   * GRCh38 version has been lifted from GRCh37 using [crossmap](https://www.ncbi.nlm.nih.gov/pubmed/24351709) 
+* [Genotype-Tissue Expression (GTEx) Project](http://www.nature.com/ng/journal/v49/n5/full/ng.3834.html)
+   * GRCh38 version has been lifted from GRCh37 using [crossmap](https://www.ncbi.nlm.nih.gov/pubmed/24351709) 
+* [GenomeDenmark](http://www.nature.com/nature/journal/vaop/ncurrent/full/nature23264.html) project.
+   * GRCh37 version has been lifted from GRCh38 using [crossmap](https://www.ncbi.nlm.nih.gov/pubmed/24351709) 
+
+* [BayesTyper_varDB_GRCh37](http://people.binf.ku.dk/~lassemaretty/bayesTyper/SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh37.vcf)
+* [BayesTyper_varDB_GRCh38](http://people.binf.ku.dk/~lassemaretty/bayesTyper/SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh38.vcf)
+
 ## Memory requirements ## 
 * 50,000,0000 variants, 30X coverage, 10 samples, no singleton k-mers -> 340 Gb
 * 50,000,0000 variants, 10X coverage, 10 samples -> 480 Gb
