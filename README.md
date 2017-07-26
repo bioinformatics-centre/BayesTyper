@@ -1,118 +1,47 @@
-# BayesTyper
+# BayesTyper #
+BayesTyper performs genotyping of all types of variation (including structural and complex variation) based on an input set of variants and read k-mer counts. Internally, BayesTyper uses exact alignment of k-mers to a graph representation of the input variation and reference sequence in combination with a probabilistic model of k-mer counts to do genotyping. The variant representation ensures that the resulting calls are not biased towards the reference sequence. A manuscript describing the method is currently in revision.
 
-<br/>
-**bayesTyper**: Method for variant graph genotyping based on exact alignment of k-mers.  
-**bayesTyperUtils**: Utility tools for pre- and post-processing Variant Call Format (VCF) files for BayesTyper.
+## Use cases ##
 
-Full documentation of all tools in BayesTyperUtils will follow in July 2016. 
+### Variant integration ###
+Sensitive calling of structural variation typically requires running multiple callers to ensure sensitivity yet this leads to the problem of integrating calls across call-sets. The BayesTyper can be used to produce a fully integrated call-set including SNVs, indels and complex variation from input variant *candidates* produced by a panel of methods; the panel must include standard SNV and indel calls e.g. from GATK, Freebayes or Platypus.
 
-The latest static build is available under releases.
+### Prior based genotyping ###
+A signficant amount of both simple and complex variation is already known from large population-scale studies. As some of these variants may be missed in a study - even when running multiple methods - due to alignment bias, we provide a database containing common SNPs/indels together with complex variants that can be combined with *in-sample* calls (i.e. calls based only on the study data) to improve sensitivity.
+This approach can for instance be used to quickly augment a set of standard SNV and indel calls (e.g. from GATK) with structural variation by running BayesTyper on the SNV/indel calls combined with our variation database. For higher sensitivity, *in-sample* complex variation calls can be combined with the database to produce the final intergrated call-set.
 
-<br/>
-### Compilation
+## Installation ##
+The BayesTyper package contains *BayesTyper*, which does the genotyping, and *BayesTyperTools*, which is used to pre- and post-process VCF files for BayesTyper.
 
-The following software and libraries needs to be installed in order to compile BayesTyper:
-* g++ (C++11 support required)
-* [CMake](https://cmake.org/) (version 2.8.0 or higher)
-* [Boost](http://www.boost.org) (tested with version 1.55.0 and 1.56.0)
+#### Prerequisites ####
+* gcc (c++11 support required. Tested with gcc 4.8 and 4.9 work)
+* CMake (version 2.8.0 or higher)
+* Boost (tested with version 1.55.0 and 1.56.0)
 
-<br/>
-##### BayesTyper
-To compile BayesTyper:
+#### Building BayesTyper ####
+BayesTyper currently needs to be build from source; a pre-compiled version will be released at a later time. 
+1. `git clone https://github.com/bioinformatics-centre/BayesTyper.git`
+2. `cd BayesTyper`
+2. `mkdir build && cd build`
+5. `cmake ..`
+6. `make`
 
-1. `cd bayesTyper`
-2. `mkdir build`
-3. `cd build`
-4. `cmake ../src/`
-5. `make`
+## Basic usage ##
+1. Count k-mers for each sample using [kmc3](http://sun.aei.polsl.pl/REFRESH/index.php?page=projects&project=kmc&subpage=download)
+   * e.g. `kmc -k55 sample_1.fq sample_1`
+   * For low coverage data (<20X), include singleton k-mers by using `-ci1` instead of `-ci2` 
+2. Prepare a tsv file with sample information. One sample per row with columns <sample_id>, <sex> and <path_to_kmc3_output> (e.g. sample_1<TAB>F<TAB>kmc3_counts/sample_1)
+3. Prepare the variant input
+   * `BayesTyperTools combine -o bayesTyper_input -v gatk1:sample_1_gatk.vcf,gatk2:sample_2_gatk.vcf,varDB:SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh38.vcf`
+4. Run BayesTyper
+   * `BayesTyper -o integrated_calls -s samples.tsv -v bayesTyper_input.vcf -g hg38.fa -p <threads> > bayesTyper_log.txt`
+5. Filter output
+   1. Get coverage stats for filters: `grep "Estimated" bayesTyper_log.txt | cut -f10,18,21 -d ' ' | tr ' ' '\t' > kmer_coverage_estimates.txt`
+   2. Run filtering: `BayesTyperTools filter -o integrated_calls_filtered -v integrated_calls.vcf -g hg38.fa --kmer-coverage-filename kmer_coverage_estimates.txt`
 
-This will create the binary: `bayesTyper/build/bayesTyper` 
-
-<br/>
-##### BayesTyperUtils
-To compile BayesTyperUtils:
-
-1. `cd bayesTyperUtils`
-2. `cmake .`
-3. `make`
-
-This will create the binary: `bayesTyperUtils/bin/BayesTyperUtils`
-
-<br/>
-### Usage
-To run BayesTyper use the following command-line:
-
-&nbsp;&nbsp;`bayesTyper -v <variants> -s <samples> -g <genome> -d <decoy> -p <threads>` 
-
-<br/>
-##### Set of variants (`<variants>`)
-Set of variants (VCF format) to be genotyped by BayesTyper (required). Only the eight first columns in the VCF file are required.  
-
-<br/>
-##### Sample information (`<samples>`)
-Tab-delimited text file with sample information, where each line corresponds to a sample (required). The file should contain three columns: 
-
-1. Sample name (only used in output header).
-2. Sample gender (either *F* for female or *M* for male).
-3. Path to sample k-mer counts ([KMC2](http://sun.aei.polsl.pl/REFRESH/index.php?page=projects&project=kmc&subpage=about) output). The suffixes *.kme_pre* and *.kmc_suf* should not be included.
-
-Example:
-
-*&nbsp;&nbsp;Sample1&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;F&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;\<path_to_sample1_kmers>*  
-*&nbsp;&nbsp;Sample2&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;M&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;\<path_to_sample2_kmers>*
-
-The k-mer counts should be generated using [KMC2](http://sun.aei.polsl.pl/REFRESH/index.php?page=projects&project=kmc&subpage=about) version 2.3.0 (see example pipeline).   
-
-<br/>
-##### Reference genome (`<genome>`)
-Reference genome (fasta format) containing autosomal and allosomal chromosomes with known ploidy (required).  
-
-<br/>
-##### Decoy sequences (`<decoy>`)
-Decoy sequences (fasta format) with unknown ploidy such as the mitochondrial sequence (recommended).   
-
-<br/>
-##### Computational requirements
-BayesTyper is multi-threaded and the number of CPU threads can be specified using `-p`. The memory footprint is currently quite high (~15M variants and 10x coverage: **~195GB** for 1 sample and **~365GB** for 10 samples). We expect a marked reduction in memory footprint in the next release that is due in July 2016.
-
-<br/>
-### Example pipeline
-The following is an example of a pipeline for genotyping a single sample on variants from two sources (chr22 only). The data can be downloaded [here](http://people.binf.ku.dk/~lassemaretty/bt_example_chr22.tar.gz).
-
-Notice that the pipeline requires **16GB** of memory and 24 threads. The latter can be changed in the [KMC2](http://sun.aei.polsl.pl/REFRESH/index.php?page=projects&project=kmc&subpage=about) and BayesTyper command-lines.
-
-<br/>
-##### Merging
-Merge the two input variant sets (1000 genomes CEU variants and Platypus predictions) into a single call-set:
-
-&nbsp;&nbsp;`BayesTyperUtils combine -v CEU:variants_ceu_chr22.vcf,PP:variants_pp_chr22.vcf -o variants_merged_chr22`
-
-<br/>
-##### K-mer counting
-Download and install [KMC2](http://sun.aei.polsl.pl/REFRESH/index.php?page=projects&project=kmc&subpage=about) version 2.3.0. Count all k-mers (k=55) in the sequencing reads:
-
-&nbsp;&nbsp;`kmc -k55 -m16 -sm -t24 -ci1 @reads_chr22.txt kmers_chr22 .`
-
-*reads.txt* contains a list of the fastq files.
-
-<br/>
-##### Genotyping
-Genotype the merged variant set using the counted k-mers:
-
-&nbsp;&nbsp;`bayesTyper -v variants_merged_chr22.vcf -s sample.txt -g chr22.fa -d decoy.fa -p 24` 
-
-*sample.txt* contains the sample name, gender and a path to the k-mer counts.
-
-<br/>
-##### Filtering
-Filter genotyped alleles with insufficient k-mer information:
-
-&nbsp;&nbsp;`BayesTyperUtils filter -v bayesTyper_genotypes.vcf -o bayesTyper_genotypes_filtered --min-nok 3 --min-gpp 0.9 --filter-dependencies --keep-filtered-variants` 
-
-
-
-
-
-
-
-
+## Variant databases ##
+* [BayesTyper_varDB_hg19](http://people.binf.ku.dk/~lassemaretty/bayesTyper/SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh37.vcf)
+* [BayesTyper_varDB_hg38](http://people.binf.ku.dk/~lassemaretty/bayesTyper/SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh38.vcf)
+## Memory requirements ## 
+* 50,000,0000 variants, 30X coverage, 10 samples, no singleton k-mers -> 340 Gb
+* 50,000,0000 variants, 10x, 10 samples -> 480 Gb
