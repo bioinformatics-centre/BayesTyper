@@ -3,6 +3,8 @@ BayesTyper performs genotyping of all types of variation (including structural a
 
 The BayesTyper was used to integrate mapping- and assembly-based calls in the [GenomeDenmark project](http://www.nature.com/nature/journal/vaop/ncurrent/full/nature23264.html). A manuscript describing the method is currently in revision.
 
+The BayesTyper is being developed by Jonas Sibbesen, Lasse Maretty and Anders Krogh at the Section for Computational and RNA Biology, Department of Biology, University of Copenhagen.
+
 ## Use cases ##
 
 ### Variant integration ###
