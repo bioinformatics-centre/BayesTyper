@@ -44,4 +44,4 @@ BayesTyper currently needs to be build from source; a pre-compiled version will 
 * [BayesTyper_varDB_hg38](http://people.binf.ku.dk/~lassemaretty/bayesTyper/SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh38.vcf)
 ## Memory requirements ## 
 * 50,000,0000 variants, 30X coverage, 10 samples, no singleton k-mers -> 340 Gb
-* 50,000,0000 variants, 10x, 10 samples -> 480 Gb
+* 50,000,0000 variants, 10X coverage, 10 samples -> 480 Gb
