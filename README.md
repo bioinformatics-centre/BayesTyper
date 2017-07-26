@@ -41,7 +41,11 @@ BayesTyper currently needs to be build from source; a pre-compiled version will 
    1. Get coverage stats for filters: `grep "Estimated" bayesTyper_log.txt | cut -f10,18,21 -d ' ' | tr ' ' '\t' > kmer_coverage_estimates.txt`
    2. Run filtering: `bayesTyperTools filter -o integrated_calls_filtered -v integrated_calls.vcf -g hg38.fa --kmer-coverage-filename kmer_coverage_estimates.txt`
 
-## Variant database ##
+## Variant databases ##
+* [BayesTyper_varDB_GRCh37](http://people.binf.ku.dk/~lassemaretty/bayesTyper/SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh37.vcf)
+* [BayesTyper_varDB_GRCh38](http://people.binf.ku.dk/~lassemaretty/bayesTyper/SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh38.vcf)
+
+#### Variant database references ####
 The variant databases were constructed by combining
 * [dbSNP](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC29783/)
    * Rare SNVs were excluded
@@ -52,9 +56,6 @@ The variant databases were constructed by combining
    * GRCh38 version has been lifted from GRCh37 using [crossmap](https://www.ncbi.nlm.nih.gov/pubmed/24351709) 
 * [GenomeDenmark](http://www.nature.com/nature/journal/vaop/ncurrent/full/nature23264.html) project.
    * GRCh37 version has been lifted from GRCh38 using [crossmap](https://www.ncbi.nlm.nih.gov/pubmed/24351709) 
-
-* [BayesTyper_varDB_GRCh37](http://people.binf.ku.dk/~lassemaretty/bayesTyper/SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh37.vcf)
-* [BayesTyper_varDB_GRCh38](http://people.binf.ku.dk/~lassemaretty/bayesTyper/SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh38.vcf)
 
 ## Memory requirements ## 
 * 50,000,0000 variants, 30X coverage, 10 samples, no singleton k-mers -> 340 Gb
