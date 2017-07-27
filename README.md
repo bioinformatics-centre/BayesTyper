@@ -15,7 +15,7 @@ A signficant amount of both simple and complex variation is already known from l
 This approach can for instance be used to quickly augment a set of standard SNV and indel calls (e.g. from GATK) with structural variation by running BayesTyper on the SNV/indel calls combined with our variation database. For higher sensitivity, *in-sample* complex variation calls can be combined with the database to produce the final intergrated call-set.
 
 ## Installation ##
-The BayesTyper package contains *BayesTyper*, which does the genotyping, and *BayesTyperTools*, which is used to pre- and post-process VCF files for BayesTyper.
+The BayesTyper package contains `bayesTyper`, which does the genotyping, and `bayesTyperTools`, which is used to pre- and post-process VCF files for BayesTyper.
 
 #### Prerequisites ####
 * gcc (c++11 support required. Tested with gcc 4.8 and 4.9 work)
@@ -29,7 +29,7 @@ BayesTyper currently needs to be build from source; a pre-compiled version will 
 2. `mkdir build && cd build`
 5. `cmake ..`
 6. `make`
-
+The `bayesTyper` and `bayesTyperTols` tools in the `bin` directory.
 ## Basic usage ##
 1. Count k-mers for each sample using [kmc3](http://sun.aei.polsl.pl/REFRESH/index.php?page=projects&project=kmc&subpage=download)
    * e.g. `kmc -k55 sample_1.fq sample_1`
