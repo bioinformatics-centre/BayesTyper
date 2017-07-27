@@ -29,7 +29,9 @@ BayesTyper currently needs to be build from source; a pre-compiled version will 
 2. `mkdir build && cd build`
 5. `cmake ..`
 6. `make`
-The `bayesTyper` and `bayesTyperTols` tools in the `bin` directory.
+
+The compiled `bayesTyper` and `bayesTyperTols` tool binaries are now located in the `bin` directory.
+
 ## Basic usage ##
 1. Count k-mers for each sample using [kmc3](http://sun.aei.polsl.pl/REFRESH/index.php?page=projects&project=kmc&subpage=download)
    * e.g. `kmc -k55 sample_1.fq sample_1`
