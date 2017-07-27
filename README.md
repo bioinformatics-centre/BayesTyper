@@ -50,16 +50,16 @@ BayesTyper currently needs to be build from source; a pre-compiled version will 
 ### Variant database sources ###
 #### GRCh37 ####
 |Source|Version|Filters|Lifted|Reference|
-|------|-------|-------|----|---------|
+|------|-------|-------|------|---------|
 |dbSNP|150|No rare SNVs|No|[link](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC29783/)|
 |1000 Genomes Project (1KG)|Phase 3|No SNVs|No|[link](https://www.nature.com/nature/journal/v526/n7571/full/nature15394.html)||
 |Genome of the Netherlands Project (GoNL)|Release 6|No SNVs|No|[link](https://www.nature.com/articles/ncomms12989)|
 |Genotype-Tissue Expression (GTEx) Project|GTEx Analysis V6|No SNVs|No|[link](http://www.nature.com/ng/journal/v49/n5/full/ng.3834.html)|
 |GenomeDenmark (GDK)|v1.0|No SNVs|From GRCh38|[link](http://www.nature.com/nature/journal/vaop/ncurrent/full/nature23264.html)|
 
-##### GRCh38 #####
+#### GRCh38 ####
 |Source|Version|Filters|Lifted|Reference|
-|------|-------|-------|----|---------|
+|------|-------|-------|------|---------|
 |dbSNP|150|No rare SNVs|No|[link](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC29783/)|
 |1000 Genomes Project (1KG)|Phase 3|No SNVs|No|[link](https://www.nature.com/nature/journal/v526/n7571/full/nature15394.html)||
 |Genome of the Netherlands Project (GoNL)|Release 6|No SNVs|From GRCh37|[link](https://www.nature.com/articles/ncomms12989)|
