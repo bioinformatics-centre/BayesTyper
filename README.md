@@ -36,7 +36,7 @@ The compiled `bayesTyper` and `bayesTyperTools` binaries are now located in the 
 1. Count k-mers for each sample using [kmc3](http://sun.aei.polsl.pl/REFRESH/index.php?page=projects&project=kmc&subpage=download)
    * e.g. `kmc -k55 sample_1.fq sample_1`
    * For low coverage data (<20X), include singleton k-mers by using `-ci1` instead of `-ci2` 
-2. Prepare a tsv file with sample information. One sample per row with columns <sample_id>, <sex> and <path_to_kmc3_output> ([example file](http://people.binf.ku.dk/~lassemaretty/bayesTyper/bt_samples_example.tsv))
+2. Prepare a tsv file with sample information. One sample per row with columns <sample_id>, <sex> and <path_to_kmc3_output> ([example](http://people.binf.ku.dk/~lassemaretty/bayesTyper/bt_samples_example.tsv))
 3. Prepare the variant input
    * `bayesTyperTools combine -o bayesTyper_input -v gatk1:sample_1_gatk.vcf,gatk2:sample_2_gatk.vcf,varDB:SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh38.vcf`
 4. Run BayesTyper
