@@ -47,18 +47,27 @@ BayesTyper currently needs to be build from source; a pre-compiled version will 
 * [BayesTyper_varDB_GRCh37](http://people.binf.ku.dk/~lassemaretty/bayesTyper/SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh37.vcf)
 * [BayesTyper_varDB_GRCh38](http://people.binf.ku.dk/~lassemaretty/bayesTyper/SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh38.vcf)
 
-#### Variant database references ####
-The variant databases were constructed by combining
-* [dbSNP](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC29783/)
-   * Rare SNVs were excluded
-* [1000 Genomes Project](https://www.nature.com/nature/journal/v526/n7571/full/nature15394.html)
-* [Genome of the Netherlands Project](https://www.nature.com/articles/ncomms12989)
-   * GRCh38 version was lifted from GRCh37 using [crossmap](https://www.ncbi.nlm.nih.gov/pubmed/24351709) 
-* [Genotype-Tissue Expression (GTEx) Project](http://www.nature.com/ng/journal/v49/n5/full/ng.3834.html)
-   * GRCh38 version was lifted from GRCh37 using [crossmap](https://www.ncbi.nlm.nih.gov/pubmed/24351709) 
-* [GenomeDenmark](http://www.nature.com/nature/journal/vaop/ncurrent/full/nature23264.html) project.
-   * GRCh37 version was lifted from GRCh38 using [crossmap](https://www.ncbi.nlm.nih.gov/pubmed/24351709) 
+### Variant database sources ###
+#### GRCh37 ####
+|Source|Version|Filters|Lifted|Reference|
+|------|-------|-------|----|---------|
+|dbSNP|150|No rare SNVs|No|[link](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC29783/)|
+|1000 Genomes Project (1KG)|Phase 3|No SNVs|No|[link](https://www.nature.com/nature/journal/v526/n7571/full/nature15394.html)||
+|Genome of the Netherlands Project (GoNL)|Release 6|No SNVs|No|[link](https://www.nature.com/articles/ncomms12989)|
+|Genotype-Tissue Expression (GTEx) Project|GTEx Analysis V6|No SNVs|No|[link](http://www.nature.com/ng/journal/v49/n5/full/ng.3834.html)|
+|GenomeDenmark (GDK)|v1.0|No SNVs|From GRCh38|[link](http://www.nature.com/nature/journal/vaop/ncurrent/full/nature23264.html)|
 
+##### GRCh38 #####
+|Source|Version|Filters|Lifted|Reference|
+|------|-------|-------|----|---------|
+|dbSNP|150|No rare SNVs|No|[link](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC29783/)|
+|1000 Genomes Project (1KG)|Phase 3|No SNVs|No|[link](https://www.nature.com/nature/journal/v526/n7571/full/nature15394.html)||
+|Genome of the Netherlands Project (GoNL)|Release 6|No SNVs|From GRCh37|[link](https://www.nature.com/articles/ncomms12989)|
+|Genotype-Tissue Expression (GTEx) Project|GTEx Analysis V6|No SNVs|From GRCh37|[link](http://www.nature.com/ng/journal/v49/n5/full/ng.3834.html)|
+|GenomeDenmark (GDK)|v1.0|No SNVs|No|[link](http://www.nature.com/nature/journal/vaop/ncurrent/full/nature23264.html)|
+   
 ## Memory requirements ## 
-* 50,000,0000 variants, 30X coverage, 10 samples, no singleton k-mers -> 340 Gb
-* 50,000,0000 variants, 10X coverage, 10 samples -> 480 Gb
+|Variants|Coverage|Samples|Singletons included|Threads|Memory (GB)|Time (wall-time hours)|
+|--------|--------|-------|-------------------|-------|-----------|----------------------|
+|50M|30X|10|No|24|340|67|
+|50M|10X|10|Yes|32|480|58|
