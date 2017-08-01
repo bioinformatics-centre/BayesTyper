@@ -45,7 +45,7 @@ The compiled `bayesTyper` and `bayesTyperTools` binaries are now located in the 
       * Currently \<DEL\>, \<DUP\>, \<CN[digit(s)]\>, \<CNV\>, \<INV\>, \<INS:ME:[sequence name]\> are supported. The latter require a fasta file with the mobile element insertion sequences
       * This step can be skipped if the variant sets does not include any allele IDs (e.g. GATK output)
   
-   2. Normalise variants using [bcftools](https://samtools.github.io/bcftools/): `bcftools norm -o sample_1_gatk_norm.vcf -f hg38.fa sample_1_gatk.vcf`
+   2. Normalise variants using [Bcftools](https://samtools.github.io/bcftools/): `bcftools norm -o sample_1_gatk_norm.vcf -f hg38.fa sample_1_gatk.vcf`
     
    3. Combine variant sets: `bayesTyperTools combine -o bayesTyper_input -v gatk:sample_1_gatk_norm.vcf,gatk:sample_2_gatk_norm.vcf,gatk:sample_3_gatk_norm.vcf,varDB:SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh38.vcf`
       * The contig fields in the headers need to be identical between variant sets and the variants sorted in the same order as the fields
