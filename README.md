@@ -33,16 +33,31 @@ BayesTyper currently needs to be build from source; a pre-compiled version will 
 The compiled `bayesTyper` and `bayesTyperTools` binaries are now located in the `bin` directory.
 
 ## Basic usage ##
-1. Count k-mers for each sample using [kmc3](http://sun.aei.polsl.pl/REFRESH/index.php?page=projects&project=kmc&subpage=download)
-   * `kmc -k55 sample_1.fq sample_1` (this will output k-mer counts to `sample_1.kmc_pre` and `sample_1.kmc_suf`)
-   * For low coverage data (<20X), include singleton k-mers by adding `-ci1` to the `kmc3` commandline 
-2. Prepare a tsv file with sample information. One sample per row with columns <sample_id>, <sex> and <path_to_kmc3_output> ([example](http://people.binf.ku.dk/~lassemaretty/bayesTyper/bt_samples_example.tsv))
-3. Prepare the variant input
-   * `bayesTyperTools combine -o bayesTyper_input -v gatk1:sample_1_gatk.vcf,gatk2:sample_2_gatk.vcf,varDB:SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh38.vcf`
-4. Run BayesTyper
-   * `bayesTyper -o integrated_calls -s samples.tsv -v bayesTyper_input.vcf -g hg38.fa -p <threads> > bayesTyper_log.txt`
-5. Filter output
-   1. Get coverage stats for filters: `grep "Estimated" bayesTyper_log.txt | cut -f10,18,21 -d ' ' | tr ' ' '\t' > kmer_coverage_estimates.txt`
+1. Count k-mers
+
+   1. Run [kmc3](http://sun.aei.polsl.pl/REFRESH/index.php?page=projects&project=kmc&subpage=download) on each sample: `kmc -k55 sample_1.fq sample_1` 
+      * This will output k-mer counts to `sample_1.kmc_pre` and `sample_1.kmc_suf`
+      * For low coverage data (<20X), include singleton k-mers by adding `-ci1` to the `kmc3` commandline 
+      
+2. Prepare the variant input
+
+   1. Convert allele IDs (e.g. \<DEL\>) to sequence: `bayesTyperTools convertAlleleId -o sample_1_sv_calls_seq -v sample_1_sv_calls.vcf -g hg38.fa`
+      * Currently \<DEL\>, \<DUP\>, \<CN[digit(s)]\>, \<CNV\>, \<INV\>, \<INS:ME:[sequence name]\> are supported. The latter require a fasta file with the mobile element insertion sequences .
+      * This step can be skipped if the variant set does not include any allele IDs (e.g. GATK output)
+      
+   2. Combine variant sets: `bayesTyperTools combine -o bayesTyper_input -v gatk:sample_1_gatk.vcf,gatk:sample_2_gatk.vcf,gatk:sample_3_gatk.vcf,varDB:SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh38.vcf`
+      * The contig fields in the headers need to be identical between variant sets and the variants sorted in the same order
+      
+3. Genotype variants
+
+   1. Prepare sample information: Create tsv file with one sample per row with columns \<sample_id\>, \<sex\> and \<path_to_kmc3_output\> ([example](http://people.binf.ku.dk/~lassemaretty/bayesTyper/bt_samples_example.tsv))
+   
+   2. Run BayesTyper: `bayesTyper -o integrated_calls -s samples.tsv -v bayesTyper_input.vcf -g hg38.fa -p <threads> > bayesTyper_log.txt`
+   
+4. Filter output
+
+   1. Get coverage estimates for filters: `grep "Estimated" bayesTyper_log.txt | cut -f10,18,21 -d ' ' | tr ' ' '\t' > kmer_coverage_estimates.txt`
+   
    2. Run filtering: `bayesTyperTools filter -o integrated_calls_filtered -v integrated_calls.vcf -g hg38.fa --kmer-coverage-filename kmer_coverage_estimates.txt`
 
 ## Variant databases ##
