@@ -36,19 +36,19 @@ The compiled `bayesTyper` and `bayesTyperTools` binaries are now located in the 
 1. Count k-mers
 
    1. Run [KMC3](https://github.com/refresh-bio/KMC) on each sample: `kmc -k55 sample_1.fq sample_1` 
-      * This will output k-mer counts to `sample_1.kmc_pre` and `sample_1.kmc_suf`
-      * For low coverage data (<20X), include singleton k-mers by adding `-ci1` to the `kmc3` commandline 
+      * This will output k-mer counts to `sample_1.kmc_pre` and `sample_1.kmc_suf`.
+      * For low coverage data (<20X), include singleton k-mers by adding `-ci1` to the `kmc3` commandline.
       
 2. Prepare variant input
 
    1. Convert allele IDs (e.g. \<DEL\>) to sequence: `bayesTyperTools convertAlleleId -o sample_1_sv_calls_seq -v sample_1_sv_calls.vcf -g hg38.fa`
-      * Currently \<DEL\>, \<DUP\>, \<CN[digit(s)]\>, \<CNV\>, \<INV\>, \<INS:ME:[sequence name]\> are supported. The latter require a fasta file with the mobile element insertion sequences
-      * This step can be skipped if the variant sets does not include any allele IDs (e.g. GATK output)
+      * Currently \<DEL\>, \<DUP\>, \<CN[digit(s)]\>, \<CNV\>, \<INV\>, \<INS:ME:[sequence name]\> are supported. The latter require a fasta file with the mobile element insertion sequences.
+      * This step can be skipped if the variant sets does not include any allele IDs (e.g. GATK output).
   
    2. Normalise variants using [Bcftools](https://samtools.github.io/bcftools/): `bcftools norm -o sample_1_gatk_norm.vcf -f hg38.fa sample_1_gatk.vcf`
     
    3. Combine variant sets: `bayesTyperTools combine -o bayesTyper_input -v gatk:sample_1_gatk_norm.vcf,gatk:sample_2_gatk_norm.vcf,gatk:sample_3_gatk_norm.vcf,varDB:SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh38.vcf`
-      * The contig fields in the headers need to be identical between variant sets and the variants sorted in the same order as the fields
+      * The contig fields in the headers need to be identical between variant sets and the variants sorted in the same order as the fields.
       
 3. Genotype variants
 
@@ -92,7 +92,7 @@ The compiled `bayesTyper` and `bayesTyperTools` binaries are now located in the 
 |50M|10X|10|Yes|32|480|58|
 
 ## Third-party ## 
-Third-party software used by BayesTyper 
+Third-party software used by BayesTyper.
 * [Edlib](https://github.com/Martinsos/edlib)
 * [Eigen](http://eigen.tuxfamily.org/index.php?title=Main_Page)
 * [KMC](https://github.com/refresh-bio/KMC)
