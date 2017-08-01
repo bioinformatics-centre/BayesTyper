@@ -18,7 +18,7 @@ This approach can for instance be used to quickly augment a set of standard SNV 
 The BayesTyper package contains `bayesTyper`, which does the genotyping, and `bayesTyperTools`, which is used to pre- and post-process VCF files for BayesTyper.
 
 #### Prerequisites ####
-* gcc (c++11 support required. Tested with gcc 4.8 and 4.9 work)
+* gcc (c++11 support required. Tested with gcc 4.8 and 4.9)
 * CMake (version 2.8.0 or higher)
 * Boost (tested with version 1.55.0 and 1.56.0)
 
@@ -35,7 +35,7 @@ The compiled `bayesTyper` and `bayesTyperTools` binaries are now located in the 
 ## Basic usage ##
 1. Count k-mers
 
-   1. Run [kmc3](http://sun.aei.polsl.pl/REFRESH/index.php?page=projects&project=kmc&subpage=download) on each sample: `kmc -k55 sample_1.fq sample_1` 
+   1. Run [KMC3](https://github.com/refresh-bio/KMC) on each sample: `kmc -k55 sample_1.fq sample_1` 
       * This will output k-mer counts to `sample_1.kmc_pre` and `sample_1.kmc_suf`
       * For low coverage data (<20X), include singleton k-mers by adding `-ci1` to the `kmc3` commandline 
       
@@ -90,3 +90,9 @@ The compiled `bayesTyper` and `bayesTyperTools` binaries are now located in the 
 |--------|--------|-------|-------------------|-------|-----------|----------------------|
 |50M|30X|10|No|24|340|67|
 |50M|10X|10|Yes|32|480|58|
+
+## Third-party ## 
+Third-party software used by BayesTyper 
+* [Edlib](https://github.com/Martinsos/edlib)
+* [Eigen](http://eigen.tuxfamily.org/index.php?title=Main_Page)
+* [KMC](https://github.com/refresh-bio/KMC)
