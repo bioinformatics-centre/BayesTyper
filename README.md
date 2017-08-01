@@ -1,5 +1,5 @@
 # BayesTyper #
-BayesTyper performs genotyping of all types of variation (including structural and complex variation) based on an input set of variants and read k-mer counts. Internally, BayesTyper uses exact alignment of k-mers to a graph representation of the input variation and reference sequence in combination with a probabilistic model of k-mer counts to do genotyping. The variant representation ensures that the resulting calls are not biased towards the reference sequence. 
+BayesTyper performs genotyping of all types of variation (including structural and complex variation) based on an input set of variants and read k-mer counts. Internally, BayesTyper uses exact alignment of k-mers to a graph representation of the input variation and reference sequence in combination with a probabilistic model of k-mer counts to do genotyping. The variant representation ensures that the resulting calls are not biased towards the reference sequence as is otherwise generally the case when basing calls only on mapped reads. 
 
 The BayesTyper was used to integrate mapping- and assembly-based calls in the [GenomeDenmark project](http://www.nature.com/nature/journal/vaop/ncurrent/full/nature23264.html). A manuscript describing the method is currently in revision.
 
@@ -41,9 +41,9 @@ The compiled `bayesTyper` and `bayesTyperTools` binaries are now located in the 
       
 2. Prepare variant input
 
-   1. Convert allele IDs (e.g. \<DEL\>) to sequence: `bayesTyperTools convertAlleleId -o sample_1_sv_calls_seq -v sample_1_sv_calls.vcf -g hg38.fa`
+   1. If required, convert allele IDs (e.g. \<DEL\>) to sequence: `bayesTyperTools convertAlleleId -o sample_1_sv_calls_seq -v sample_1_sv_calls.vcf -g hg38.fa`
       * Currently \<DEL\>, \<DUP\>, \<CN[digit(s)]\>, \<CNV\>, \<INV\>, \<INS:ME:[sequence name]\> are supported. The latter require a fasta file with the mobile element insertion sequences.
-      * This step can be skipped if the variant sets does not include any allele IDs (e.g. GATK output).
+      * This step can be skipped if the variant sets does not include any allele IDs (e.g. GATK, Platypus and Freebayes output).
   
    2. Normalise variants using [Bcftools](https://samtools.github.io/bcftools/): `bcftools norm -o sample_1_gatk_norm.vcf -f hg38.fa sample_1_gatk.vcf`
     
@@ -92,7 +92,7 @@ The compiled `bayesTyper` and `bayesTyperTools` binaries are now located in the 
 |50M|10X|10|Yes|32|480|58|
 
 ## Third-party ## 
-Third-party software used by BayesTyper.
+Third-party software used by BayesTyper (distributed together with the BayesTyper source code)
 * [Edlib](https://github.com/Martinsos/edlib)
 * [Eigen](http://eigen.tuxfamily.org/index.php?title=Main_Page)
 * [KMC](https://github.com/refresh-bio/KMC)
