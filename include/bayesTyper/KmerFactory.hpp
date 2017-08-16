@@ -1,6 +1,6 @@
 
 /*
-KmerFactory.hpp - This file is part of BayesTyper (v0.9)
+KmerFactory.hpp - This file is part of BayesTyper (v1.1)
 
 
 The MIT License (MIT)
@@ -55,11 +55,12 @@ class KmerFactory {
 		const uint prng_seed;
 		const string vcf_file;
 		const string genome_file;
+		const string output_prefix;
 		const string decoy_file;
 		const ushort num_threads;
 		const uint max_allele_length;
 		const double copy_number_variant_threshold;
-		const ushort num_haplotype_candidates_per_sample;
+		const ushort max_sample_haplotype_candidates;
 		const uchar num_genomic_rate_gc_bias_bins;
 
 		ulong number_of_variants;

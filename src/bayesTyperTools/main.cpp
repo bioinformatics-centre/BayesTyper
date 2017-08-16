@@ -1,6 +1,6 @@
 
 /*
-main.cpp - This file is part of BayesTyper (v0.9)
+main.cpp - This file is part of BayesTyper (v1.1)
 
 
 The MIT License (MIT)
@@ -50,7 +50,6 @@ THE SOFTWARE.
 namespace po = boost::program_options;
 
 // static const string parents_trio_regex_default = "^[0-9]+((-01)|(-02)){1}$";
-static const string parents_trio_regex_default = "^$";
 
 using namespace std;
 
@@ -357,10 +356,10 @@ int main (int argc, char * const argv[]) {
 
 				("genome-filename", po::value<std::string>(&genome_filename), "genome file used for homopolymer length (HPL) calculation. If not specified HPL will not be calculated.")
 				("repeatmasker-filename", po::value<string>(&repeat_filename), "repeatmasker file used for repeat annotation (RMA). If not specified RMA will not be annotated.")
-				("parents-trio-reg-expression", po::value<string>(&parents_trio_regex)->default_value(parents_trio_regex_default), "regular expression for matching parents in trio samples used for absolute inbreeding coefficient (IBC) calculation. If not specified IBC will not be calculated.")
+				("parents-trio-reg-expression", po::value<string>(&parents_trio_regex), "regular expression for matching parents in trio samples used for absolute inbreeding coefficient (IBC) calculation. If not specified IBC will not be calculated.")
 				("trio-info", po::value<std::string>(&trio_info_str), "trio sample id information used for concordance (CONC) calculation (<father>,<mother>,<child>:<father>,<mother>,<child>:...). If not specified CONC will not be calculated.")
-				("fak-cdf-filename", po::value<std::string>(&fak_cdf_filename), "cumulative distribution function file for fraction of observed kmers quantile (FAKQ) calculation. If not specified FAKQ will not be calculated.")
-				("mac-cdf-filename", po::value<std::string>(&mac_cdf_filename), "cumulative distribution function file for kmer coverage quantile (MACQ) calculation. If not specified MACQ will not be calculated.")
+				// ("fak-cdf-filename", po::value<std::string>(&fak_cdf_filename), "cumulative distribution function file for fraction of observed kmers quantile (FAKQ) calculation. If not specified FAKQ will not be calculated.")
+				// ("mac-cdf-filename", po::value<std::string>(&mac_cdf_filename), "cumulative distribution function file for kmer coverage quantile (MACQ) calculation. If not specified MACQ will not be calculated.")
 			;
 
 			po::options_description desc("## BayesTyperTools addAttributes ##");
@@ -404,14 +403,13 @@ int main (int argc, char * const argv[]) {
 			po::options_description optional_options("== Optional options ==", 160);
 			optional_options.add_options()
 
-				("parents-trio-reg-expression", po::value<string>(&parents_trio_regex)->default_value(parents_trio_regex_default), "regular expression for matching parents in trio samples.")
-				("max-inbreeding-coef", po::value<float>(&filter_values.max_inbreeding_coef)->default_value(1, "1"), "filter variants with an absolute inbreeding coefficient above <value> (calculated before filtering). Minimum 10 independent samples required for this filter.")
-				("max-homopolymer-length", po::value<float>(&filter_values.max_homopolymer_length)->default_value(9, "9"), "filter insertions and deletions located in a homopolymer longer than <value>.")
-				("min-number-of-kmers", po::value<float>(&filter_values.min_nak_value)->default_value(10, "10"), "filter sampled alleles with less than <value> kmers.")
-				("kmer-coverage-filename", po::value<string>(&kmer_coverage_filename), "sample kmer coverage file used for filtering sampled alleles with a low fraction of observed kmers.")
-				("min-allelic-balance", po::value<float>(&filter_values.min_allelic_balance)->default_value(0.3, "0.3"), "filter genotypes with an allelic balance below <value>.")
+				("parents-trio-reg-expression", po::value<string>(&parents_trio_regex), "regular expression for matching parents in trio samples.")
+				("max-inbreeding-coef", po::value<float>(&filter_values.max_inbreeding_coef)->default_value(0.8, "0.8"), "filter variants with an absolute inbreeding coefficient above <value> (calculated before filtering). Minimum 10 independent samples required for this filter.")
+				("min-number-of-homozygote", po::value<uint>(&filter_values.min_homozygote)->default_value(1), "filter variants with less than <value> homozygote genotypes (calculated before filtering). Minimum 10 samples required for this filter.")
+				("max-homopolymer-length", po::value<int>(&filter_values.max_homopolymer_length)->default_value(-1, "-1"), "filter insertions and deletions located in a homopolymer longer than <value>. Value of -1 disables the filter.")
+				("min-number-of-kmers", po::value<float>(&filter_values.min_nak_value)->default_value(1, "1"), "filter sampled alleles with less than <value> kmers.")
+				("kmer-coverage-filename", po::value<string>(&kmer_coverage_filename)->default_value("bayestyper_kmer_coverage_estimates.txt"), "sample kmer coverage file used for filtering sampled alleles with a low fraction of observed kmers.")
 				("min-genotype-posterior", po::value<float>(&filter_values.min_gpp_value)->default_value(0.99, "0.99"), "filter genotypes with a posterior probability below <value>.")
-				("min-number-of-homozygote", po::value<uint>(&filter_values.min_homozygote)->default_value(1), "filter variants with less than <value> homozygote unfiltered genotypes (zeroploid and haploid genotypes are counted as homozygote). Minimum 10 samples required for this filter.")
 			;
 
 			po::options_description desc("## BayesTyperTools filter ##");
@@ -445,18 +443,11 @@ int main (int argc, char * const argv[]) {
 			required_options.add_options()
 
 				("vcf-filename,v", po::value<std::string>(&vcf_filename)->required(), "variant file.")
-				// ("output-prefix,o", po::value<std::string>(&output_prefix)->required(), "output prefix (suffix: \"_variant.txt\", \"_allele.txt\", \"_trio.txt\" & \"_sample.txt\").")
-				("output-prefix,o", po::value<std::string>(&output_prefix)->required(), "output prefix (suffix: \"_variant.txt\" & \"_allele.txt\"")
-			;
-
-			po::options_description optional_options("== Optional options ==", 160);
-			optional_options.add_options()
-
-				("trio-info", po::value<std::string>(&trio_info_str), "trio sample id information used for trio summary output (<father>,<mother>,<child>:<father>,<mother>,<child>:...).")
+				("output-prefix,o", po::value<std::string>(&output_prefix)->required(), "output prefix (suffix: \"_variant.txt\", \"_allele.txt\".")
 			;
 
 			po::options_description desc("## BayesTyperTools getSummary ##");
-			desc.add(general).add(required_options).add(optional_options);
+			desc.add(general).add(required_options);
 
 			po::variables_map vm;
 			po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -467,7 +458,7 @@ int main (int argc, char * const argv[]) {
 			}
 
 			po::notify(vm);
-			GetSummary::getSummary(vcf_filename, output_prefix, trio_info_str);
+			GetSummary::getSummary(vcf_filename, output_prefix);
 
 		} else {
 

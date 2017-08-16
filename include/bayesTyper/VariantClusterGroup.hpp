@@ -1,6 +1,6 @@
 
 /*
-VariantClusterGroup.hpp - This file is part of BayesTyper (v0.9)
+VariantClusterGroup.hpp - This file is part of BayesTyper (v1.1)
 
 
 The MIT License (MIT)
@@ -68,9 +68,7 @@ class VariantClusterGroup {
 		uint start_position;
 		uint end_position;
 
-		double complexity; 
 		uint number_of_variants;
-
 		bool is_single_nucleotide_polymorphism;
 
 		vector<VariantClusterVertex> vertices;
@@ -96,7 +94,6 @@ class VariantClusterGroup {
 		
 		bool hasAmbiguousNucleotide() const;
 		bool hasRedundantSequence() const;	
-		bool hasComplexRegion() const;
 		bool hasComplexKmer() const;
 		bool hasInterclusterKmer() const;
 
@@ -106,10 +103,9 @@ class VariantClusterGroup {
 		uint uniqueSeed(const uint, const VariantClusterVertex &);
 		bool isInChromosomeRegions(const Regions &);
 
-		ulong countSmallmers(Utils::SmallmerSet *);
 		void countKmers(KmerHash *, const uint, const uint, const ushort, const ushort);
 
-		void initialise(KmerHash *, const vector<Sample> &, const uint, const ushort, const uchar, const uint);
+		void initialise(KmerHash *, const vector<Sample> &, const uint, const ushort, const uchar, const float, const uint);
 		void shuffleBranchOrder(mt19937 *);
 
 		void estimateGenotypes(const CountDistribution &, const ChromosomePloidy &, const bool);

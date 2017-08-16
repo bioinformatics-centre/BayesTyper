@@ -1,6 +1,6 @@
 
 /*
-combine.cpp - This file is part of BayesTyper (v0.9)
+combine.cpp - This file is part of BayesTyper (v1.1)
 
 
 The MIT License (MIT)
@@ -343,8 +343,6 @@ namespace Combine {
 
 		for (auto & input_call_set: input_call_sets) {
 
-			input_call_set.vcf_reader->getNextVariant(&(input_call_set.variant));
-
 			assert(!(input_call_set.name.empty()));
 			assert(input_call_set.name != ".");
  			assert(input_call_set.name.find(",") == string::npos);
@@ -355,6 +353,8 @@ namespace Combine {
 			input_call_set.vcf_reader->metaData().formatDescriptors().clear();
 
 			assert(input_call_set.vcf_reader->metaData().contigs() == input_call_sets.front().vcf_reader->metaData().contigs());
+
+			input_call_set.vcf_reader->getNextVariant(&(input_call_set.variant));
 		}
 
 		auto output_meta_data = input_call_sets.front().vcf_reader->metaData();
@@ -430,7 +430,7 @@ namespace Combine {
 			cout << "[" << Utils::getLocalTime() << "] Finished chromosome " << contig.id() << endl;
 		}
 
-		cout << "\n[" << Utils::getLocalTime() << "] Number of included alternative alleles (id";
+		cout << "\n[" << Utils::getLocalTime() << "] Number of included alternative alleles (excluding id";
 
 		if (exclude_ambiguous_alleles) {
 

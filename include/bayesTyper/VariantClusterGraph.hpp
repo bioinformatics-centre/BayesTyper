@@ -1,6 +1,6 @@
 
 /*
-VariantClusterGraph.hpp - This file is part of BayesTyper (v0.9)
+VariantClusterGraph.hpp - This file is part of BayesTyper (v1.1)
 
 
 The MIT License (MIT)
@@ -43,7 +43,6 @@ THE SOFTWARE.
 #include <deque>
 
 #include "boost/graph/adjacency_list.hpp"
-#include "boost/graph/compressed_sparse_row_graph.hpp"
 
 #include "Utils.hpp"
 #include "VariantCluster.hpp"
@@ -70,34 +69,33 @@ class VariantClusterGraph {
 		const vector<VariantInfo> & getInfo();
 
 		bool hasAmbiguousNucleotide();
-		bool hasComplexRegion();
 		bool hasRedundantSequence();
 		bool hasInterclusterKmer();
 		bool hasExcludedKmer();
 
-		virtual double countKmers(KmerHash *, const uint, const uint, const ushort, const ushort) = 0;
-		virtual void getBestHaplotypeCandidates(KmerHash *, VariantClusterHaplotypes *, const uint, const ushort, const ushort, const uchar) = 0;
+		virtual void countKmers(KmerHash *, const uint, const uint, const ushort, const ushort) = 0;
+		virtual void getBestHaplotypeCandidates(KmerHash *, VariantClusterHaplotypes *, const ushort, const ushort, const uchar) = 0;
 
 	protected:
 
 		typedef pair<string::const_iterator, string::const_iterator> StringItPair;
 
 		typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::bidirectionalS, VariantClusterGraphVertex> Graph;
-		
 		typedef boost::graph_traits<Graph>::vertex_descriptor vertex_t;
-		typedef boost::graph_traits<Graph>::in_edge_iterator in_edge_it;
 
 		Graph graph;
 
 		vector<VariantInfo> variant_cluster_info;
 
-		uchar has_ambiguous_nucleotide : 1, has_complex_region : 1, has_redundant_sequence : 1, has_intercluster_kmer : 1, has_excluded_kmer : 1;
+		uchar has_ambiguous_nucleotide : 1, has_redundant_sequence : 1, has_intercluster_kmer : 1, has_excluded_kmer : 1;
+
+		vector<bool> best_paths;
 
 		void addVertices(vertex_t *, const vector<StringItPair> &, const pair<ushort, ushort> &, const unordered_set<ushort> &, const vector<uint> &);
 		void initVertex(vertex_t *, StringItPair, const pair<ushort, ushort> &, const vector<ushort> &, const uint);
 
-		ulong calculateVertexSmallmerComplexity(const vertex_t, uint, uchar, const ushort);
-		ulong countVertexSmallmers(Utils::SmallmerSet *, KmerPair<Utils::small_kmer_size>, uint, const vertex_t, uchar);
+		ulong countVertexSmallmers(const vertex_t, Utils::SmallmerSet *, KmerPair<Utils::small_kmer_size>, set<vertex_t> *, uint, ushort);
+
 };
 
 
@@ -108,8 +106,8 @@ class VariantClusterKmerGraph : public VariantClusterGraph {
 
 		VariantClusterKmerGraph(VariantCluster *, const string &);
 
-		double countKmers(KmerHash *, const uint, const uint, const ushort, const ushort);
-		void getBestHaplotypeCandidates(KmerHash *, VariantClusterHaplotypes *, const uint, const ushort, const ushort, const uchar);
+		void countKmers(KmerHash *, const uint, const uint, const ushort, const ushort);
+		void getBestHaplotypeCandidates(KmerHash *, VariantClusterHaplotypes *, const ushort, const ushort, const uchar);
 
 	private:
 
@@ -154,17 +152,19 @@ class VariantClusterKmerGraph : public VariantClusterGraph {
 			}
 		};
 
-		vector<VariantClusterGraphPath<kmer_size> *> findBestPaths(KmerHash *, mt19937 *, const ushort, const ushort);
+		void findBestPaths(KmerHash *, mt19937 *, const ushort, const ushort);
 		
 		void mergePaths(vector<VariantClusterGraphPath<kmer_size> *> *, vector<VariantClusterGraphPath<kmer_size> *> *, const bool);
-		bool swapRedundantPath(VariantClusterGraphPath<kmer_size> &, VariantClusterGraphPath<kmer_size> &);
-		void filterBestPaths(vector<VariantClusterGraphPath<kmer_size> *> *, const uint);
+		bool swapRedundantPath(const VariantClusterGraphPath<kmer_size> &, const VariantClusterGraphPath<kmer_size> &);
+		void filterBestPaths(vector<VariantClusterGraphPath<kmer_size> *> *, const uint, const bool);
 		
-		vector<VariantClusterGraphPath<kmer_size> *> collapsePaths(vector<vector<VariantClusterGraphPath<kmer_size> *> > *);
+		vector<VariantClusterGraphPath<kmer_size> *> collapsePaths(vector<vector<VariantClusterGraphPath<kmer_size> *> > *, mt19937 *, const ushort);
 		
-		KmerMultiplicitiesIndex indexKmerMultiplicities(KmerHash *, const vector<VariantClusterGraphPath<kmer_size> *> &);
-		VariantKmerMultiplicitiesIndex indexVariantKmerMultiplicities(KmerHash *, const vector<VariantClusterGraphPath<kmer_size> *> &);
+		KmerMultiplicitiesIndex indexKmerMultiplicities(KmerHash *);
+		VariantKmerMultiplicitiesIndex indexVariantKmerMultiplicities(KmerHash *);
 };
+
+bool VariantClusterGraphCompare(VariantClusterGraph *, VariantClusterGraph *);
 
 
 #endif

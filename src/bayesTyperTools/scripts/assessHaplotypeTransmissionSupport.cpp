@@ -1,6 +1,7 @@
 
 /*
-assessHaplotypeTransmissionSupport.cpp - This file is part of BayesTyper (v0.9)
+assessHaplotypeTransmissionSupport.cpp - This file is part of BayesTyper (v1.1)
+
 
 The MIT License (MIT)
 
@@ -24,6 +25,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
+
 
 #include <string>
 #include <iostream>
@@ -209,7 +211,7 @@ int main(int argc, char const *argv[]) {
 
 					for (auto & sample_id : cur_callset_var->sampleIds()) {
 
-						if (cur_callset_var->getSample(sample_id).isInformative()) {
+						if (cur_callset_var->getSample(sample_id).callStatus() == Sample::CallStatus::Complete) {
 
 							auto sample_hap_conf = hap_block_iter->hap_conf.at(sampleId_to_hap_idx.at(sample_id));
 							assert(sample_hap_conf.size() <= 2);

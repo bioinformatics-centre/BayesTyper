@@ -1,6 +1,7 @@
 
 /*
-addAttributes.cpp - This file is part of BayesTyper (v0.9)
+addAttributes.cpp - This file is part of BayesTyper (v1.1)
+
 
 The MIT License (MIT)
 
@@ -24,6 +25,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
+
 
 #include <string>
 #include <iostream>
@@ -271,7 +273,7 @@ namespace AddAttributes {
 
 			fak_sample_cdfs = parseCDFFile(fak_cdf_filename, sample_ids, "FAK", 1000);
 
-			output_meta_data.formatDescriptors().emplace("FAKQ", Attribute::DetailedDescriptor("FAKQ", Attribute::Number::R, Attribute::Type::Float, "Median fraction of observed allele kmers quantile."));
+			output_meta_data.formatDescriptors().emplace("FAKQ", Attribute::DetailedDescriptor("FAKQ", Attribute::Number::R, Attribute::Type::Float, "Mean fraction of observed allele kmers quantile."));
 		}
 
 		if (!(mac_cdf_filename.empty())) {
@@ -280,7 +282,7 @@ namespace AddAttributes {
 
 			mac_sample_cdfs = parseCDFFile(mac_cdf_filename, sample_ids, "MAC", 10);
 
-			output_meta_data.formatDescriptors().emplace("MACQ", Attribute::DetailedDescriptor("MACQ", Attribute::Number::R, Attribute::Type::Float, "Median mean allele kmer coverage quantile."));
+			output_meta_data.formatDescriptors().emplace("MACQ", Attribute::DetailedDescriptor("MACQ", Attribute::Number::R, Attribute::Type::Float, "Mean mean allele kmer coverage quantile."));
 		}
 
 

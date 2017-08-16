@@ -1,6 +1,6 @@
 
 /*
-convertAlleleId.cpp - This file is part of BayesTyper (v0.9)
+convertAlleleId.cpp - This file is part of BayesTyper (v1.1)
 
 
 The MIT License (MIT)
@@ -98,10 +98,8 @@ namespace ConvertAlleleId {
         regex tra1_regex("^[\\[|\\]]\\S+:\\d+[\\[|\\]]\\S+$");
         regex tra2_regex("^\\S+[\\[|\\]]\\S+:\\d+[\\[|\\]]$");
 
-        GenotypedVcfFileReader vcf_reader(vcf_filename, false);
-
+        VcfFileReader vcf_reader(vcf_filename, false);
         auto output_meta_data = vcf_reader.metaData();
-        output_meta_data.formatDescriptors().clear();
 
         VcfFileWriter vcf_writer(output_prefix + ".vcf", output_meta_data, false);
         
@@ -149,24 +147,7 @@ namespace ConvertAlleleId {
 
             const string anchor_nt = cur_var->ref().seq().substr(0, 1);
             string end_variant_seq = "";
-
-            auto svlen_value = cur_var->info().getValue<int>("SVLEN");
-
-            if (svlen_value.second) {
-
-                auto end_value = cur_var->info().getValue<int>("END");
-
-                if (end_value.second) {
-
-                    assert(end_value.first > 0);
-                    assert(static_cast<uint>(end_value.first) == (cur_var->pos() + abs(svlen_value.first)));
-
-                } else {
-
-                    assert(cur_var->info().setValue<int>("END", cur_var->pos() + abs(svlen_value.first)));
-                }
-            }
-
+            
             auto end_value = cur_var->info().getValue<int>("END");
 
             if (end_value.second) {
@@ -307,7 +288,7 @@ namespace ConvertAlleleId {
                             }
                         }
 
-                    } else if ((cur_var->alt(alt_allele_idx).seq() == "<DUP>") or (cur_var->alt(alt_allele_idx).seq() == "<DUP:")) {
+                    } else if ((cur_var->alt(alt_allele_idx).seq() == "<DUP>") or (cur_var->alt(alt_allele_idx).seq() == "<DUP:TANDEM>")) {
 
                         if (end_variant_seq.empty()) {
 

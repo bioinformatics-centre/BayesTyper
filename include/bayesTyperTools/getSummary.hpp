@@ -1,6 +1,6 @@
 
 /*
-getSummary.hpp - This file is part of BayesTyper (v0.9)
+getSummary.hpp - This file is part of BayesTyper (v1.1)
 
 
 The MIT License (MIT)
@@ -37,7 +37,7 @@ THE SOFTWARE.
 
 namespace GetSummary {
 
-	void getSummary(const string &, const string &, const string &);
+	void getSummary(const string &, const string &);
 }
 
 #endif

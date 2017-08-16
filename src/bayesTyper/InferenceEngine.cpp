@@ -1,6 +1,6 @@
 
 /*
-InferenceEngine.cpp - This file is part of BayesTyper (v0.9)
+InferenceEngine.cpp - This file is part of BayesTyper (v1.1)
 
 
 The MIT License (MIT)
@@ -53,7 +53,7 @@ static const double genotyping_stdout_frequency = 100000;
 static const uint variant_cluster_groups_batch_size = 10000;
 
 
-InferenceEngine::InferenceEngine(const vector<Sample> & samples, const OptionsContainer & options_container) : num_samples(samples.size()), chromosome_ploidy(samples), chromosome_regions(options_container.getValue<Regions>("chromosome-regions")), prng_seed(options_container.getValue<uint>("random-seed")), num_threads(options_container.getValue<ushort>("threads")), num_haplotype_candidates_per_sample(options_container.getValue<ushort>("number-of-haplotype-candidates-per-sample")), num_genomic_rate_gc_bias_bins(options_container.getValue<uchar>("number-of-genomic-rate-gc-bias-bins")), gibbs_burn(options_container.getValue<ushort>("gibbs-burn-in")), gibbs_samples(options_container.getValue<ushort>("gibbs-samples")), num_gibbs_chains(options_container.getValue<ushort>("number-of-gibbs-chains")), max_haplotype_variant_kmers(options_container.getValue<uint>("max-haplotype-variant-kmers")), num_parameter_estimation_samples(options_container.getValue<ushort>("number-of-parameter-estimation-samples")), num_parameter_estimation_snvs(options_container.getValue<uint>("number-of-parameter-estimation-SNVs")) {}
+InferenceEngine::InferenceEngine(const vector<Sample> & samples, const OptionsContainer & options_container) : num_samples(samples.size()), chromosome_ploidy(samples), chromosome_regions(options_container.getValue<Regions>("chromosome-regions")), prng_seed(options_container.getValue<uint>("random-seed")), num_threads(options_container.getValue<ushort>("threads")), max_sample_haplotype_candidates(options_container.getValue<ushort>("max-number-of-sample-haplotype-candidates")), num_genomic_rate_gc_bias_bins(options_container.getValue<uchar>("number-of-genomic-rate-gc-bias-bins")), gibbs_burn(options_container.getValue<ushort>("gibbs-burn-in")), gibbs_samples(options_container.getValue<ushort>("gibbs-samples")), num_gibbs_chains(options_container.getValue<ushort>("number-of-gibbs-chains")), kmer_subsampling_rate(options_container.getValue<float>("kmer-subsampling-rate")), max_haplotype_variant_kmers(options_container.getValue<uint>("max-haplotype-variant-kmers")), num_parameter_estimation_samples(options_container.getValue<ushort>("number-of-parameter-estimation-samples")), num_parameter_estimation_snvs(options_container.getValue<uint>("number-of-parameter-estimation-SNVs")) {}
 
 
 
@@ -96,14 +96,13 @@ void InferenceEngine::selectVariantsClusterGroupsForParameterEstimationCallback(
 
 		if (variant_cluster_group->isAutosomal() and variant_cluster_group->isSingleNucleotidePolymorphism() and !(variant_cluster_group->hasAmbiguousNucleotide()) and !(variant_cluster_group->hasInterclusterKmer())) {
 			
-			assert(!(variant_cluster_group->hasComplexRegion()));
 			assert(!(variant_cluster_group->hasRedundantSequence()));
 			
 			assert(variant_cluster_group->numberOfVariants() == 1);
 			assert(variant_cluster_group->numberOfVariantClusters() == 1);
 			assert(variant_cluster_group->numberOfVariantClusterGroupTrees() == 1);
 
-			variant_cluster_group->initialise(kmer_hash, samples, prng_seed, num_haplotype_candidates_per_sample, num_genomic_rate_gc_bias_bins, max_haplotype_variant_kmers);
+			variant_cluster_group->initialise(kmer_hash, samples, prng_seed, max_sample_haplotype_candidates, num_genomic_rate_gc_bias_bins, kmer_subsampling_rate, max_haplotype_variant_kmers);
 
 			if (!(variant_cluster_group->hasMulticlusterKmer()) and !(variant_cluster_group->hasExcludedKmer())) {
 
@@ -161,6 +160,8 @@ vector<double> InferenceEngine::meanParameterEstimates(const vector<vector<doubl
 
 
 void InferenceEngine::estimateNoiseParameters(CountDistribution * count_distribution, vector<VariantClusterGroup*> * variant_cluster_groups, KmerHash * kmer_hash, const vector<Sample> & samples) {
+
+	cout << "\n[" << Utils::getLocalTime() << "] Estimating noise model parameters ..." << endl;
 
 	vector<vector<uint> > thread_variant_cluster_group_index_allocation;
 	allocateShuffledIndicesToThreads(&thread_variant_cluster_group_index_allocation, variant_cluster_groups->size());
@@ -263,7 +264,7 @@ void InferenceEngine::estimateNoiseParameters(CountDistribution * count_distribu
 	
 	count_distribution->setNoiseRates(meanParameterEstimates(count_distribution->noiseRateEstimates()));
 
-	cout << "\n[" << Utils::getLocalTime() << "] Fixed noise model parameters to the mean of the " << num_parameter_estimation_samples << " parameter estimates"<< endl;
+	cout << "\n[" << Utils::getLocalTime() << "] Fixed noise model parameters to the mean of the " << num_parameter_estimation_samples << " parameter estimates\n"<< endl;
 }
 
 
@@ -287,7 +288,7 @@ void InferenceEngine::genotypeVariantClusterGroupsCallback(ProducerConsumerQueue
 				
 				for (ushort chain_idx = 0; chain_idx < num_gibbs_chains; chain_idx++) {
 
-					(*variant_cluster_group_it)->initialise(kmer_hash, samples, prng_seed, num_haplotype_candidates_per_sample, num_genomic_rate_gc_bias_bins, max_haplotype_variant_kmers);
+					(*variant_cluster_group_it)->initialise(kmer_hash, samples, prng_seed, max_sample_haplotype_candidates, num_genomic_rate_gc_bias_bins, kmer_subsampling_rate, max_haplotype_variant_kmers);
 					(*variant_cluster_group_it)->shuffleBranchOrder(&prng);
 
 					for (ushort i = 0; i < gibbs_burn; i++) {

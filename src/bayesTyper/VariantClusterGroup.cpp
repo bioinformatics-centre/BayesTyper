@@ -1,6 +1,6 @@
 
 /*
-VariantClusterGroup.cpp - This file is part of BayesTyper (v0.9)
+VariantClusterGroup.cpp - This file is part of BayesTyper (v1.1)
 
 
 The MIT License (MIT)
@@ -101,8 +101,6 @@ VariantClusterGroup::VariantClusterGroup(const vector<VariantCluster *> & varian
 		out_edges.at(vertex_idx_source).push_back(vertex_idx_target);
 	}
 
-	complexity = number_of_variants;
-
 	assert(source_vertices.size() <= vertices.size());
 }
 
@@ -114,12 +112,6 @@ VariantClusterGroup::~VariantClusterGroup() {
 		delete vertex.graph;
 		delete vertex.genotyper;
 	}
-}
-
-
-double VariantClusterGroup::getComplexity() const {
-
-	return complexity;
 }
 
 
@@ -178,23 +170,6 @@ bool VariantClusterGroup::hasRedundantSequence() const {
 		assert(!(vertex.genotyper));
 
 		if (vertex.graph->hasRedundantSequence()) {
-
-			return true;
-		}	
-	}
-
-	return false;
-}
-
-
-bool VariantClusterGroup::hasComplexRegion() const {
-
-	for (auto & vertex: vertices) {
-
-		assert(vertex.graph);
-		assert(!(vertex.genotyper));
-
-		if (vertex.graph->hasComplexRegion()) {
 
 			return true;
 		}	
@@ -267,31 +242,16 @@ bool VariantClusterGroup::isInChromosomeRegions(const Regions & chromosome_regio
 }
 
 
-ulong VariantClusterGroup::countSmallmers(Utils::SmallmerSet * smallmer_set) {
-
-	ulong num_unique_smallmers = 0;
+void VariantClusterGroup::countKmers(KmerHash * kmer_hash, const uint variant_cluster_group_idx, const uint prng_seed, const ushort num_samples, const ushort max_sample_haplotype_candidates) {
 
 	for (auto & vertex: vertices) {
 
-		num_unique_smallmers += vertex.graph->countSmallmers(smallmer_set);
-	}
-
-	return num_unique_smallmers;
-}
-
-
-void VariantClusterGroup::countKmers(KmerHash * kmer_hash, const uint variant_cluster_group_idx, const uint prng_seed, const ushort num_samples, const ushort num_haplotype_candidates_per_sample) {
-
-	complexity = 0;
-
-	for (auto & vertex: vertices) {
-
-		complexity += vertex.graph->countKmers(kmer_hash, variant_cluster_group_idx, uniqueSeed(prng_seed, vertex), num_samples, num_haplotype_candidates_per_sample);
+		vertex.graph->countKmers(kmer_hash, variant_cluster_group_idx, uniqueSeed(prng_seed, vertex), num_samples, max_sample_haplotype_candidates);
 	}
 }
 
 
-void VariantClusterGroup::initialise(KmerHash * kmer_hash, const vector<Sample> & samples, const uint prng_seed, const ushort num_haplotype_candidates_per_sample, const uchar num_genomic_rate_gc_bias_bins, const uint max_haplotype_variant_kmers) {
+void VariantClusterGroup::initialise(KmerHash * kmer_hash, const vector<Sample> & samples, const uint prng_seed, const ushort max_sample_haplotype_candidates, const uchar num_genomic_rate_gc_bias_bins, const float kmer_subsampling_rate, const uint max_haplotype_variant_kmers) {
 
 	for (auto & vertex: vertices) {
 
@@ -304,8 +264,8 @@ void VariantClusterGroup::initialise(KmerHash * kmer_hash, const vector<Sample> 
 
 			assert(vertex.graph);
 
-			vertex.genotyper = new VariantClusterGenotyper(samples);
-			vertex.genotyper->initialise(kmer_hash, vertex.graph, uniqueSeed(prng_seed, vertex), num_haplotype_candidates_per_sample, num_genomic_rate_gc_bias_bins);
+			vertex.genotyper = new VariantClusterGenotyper(samples, kmer_subsampling_rate);
+			vertex.genotyper->initialise(kmer_hash, vertex.graph, uniqueSeed(prng_seed, vertex), max_sample_haplotype_candidates, num_genomic_rate_gc_bias_bins);
 			vertex.genotyper->restart(max_haplotype_variant_kmers);
 			
 			delete vertex.graph;
@@ -394,7 +354,7 @@ bool VariantClusterGroupCompare(VariantClusterGroup * first_variant_cluster_grou
     assert(first_variant_cluster_group);
     assert(second_variant_cluster_group);
 
-    return (first_variant_cluster_group->getComplexity() > second_variant_cluster_group->getComplexity());
+    return (first_variant_cluster_group->numberOfVariants() > second_variant_cluster_group->numberOfVariants());
 }
 
 

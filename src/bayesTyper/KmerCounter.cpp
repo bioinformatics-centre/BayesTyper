@@ -1,6 +1,6 @@
 
 /*
-KmerCounter.cpp - This file is part of BayesTyper (v0.9)
+KmerCounter.cpp - This file is part of BayesTyper (v1.1)
 
 
 The MIT License (MIT)
@@ -61,15 +61,15 @@ KmerCounter<kmer_size>::KmerCounter(KmerHash * const kmer_hash_in, Utils::Smallm
 }
 
 template <uchar kmer_size>
-void KmerCounter<kmer_size>::countVariantClusterSmallmersCallback(vector<VariantClusterGroup *> * variant_cluster_groups, const ushort thread_index, mutex * counting_mutex, ulong * num_unique_smallmers) {
+void KmerCounter<kmer_size>::countVariantClusterSmallmersCallback(vector<VariantClusterGraph *> * variant_cluster_graphs, const ushort thread_index, mutex * counting_mutex, ulong * num_unique_smallmers) {
 
     ulong local_num_unique_smallmers = 0;
-    uint variant_cluster_group_index = thread_index;
+    uint variant_cluster_graph_index = thread_index;
 
-	while (variant_cluster_group_index < variant_cluster_groups->size()) {
+	while (variant_cluster_graph_index < variant_cluster_graphs->size()) {
 
-		local_num_unique_smallmers += variant_cluster_groups->at(variant_cluster_group_index)->countSmallmers(smallmer_set);
-        variant_cluster_group_index += num_threads;
+		local_num_unique_smallmers += variant_cluster_graphs->at(variant_cluster_graph_index)->countSmallmers(smallmer_set);
+        variant_cluster_graph_index += num_threads;
 	} 
 
     unique_lock<mutex> counting_lock(*counting_mutex);
@@ -77,7 +77,7 @@ void KmerCounter<kmer_size>::countVariantClusterSmallmersCallback(vector<Variant
 }
 
 template <uchar kmer_size>
-ulong KmerCounter<kmer_size>::countVariantClusterSmallmers(vector<VariantClusterGroup *> * variant_cluster_groups) {
+ulong KmerCounter<kmer_size>::countVariantClusterSmallmers(vector<VariantClusterGraph *> * variant_cluster_graphs) {
 
     mutex counting_mutex;
     ulong num_unique_smallmers = 0;
@@ -87,7 +87,7 @@ ulong KmerCounter<kmer_size>::countVariantClusterSmallmers(vector<VariantCluster
 
 	for (uint i = 0; i < num_threads; i++) {
 
-   	    counting_threads.push_back(thread(&KmerCounter<kmer_size>::countVariantClusterSmallmersCallback, this, variant_cluster_groups, i, &counting_mutex, &num_unique_smallmers));
+   	    counting_threads.push_back(thread(&KmerCounter<kmer_size>::countVariantClusterSmallmersCallback, this, variant_cluster_graphs, i, &counting_mutex, &num_unique_smallmers));
     }
 
     for (auto & counting_thread: counting_threads) {
@@ -375,25 +375,25 @@ ulong KmerCounter<kmer_size>::countSampleKmers(const vector<Sample> & samples) {
 }
 
 template <uchar kmer_size>
-void KmerCounter<kmer_size>::countVariantClusterKmersCallback(vector<VariantClusterGroup *> * variant_cluster_groups, const uint prng_seed, const ushort num_samples, const ushort num_haplotype_candidates_per_sample, const ushort thread_index) {
+void KmerCounter<kmer_size>::countVariantClusterKmersCallback(vector<VariantClusterGroup *> * variant_cluster_groups, const uint prng_seed, const ushort num_samples, const ushort max_sample_haplotype_candidates, const ushort thread_index) {
 
     uint variant_cluster_group_index = thread_index;
 
 	while (variant_cluster_group_index < variant_cluster_groups->size()) {
 
-		variant_cluster_groups->at(variant_cluster_group_index)->countKmers(kmer_hash, variant_cluster_group_index, prng_seed, num_samples, num_haplotype_candidates_per_sample);
+		variant_cluster_groups->at(variant_cluster_group_index)->countKmers(kmer_hash, variant_cluster_group_index, prng_seed, num_samples, max_sample_haplotype_candidates);
         variant_cluster_group_index += num_threads;
 	} 
 }
 
 template <uchar kmer_size>
-void KmerCounter<kmer_size>::countVariantClusterKmers(vector<VariantClusterGroup *> * variant_cluster_groups, const uint prng_seed, const ushort num_samples, const ushort num_haplotype_candidates_per_sample) {
+void KmerCounter<kmer_size>::countVariantClusterKmers(vector<VariantClusterGroup *> * variant_cluster_groups, const uint prng_seed, const ushort num_samples, const ushort max_sample_haplotype_candidates) {
 
 	vector<thread> counting_threads;
 
 	for (uint i = 0; i < num_threads; i++) {
 
-   	    counting_threads.push_back(thread(&KmerCounter<kmer_size>::countVariantClusterKmersCallback, this, variant_cluster_groups, prng_seed, num_samples, num_haplotype_candidates_per_sample, i));
+   	    counting_threads.push_back(thread(&KmerCounter<kmer_size>::countVariantClusterKmersCallback, this, variant_cluster_groups, prng_seed, num_samples, max_sample_haplotype_candidates, i));
     }
 
     for (auto & counting_thread: counting_threads) {

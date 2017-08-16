@@ -1,6 +1,6 @@
 
 /*
-VariantClusterGraphPath.hpp - This file is part of BayesTyper (v0.9)
+VariantClusterGraphPath.hpp - This file is part of BayesTyper (v1.1)
 
 
 The MIT License (MIT)
@@ -37,6 +37,7 @@ THE SOFTWARE.
 #include <algorithm>
 
 #include "boost/functional/hash.hpp"
+#include "boost/graph/adjacency_list.hpp"
 
 #include "Utils.hpp"
 #include "Kmer.hpp"
@@ -48,29 +49,29 @@ using namespace std;
 
 template <uchar kmer_size>
 class VariantClusterGraphPath {
-	
+
+	private:
+
+		vector<pair<uint, const VariantClusterGraphVertex *> > path;
+		pair<uint, uint> path_score;
+
 	public:
 
 		VariantClusterGraphPath(const ushort);
 
-		bool operator == (const VariantClusterGraphPath<kmer_size> & rhs) const;
-
-		void addVertex(const VariantClusterGraphVertex &);
+		void addVertex(const uint, const VariantClusterGraphVertex &);
 		void updateScore(KmerCounts *, const ushort);
 
-		const vector<const VariantClusterGraphVertex *> & getPath() const;
+		const vector<pair<uint, const VariantClusterGraphVertex *> > & getPath() const;
 
 		double getPathKmerScore() const;
-		uint getPathVertexScore(const unordered_set<const VariantClusterGraphVertex *> &) const;
+		uint getPathVertexScore(const unordered_set<uint> &) const;
 
-		void updateCoveredVertices(unordered_set<const VariantClusterGraphVertex *> *) const;
+		void updateCoveredVertices(unordered_set<uint> *) const;
 
-		KmerPair<kmer_size> kmer_pair;
+		bool operator == (const VariantClusterGraphPath<kmer_size> &) const;
 
-	private:
-
-		vector<const VariantClusterGraphVertex *> path;
-		pair<uint, uint> path_score;
+		KmerPair<kmer_size> kmer_pair;		
 };
 
 

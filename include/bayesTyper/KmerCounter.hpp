@@ -1,6 +1,6 @@
 
 /*
-KmerCounter.hpp - This file is part of BayesTyper (v0.9)
+KmerCounter.hpp - This file is part of BayesTyper (v1.1)
 
 
 The MIT License (MIT)
@@ -53,7 +53,7 @@ class KmerCounter {
 
 		KmerCounter(KmerHash * const, Utils::SmallmerSet * const, const ushort);
 
-		ulong countVariantClusterSmallmers(vector<VariantClusterGroup *> *);
+		ulong countVariantClusterSmallmers(vector<VariantClusterGraph *> *);
 		ulong countInterclusterKmers(const vector<VariantFileParser::InterClusterRegion> &);
 		ulong countSampleKmers(const vector<Sample> &);
 		void countVariantClusterKmers(vector<VariantClusterGroup *> *, const uint, const ushort, const ushort);
@@ -79,7 +79,7 @@ class KmerCounter {
 
 		uchar min_sample_kmer_count;
 
-		void countVariantClusterSmallmersCallback(vector<VariantClusterGroup *> *, const ushort, mutex *, ulong *);
+		void countVariantClusterSmallmersCallback(vector<VariantClusterGraph *> *, const ushort, mutex *, ulong *);
 		void countInterclusterKmersCallback(const vector<VariantFileParser::InterClusterRegion> &, const ushort, mutex *, ulong *);
 		void countSampleKmersCallBack(ProducerConsumerQueue<KmerBatchInfo *> *, ProducerConsumerQueue<KmerBatchInfo *> *, mutex *, ulong *);
 		void countVariantClusterKmersCallback(vector<VariantClusterGroup *> *, const uint, const ushort, const ushort, const ushort);

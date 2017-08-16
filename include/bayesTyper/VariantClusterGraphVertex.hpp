@@ -1,6 +1,6 @@
 
 /*
-VariantClusterGraphVertex.hpp - This file is part of BayesTyper (v0.9)
+VariantClusterGraphVertex.hpp - This file is part of BayesTyper (v1.1)
 
 
 The MIT License (MIT)
@@ -41,7 +41,7 @@ struct VariantClusterGraphVertex {
 
 	pair<ushort, ushort> variant_allele_idx;
 	vector<ushort> reference_variant_indices;
-
+	
 	uint nested_variant_cluster_index;
 
 	bool is_disconnected;

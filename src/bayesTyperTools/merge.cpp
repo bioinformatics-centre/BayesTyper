@@ -1,6 +1,6 @@
 
 /*
-merge.cpp - This file is part of BayesTyper (v0.9)
+merge.cpp - This file is part of BayesTyper (v1.1)
 
 
 The MIT License (MIT)
@@ -75,7 +75,7 @@ namespace Merge {
 
 		VcfFileWriter output_vcf(outfile_prefix + ".vcf", output_meta_data, true);
 
-		vector<string> var_value_assert_keys = {"VCS", "VCI", "VCGS", "VCGI", "HCR", "AE", "ACO"};
+		vector<string> var_value_assert_keys = {"VCS", "VCI", "VCGS", "VCGI", "AE", "ACO"};
 
         auto sample_ids = output_meta_data.sampleIds();
 

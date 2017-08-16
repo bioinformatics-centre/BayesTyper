@@ -1,6 +1,6 @@
 
 /*
-VariantClusterHaplotypes.hpp - This file is part of BayesTyper (v0.9)
+VariantClusterHaplotypes.hpp - This file is part of BayesTyper (v1.1)
 
 
 The MIT License (MIT)
@@ -46,7 +46,9 @@ class VariantClusterHaplotypes {
 
 	public:
 
-		VariantClusterHaplotypes() {};
+		VariantClusterHaplotypes(const float);
+
+		bernoulli_distribution bernoulli_dist;
 
 		struct HaplotypeInfo {
 
@@ -78,23 +80,23 @@ class VariantClusterHaplotypes {
 
 		Eigen::MatrixXuchar sample_multicluster_kmer_multiplicities;
 
-		struct VariantKmerStatsCache {
+		struct KmerStatsCache {
 
 			bool update;
 			
-			vector<KmerStats> allele_kmer_stats_1;
-			vector<KmerStats> allele_kmer_stats_2;
+			vector<KmerStats> haplotype_1;
+			vector<KmerStats> haplotype_2;
 
-			VariantKmerStatsCache(const ushort num_variants) {
+			KmerStatsCache(const ushort num_variants) {
 
 				update = true;
 
-				allele_kmer_stats_1 = vector<KmerStats>(num_variants);
-				allele_kmer_stats_2 = vector<KmerStats>(num_variants);
+				haplotype_1 = vector<KmerStats>(num_variants);
+				haplotype_2 = vector<KmerStats>(num_variants);
 			}
 		};
 		
-		vector<VariantKmerStatsCache> variant_kmer_stats_caches;
+		vector<KmerStatsCache> kmer_stats_cache;
 
 		bool empty();
 
@@ -102,21 +104,20 @@ class VariantClusterHaplotypes {
 		uchar getMulticlusterKmerMultiplicity(const uint, const pair<ushort,ushort> &, const pair<ushort,ushort> &, const ushort, const Utils::Gender);
 		uchar getPreviousMulticlusterKmerMultiplicity(const uint, const pair<ushort,ushort> &, const pair<ushort,ushort> &, const ushort, const Utils::Gender);
 
-		bool sampleKmerSubset(mt19937 *, const uint max_haplotype_variant_kmers);
+		void sampleKmerSubset(mt19937 *, const uint, const ushort);
 
 		bool isMulticlusterKmerUpdated(const uint, const ushort);
 		void updateMulticlusterKmerMultiplicities(const pair<ushort,ushort> &, const pair<ushort,ushort> &, const ushort);
-		void updateVariantKmerStats(vector<VariantKmerStats> *, const pair<ushort,ushort> &, const ushort, const Utils::Gender);	
+		void updateAlleleKmerStats(vector<vector<AlleleKmerStats> > *, const pair<ushort,ushort> &, const ushort, const Utils::Gender);	
 
 	private:
 
 		uchar getDiplotypeUniqueKmerMultiplicity(const uint, const pair<ushort,ushort> &);
 		uchar getDiplotypeMulticlusterKmerMultiplicity(const uint, const pair<ushort,ushort> &);
 
-		bool isKmerInSubset(vector<vector<uint> > *, const uint, const vector<pair<ushort, vector<bool> > > &);
+		bool isKmerInSubset(mt19937 *, vector<vector<uint> > *, const uint, const vector<pair<ushort, vector<bool> > > &);
 
-		void updateVariantKmerStatsCaches(const pair<ushort,ushort> &, const ushort, const Utils::Gender);
-		void updateVariantKmerStatsCache(KmerInfo &, const pair<ushort,ushort> &, const ushort, const float);
+		void updateKmerStatsCache(KmerInfo &, const pair<ushort,ushort> &, const ushort, const float);
 };
 
 #endif

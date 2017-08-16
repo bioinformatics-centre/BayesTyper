@@ -1,6 +1,6 @@
 
 /*
-GenotypeWriter.hpp - This file is part of BayesTyper (v0.9)
+GenotypeWriter.hpp - This file is part of BayesTyper (v1.1)
 
 
 The MIT License (MIT)
@@ -74,7 +74,7 @@ class GenotypeWriter {
 		void writeVariantStats(ofstream *, const Genotypes::VariantStats &, const VariantInfo &);
 		void writeAlleleCover(ofstream *, vector<ushort> *, VariantInfo *);
 		void writeSamples(ofstream *, const vector<Genotypes::SampleStats> &, const VariantInfo &);
-		void writeAlleleKmerStats(ofstream *, const vector<FixedKmerStats> &);
+		void writeAlleleKmerStats(ofstream *, const AlleleKmerStats &);
 
 		void addAlleleKmerEstimates(const vector<Genotypes::SampleStats> &);
 

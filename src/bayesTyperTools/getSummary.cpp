@@ -1,6 +1,6 @@
 
 /*
-getSummary.cpp - This file is part of BayesTyper (v0.9)
+getSummary.cpp - This file is part of BayesTyper (v1.1)
 
 
 The MIT License (MIT)
@@ -45,16 +45,32 @@ THE SOFTWARE.
 namespace GetSummary {
 
 
-	static const vector<string> variant_attributes({"Count","ChromType","Chrom","Filter","VariantType","HasMissing","HasRedundant","NumAlleles","EffectiveNumAlleles","MaxAltACP","MaxAltAC","AN","HPL","HasHomopolymer","HTV","NumCONCTrue","NumCONCFalse","BASE","CALL","GTCO","MFED"});
+	static const vector<string> variant_attributes({"Count","ChromType","Filter","VariantType","HasMissing","HasRedundant","NumAlleles","EffectiveNumAlleles","MaxAltACP","MaxAltAC","AN","HPL","HasHomopolymer","HTV","NumCompleteSamples","NumCONCTrue","NumCONCFalse","BASE","CALL","GTCO","MFED"});
 	
-	static const vector<string> allele_attributes({"Count","ChromType","Chrom","Filter","AlleleType","AlleleLength","AlleleSVLength","IsRedundant","NumAlleles","EffectiveNumAlleles","ACP","AC","AN","HPL","IsHomopolymer","HTV","NumCONCTrue","NumCONCFalse","BASE","CALL","GTCO","MFED"});
-	
-	// static const vector<string> trio_attributes({"Count","ChromType","VariantQuality","Filter","HasAnnotated","HasRepeat","Origins","VariantType","HasMissing","MaxAltACP","MaxAltAC","AN","IBC","NumInbreedingSamples","HPL","HasHomopolymer","HTV","SumGenoAlleles","MinGPP","MinNAK","MinFAKQ","MinMACQ","MaxMACQ","CONC"});	
-	
-	// static const vector<string> sample_attributes({"Count","ChromType","VariantQuality","Filter","HasAnnotated","HasRepeat","Origins","VariantType","HasMissing","MaxAltACP","MaxAltAC","AN","IBC","NumInbreedingSamples","HPL","HasHomopolymer","HTV","NumGenoAlleles","GPP","MinNAK","MinFAKQ","MinMACQ","MaxMACQ","CONC"});
+	static const vector<string> allele_attributes({"Count","ChromType","Filter","AlleleType","AlleleLength","AlleleSVLength","IsRedundant","NumAlleles","EffectiveNumAlleles","ACP","AC","AN","HPL","IsHomopolymer","HTV","NumCompleteSamples","NumCONCTrue","NumCONCFalse","BASE","CALL","GTCO","MFED","MinNAK","MinFAK"});
 
 
-	pair<string, string> parseValuePair(const pair<string, bool> att_value) {
+	pair<float, bool> parseSampleAlleleValue(const pair<float, bool> & att_value) {
+
+		if (att_value.second) {
+
+			if (Utils::floatCompare(att_value.first, -1)) {
+
+				return make_pair(0, false);
+
+			} else {
+
+				assert(att_value.first >= 0);
+				return att_value;
+			}
+
+		} else {
+
+			return make_pair(0, false);
+		}
+	}
+
+	pair<string, string> parseValuePair(const pair<string, bool> & att_value) {
 
 		if (att_value.second) {
 
@@ -69,7 +85,7 @@ namespace GetSummary {
 		}
 	}
 
-	string convertValueToString(const pair<string, bool> att_value) {
+	string convertValueToString(const pair<string, bool> & att_value) {
 
 		if (att_value.second) {
 
@@ -99,7 +115,7 @@ namespace GetSummary {
 		}
 	}
 
-	string convertValueToString(const pair<bool, bool> att_value) {
+	string convertValueToString(const pair<bool, bool> & att_value) {
 
 		if (att_value.second) {
 
@@ -111,7 +127,7 @@ namespace GetSummary {
 		}
 	}
 
-	string convertValueToString(const pair<int, bool> att_value) {
+	string convertValueToString(const pair<int, bool> & att_value) {
 
 		if (att_value.second) {
 
@@ -123,7 +139,7 @@ namespace GetSummary {
 		}
 	}
 
-	string convertValueToString(const pair<uint, bool> att_value) {
+	string convertValueToString(const pair<uint, bool> & att_value) {
 
 		if (att_value.second) {
 
@@ -135,7 +151,7 @@ namespace GetSummary {
 		}
 	}
 
-	string convertValueToString(const pair<float, bool> att_value, const uint precision) {
+	string convertValueToString(const pair<float, bool> & att_value, const uint precision) {
 
 		if (att_value.second) {
 
@@ -148,69 +164,30 @@ namespace GetSummary {
 	}
 
 	template<typename ValueType>
-	pair<ValueType, bool> getGenotypeValue(Sample & sample, const string & att, const string & value_func) {
+	pair<ValueType, bool> getPairValue(const pair<ValueType, bool> & first_value, const pair<ValueType, bool> & second_value, const string & value_func) {
 
-		assert(sample.genotypeEstimate().size() <= 2);
-
-		pair<ValueType, bool> genotype_value = make_pair(ValueType(), false);
-
-		if (!(sample.genotypeEstimate().empty())) {
-
-			auto att_value_1 = sample.alleleInfo().at(sample.genotypeEstimate().front()).getValue<ValueType>(att);
-			auto att_value_2 = sample.alleleInfo().at(sample.genotypeEstimate().back()).getValue<ValueType>(att);
-
-			if (att_value_1.second and att_value_2.second) {
-
-				genotype_value.second = true;
-
-				if (value_func == "min") {
-
-					genotype_value.first = min(att_value_1.first, att_value_2.first);
-
-				} else if (value_func == "max") {
-
-					genotype_value.first = max(att_value_1.first, att_value_2.first);
-				
-				} else {
-
-					assert(value_func == "frac");
-
-					if (att_value_1.first <= att_value_2.first) {
-
-						genotype_value.first = att_value_1.first / att_value_2.first;
-
-					} else {
-
-						genotype_value.first = att_value_2.first / att_value_1.first;
-					}
-				}
-			} 
-		}
-
-		return genotype_value;
-	}
-
-	template<typename ValueType>
-	pair<ValueType, bool> getTrioValue(const pair<ValueType, bool> & mother_value, const pair<ValueType, bool> & father_value, const pair<ValueType, bool> & child_value, const string & value_func) {
-
-		pair<ValueType, bool> trio_value = make_pair(ValueType(), false);
-
-		if (mother_value.second and father_value.second and child_value.second) {
-
-			trio_value.second = true;
+		if (first_value.second and second_value.second) {
 
 			if (value_func == "min") {
 
-				trio_value.first = min(mother_value.first, min(father_value.first, child_value.first));
+				return make_pair(min(first_value.first, second_value.first), true);
 
 			} else {
 
 				assert(value_func == "max");
-				trio_value.first = max(mother_value.first, max(father_value.first, child_value.first));
+				return make_pair(max(first_value.first, second_value.first), true);
 			}
+		
+		} else if (first_value.second) {
+
+			return first_value;
+
+		} else if (second_value.second) {
+
+			return second_value;
 		}
 
-		return trio_value;
+		return make_pair(0, false);
 	}
 
 	void writeSummaryStats(const unordered_map<string, uint> & summary_stats, const string & output_name, const string & header) {
@@ -228,36 +205,19 @@ namespace GetSummary {
 		summary_stats_writer.close();
 	}
 
-	void getSummary(const string & vcf_filename, const string & output_prefix, const string & trio_info_str) {
+	void getSummary(const string & vcf_filename, const string & output_prefix) {
 
 		cout << "[" << Utils::getLocalTime() << "] Running BayesTyperTools (" << BT_VERSION << ") getSummary ...\n" << endl;
 
 		GenotypedVcfFileReader vcf_reader(vcf_filename, false);
-		vector<Trio::TrioInfo> all_trio_info;
-
-		if (!(trio_info_str.empty())) {
-
-			if (trio_info_str == "GenomeDKPedigree") {
-
-				all_trio_info = Trio::parseGenomeDKPedigree(vcf_reader.metaData());
-
-			} else {
-
-				all_trio_info = Trio::parsePedigree(vcf_reader.metaData(), trio_info_str);
-			}
-		}
 
 		Variant * cur_var;
 
 		uint num_variants = 0;
 		uint num_alleles = 0;
-		uint num_trios = 0;
-		uint num_samples = 0;
 
 		unordered_map<string, uint> variant_summary_stats;
 		unordered_map<string, uint> allele_summary_stats;
-		unordered_map<string, uint> trio_summary_stats;
-		unordered_map<string, uint> sample_summary_stats;
 
 		while (vcf_reader.getNextVariant(&cur_var)) {
 
@@ -358,12 +318,16 @@ namespace GetSummary {
 		        }
 		    }
 
+		    uint num_complete_samples = 0;
             uint num_conc_true = 0;
             uint num_conc_false = 0;
 
             pair<string, bool> gtco_value("", false);
             pair<float, bool> mfed_value(0, false);
 
+            vector<pair<float, bool> > allele_min_nak(cur_var->numAlls(), make_pair(0, false));
+            vector<pair<float, bool> > allele_min_fak(cur_var->numAlls(), make_pair(0, false));
+            
 			for (auto & sample_id: vcf_reader.metaData().sampleIds()) {
 
     			Sample & cur_sample = cur_var->getSample(sample_id);
@@ -383,42 +347,22 @@ namespace GetSummary {
 
 					assert(conc_value == "NA");
 				}
+
+				if (cur_sample.callStatus() == Sample::CallStatus::Complete) {
+
+					num_complete_samples++;
+				}
 	
 				gtco_value = cur_sample.info().getValue<string>("GTCO");
 				mfed_value = cur_sample.info().getValue<float>("MFED");
 
-    			// num_samples++;
+				assert(cur_sample.alleleInfo().size() == cur_var->numAlls());
 
-				// JoiningString sample_summary_stats_str('\t');
+				for (uint allele_idx = 0; allele_idx < cur_var->numAlls(); allele_idx++) {
 
-				// sample_summary_stats_str.join(convertValueToString(make_pair(chrom_type, true)));
-				// sample_summary_stats_str.join(convertValueToString(make_pair(filter_str.str(), true)));
-				// sample_summary_stats_str.join(convertValueToString(make_pair(Auxiliaries::isAnnotated(*cur_var), true)));
-				// sample_summary_stats_str.join(convertValueToString(make_pair(Auxiliaries::hasRepeat(*cur_var), true)));
-				// sample_summary_stats_str.join(convertValueToString(make_pair(Auxiliaries::variantOrigins(*cur_var), true)));
-				// sample_summary_stats_str.join(convertValueToString(make_pair(Auxiliaries::variantType(*cur_var), true)));
-				// sample_summary_stats_str.join(convertValueToString(make_pair(Auxiliaries::hasMissing(*cur_var), true)));
-				// sample_summary_stats_str.join(convertValueToString(make_pair(max_alt_acp, true), 2));
-				// sample_summary_stats_str.join(convertValueToString(make_pair(max_alt_ac, true)));
-				// sample_summary_stats_str.join(convertValueToString(make_pair(allele_stats.allele_count_sum, true)));
-				// sample_summary_stats_str.join(convertValueToString(ibc_value_1, 2));
-				// sample_summary_stats_str.join(convertValueToString(ibc_value_2));
-				// sample_summary_stats_str.join(convertValueToString(hpl_value_1));
-				// sample_summary_stats_str.join(convertValueToString(make_pair(has_homopolymer_allele, homopolymer_alleles.second)));
-				// sample_summary_stats_str.join(convertValueToString(cur_var->info().getValue<string>("HTV")));
-
-				// sample_summary_stats_str.join(convertValueToString(make_pair(static_cast<uint>(cur_sample.genotypeEstimate().size()), true)));
-				// sample_summary_stats_str.join(convertValueToString(Auxiliaries::getMaxGenotypePosterior(cur_sample), 2));
-
-				// sample_summary_stats_str.join(convertValueToString(getGenotypeValue<float>(cur_sample, "NAK", true), 0));
-				// sample_summary_stats_str.join(convertValueToString(getGenotypeValue<float>(cur_sample, "FAKQ", true), 3));
-				// sample_summary_stats_str.join(convertValueToString(getGenotypeValue<float>(cur_sample, "MACQ", true), 3));
-				// sample_summary_stats_str.join(convertValueToString(getGenotypeValue<float>(cur_sample, "MACQ", false), 3));
-				
-				// sample_summary_stats_str.join(convertValueToString(cur_sample.info().getValue<string>("CONC")));
-
-				// auto sample_summary_stats_it = sample_summary_stats.emplace(sample_summary_stats_str.str(), 0);
-				// sample_summary_stats_it.first->second++;
+					allele_min_nak.at(allele_idx) = getPairValue<float>(allele_min_nak.at(allele_idx), parseSampleAlleleValue(cur_sample.alleleInfo().at(allele_idx).getValue<float>("NAK")), "min"); 
+					allele_min_fak.at(allele_idx) = getPairValue<float>(allele_min_fak.at(allele_idx), parseSampleAlleleValue(cur_sample.alleleInfo().at(allele_idx).getValue<float>("FAK")), "min"); 
+				}
 			}
 
 			if (vcf_reader.metaData().sampleIds().size() != 1) {
@@ -434,7 +378,6 @@ namespace GetSummary {
 				JoiningString allele_summary_stats_str('\t');
 
 				allele_summary_stats_str.join(convertValueToString(make_pair(chrom_type, true)));
-				allele_summary_stats_str.join(convertValueToString(make_pair(cur_var->chrom(), true)));
 				allele_summary_stats_str.join(convertValueToString(make_pair(filter_str.str(), true)));
 				allele_summary_stats_str.join(convertValueToString(make_pair(allele_attributes.typeStr(), true)));
 				allele_summary_stats_str.join(convertValueToString(make_pair(allele_attributes.length, true)));
@@ -448,12 +391,15 @@ namespace GetSummary {
 				allele_summary_stats_str.join(convertValueToString(hpl_value_1));
 				allele_summary_stats_str.join(convertValueToString(make_pair(static_cast<bool>(homopolymer_alleles.first.at(allele_idx)), homopolymer_alleles.second)));
 				allele_summary_stats_str.join(convertValueToString(cur_var->info().getValue<string>("HTV")));
+				allele_summary_stats_str.join(convertValueToString(make_pair(num_complete_samples, true)));
 				allele_summary_stats_str.join(convertValueToString(make_pair(num_conc_true, true)));
 				allele_summary_stats_str.join(convertValueToString(make_pair(num_conc_false, true)));
 				allele_summary_stats_str.join(convertValueToString(cur_var->info().getValue<string>("BASE")));
 				allele_summary_stats_str.join(convertValueToString(cur_var->info().getValue<string>("CALL")));
 				allele_summary_stats_str.join(convertValueToString(gtco_value));
 				allele_summary_stats_str.join(convertValueToString(mfed_value, 2));
+				allele_summary_stats_str.join(convertValueToString(allele_min_nak.at(allele_idx), 1));
+				allele_summary_stats_str.join(convertValueToString(allele_min_fak.at(allele_idx), 2));
 
 				auto allele_summary_stats_it = allele_summary_stats.emplace(allele_summary_stats_str.str(), 0);
 				allele_summary_stats_it.first->second++;
@@ -462,7 +408,6 @@ namespace GetSummary {
 			JoiningString variant_summary_stats_str('\t');
 
 			variant_summary_stats_str.join(convertValueToString(make_pair(chrom_type, true)));
-			variant_summary_stats_str.join(convertValueToString(make_pair(cur_var->chrom(), true)));
 			variant_summary_stats_str.join(convertValueToString(make_pair(filter_str.str(), true)));
 			variant_summary_stats_str.join(convertValueToString(make_pair(Auxiliaries::variantType(*cur_var), true)));
 			variant_summary_stats_str.join(convertValueToString(make_pair(Auxiliaries::hasMissing(*cur_var), true)));
@@ -475,6 +420,7 @@ namespace GetSummary {
 			variant_summary_stats_str.join(convertValueToString(hpl_value_1));
 			variant_summary_stats_str.join(convertValueToString(make_pair(has_homopolymer_allele, homopolymer_alleles.second)));
 			variant_summary_stats_str.join(convertValueToString(cur_var->info().getValue<string>("HTV")));
+			variant_summary_stats_str.join(convertValueToString(make_pair(num_complete_samples, true)));
 			variant_summary_stats_str.join(convertValueToString(make_pair(num_conc_true, true)));
 			variant_summary_stats_str.join(convertValueToString(make_pair(num_conc_false, true)));
 			variant_summary_stats_str.join(convertValueToString(cur_var->info().getValue<string>("BASE")));
@@ -484,53 +430,6 @@ namespace GetSummary {
 
 			auto variant_summary_stats_it = variant_summary_stats.emplace(variant_summary_stats_str.str(), 0);
 			variant_summary_stats_it.first->second++;
-
-			// for (auto & trio_info: all_trio_info) {
-
-			// 	num_trios++;
-
-   //  			Sample & cur_mother = cur_var->getSample(trio_info.mother);
-   //  			Sample & cur_father = cur_var->getSample(trio_info.father);
-   //  			Sample & cur_child = cur_var->getSample(trio_info.child);
-
-			// 	assert(cur_mother.ploidy() != Sample::Ploidy::Polyploid);
-			// 	assert(cur_father.ploidy() != Sample::Ploidy::Polyploid);
-			// 	assert(cur_child.ploidy() != Sample::Ploidy::Polyploid);
-
-			// 	JoiningString trio_summary_stats_str('\t');
-
-			// 	trio_summary_stats_str.join(convertValueToString(make_pair(chrom_type, true)));
-			// 	trio_summary_stats_str.join(convertValueToString(make_pair(filter_str.str(), true)));
-			// 	trio_summary_stats_str.join(convertValueToString(make_pair(Auxiliaries::isAnnotated(*cur_var), true)));
-			// 	trio_summary_stats_str.join(convertValueToString(make_pair(Auxiliaries::hasRepeat(*cur_var), true)));
-			// 	trio_summary_stats_str.join(convertValueToString(make_pair(Auxiliaries::variantOrigins(*cur_var), true)));
-			// 	trio_summary_stats_str.join(convertValueToString(make_pair(Auxiliaries::variantType(*cur_var), true)));
-			// 	trio_summary_stats_str.join(convertValueToString(make_pair(Auxiliaries::hasMissing(*cur_var), true)));
-			// 	trio_summary_stats_str.join(convertValueToString(make_pair(max_alt_acp, true), 2));
-			// 	trio_summary_stats_str.join(convertValueToString(make_pair(max_alt_ac, true)));
-			// 	trio_summary_stats_str.join(convertValueToString(make_pair(allele_stats.allele_count_sum, true)));
-			// 	trio_summary_stats_str.join(convertValueToString(ibc_value_1, 2));
-			// 	trio_summary_stats_str.join(convertValueToString(ibc_value_2));
-			// 	trio_summary_stats_str.join(convertValueToString(hpl_value_1));
-			// 	trio_summary_stats_str.join(convertValueToString(make_pair(has_homopolymer_allele, homopolymer_alleles.second)));
-			// 	trio_summary_stats_str.join(convertValueToString(cur_var->info().getValue<string>("HTV")));
-
-			// 	trio_summary_stats_str.join(convertValueToString(make_pair(static_cast<uint>(cur_mother.genotypeEstimate().size() + cur_father.genotypeEstimate().size() + cur_child.genotypeEstimate().size()), true)));
-			// 	trio_summary_stats_str.join(convertValueToString(getTrioValue<float>(Auxiliaries::getMaxGenotypePosterior(cur_mother), Auxiliaries::getMaxGenotypePosterior(cur_father), Auxiliaries::getMaxGenotypePosterior(cur_child), true), 2));
-
-			// 	trio_summary_stats_str.join(convertValueToString(getTrioValue<float>(getGenotypeValue<float>(cur_mother, "NAK", true), getGenotypeValue<float>(cur_father, "NAK", true), getGenotypeValue<float>(cur_child, "NAK", true), true), 0));
-			// 	trio_summary_stats_str.join(convertValueToString(getTrioValue<float>(getGenotypeValue<float>(cur_mother, "FAKQ", true), getGenotypeValue<float>(cur_father, "FAKQ", true), getGenotypeValue<float>(cur_child, "FAKQ", true), true), 3));
-			// 	trio_summary_stats_str.join(convertValueToString(getTrioValue<float>(getGenotypeValue<float>(cur_mother, "MACQ", true), getGenotypeValue<float>(cur_father, "MACQ", true), getGenotypeValue<float>(cur_child, "MACQ", true), true), 3));
-			// 	trio_summary_stats_str.join(convertValueToString(getTrioValue<float>(getGenotypeValue<float>(cur_mother, "MACQ", false), getGenotypeValue<float>(cur_father, "MACQ", false), getGenotypeValue<float>(cur_child, "MACQ", false), false), 3));
-
-			// 	assert(cur_mother.info().getValue<string>("CONC") == cur_father.info().getValue<string>("CONC"));
-			// 	assert(cur_mother.info().getValue<string>("CONC") == cur_child.info().getValue<string>("CONC"));
-
-			// 	trio_summary_stats_str.join(convertValueToString(cur_mother.info().getValue<string>("CONC")));
-
-			// 	auto trio_summary_stats_it = trio_summary_stats.emplace(trio_summary_stats_str.str(), 0);
-			// 	trio_summary_stats_it.first->second++;
-			// }
 
 			delete cur_var;
 
@@ -551,17 +450,7 @@ namespace GetSummary {
 
 		writeSummaryStats(allele_summary_stats, output_prefix + "_allele.txt", allele_summary_stats_header.str());
 
-		// JoiningString trio_summary_stats_header('\t');
-		// trio_summary_stats_header.join(trio_attributes);
-
-		// writeSummaryStats(trio_summary_stats, output_prefix + "_trio.txt", trio_summary_stats_header.str());
-
-		// JoiningString sample_summary_stats_header('\t');
-		// sample_summary_stats_header.join(sample_attributes);
-
-		// writeSummaryStats(sample_summary_stats, output_prefix + "_sample.txt", sample_summary_stats_header.str());
-
-		cout << "\n[" << Utils::getLocalTime() << "] Wrote summary statistics for a total of " << num_variants << " variants, " << num_alleles << " alleles, " << num_trios << " trios and " << num_samples << " samples" << endl;
+		cout << "\n[" << Utils::getLocalTime() << "] Wrote summary statistics for a total of " << num_variants << " variants, " << num_alleles << " alleles" << endl;
 		cout << endl;
 	}
 }

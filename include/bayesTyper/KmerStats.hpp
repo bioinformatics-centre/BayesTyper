@@ -1,6 +1,6 @@
 
 /*
-KmerStats.hpp - This file is part of BayesTyper (v0.9)
+KmerStats.hpp - This file is part of BayesTyper (v1.1)
 
 
 The MIT License (MIT)
@@ -45,86 +45,31 @@ class KmerStats {
 		KmerStats();
 
 		void reset();
-		void addKmer(KmerCounts * const, const ushort, const float);
+		void addValue(const pair<float, bool> &);
 
-		float getCount() const;		
+		uint getCount() const;		
 		pair<float, bool> getFraction() const;
 		pair<float, bool> getMean() const;
 
-	protected:
-
-		float count;
-		float fraction;
-		float mean;
-};
-
-class FixedKmerStats {
-
-	public:
-
-		FixedKmerStats();
-		FixedKmerStats(const float, const float, const float);
-
-		float getCount() const;		
-		float getFraction() const;
-		float getMean() const;
-
-		float count;
-		float fraction;
-		float mean;
-};
-
-class MedianKmerStats {
-
-	public:
-
-		MedianKmerStats();
-
-		void addKmerStats(const KmerStats &);
-
-		pair<float, bool> getMedianCount();		
-		pair<float, bool> getMedianFraction();
-		pair<float, bool> getMedianMean();
-
 	private:
 
-		struct floatLess {
-
-			bool operator() (const float & first, const float & second) const {
-
-				if (Utils::floatCompare(first, second)) {
-
-					return false;
-
-				} else {
-
-					return first < second;
-				}
-			}
-		};
-
-		pair<float, bool> median(SortedLinearMap<float, uint, floatLess> &, const uint);
-
-		SortedLinearMap<float, uint, floatLess> count_values;
-		uint num_count_values;
-
-		SortedLinearMap<float, uint, floatLess> fraction_values;
-		uint num_fraction_values;
-
-		SortedLinearMap<float, uint, floatLess> mean_values;
-		uint num_mean_values;
+		uint count;
+		float fraction;
+		float mean;
 };
 
-class VariantKmerStats {
+class AlleleKmerStats {
 
 	public:
 
-		vector<vector<MedianKmerStats> > allele_kmer_stats;
+		vector<KmerStats> count_stats;
+		vector<KmerStats> fraction_stats;
+		vector<KmerStats> mean_stats;
 
-		VariantKmerStats();
-		VariantKmerStats(const ushort, const ushort);
+		AlleleKmerStats() {};
+		AlleleKmerStats(const ushort);
 
-		void addAlleleKmerStats(const KmerStats &, const ushort, const ushort);
+		void addKmerStats(const KmerStats &, const ushort);
 };
 
 #endif

@@ -1,6 +1,6 @@
 
 /*
-collapseSummaryTable.cpp - This file is part of BayesTyper (v0.9)
+collapseSummaryTable.cpp - This file is part of BayesTyper (v1.1)
 
 
 The MIT License (MIT)
@@ -25,6 +25,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
+
 
 #include <string>
 #include <iostream>

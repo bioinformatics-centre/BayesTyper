@@ -1,10 +1,11 @@
-/*
 
-ProducerConsumerQueue.tpp - This file is part of ProducerConsumerQueue (v0.1)
+/*
+ProducerConsumerQueue.tpp - This file is part of BayesTyper (v1.1)
+
 
 The MIT License (MIT)
 
-Copyright (c) 2015 Lasse Maretty and Jonas Andreas Sibbesen
+Copyright (c) 2016 Jonas Andreas Sibbesen and Lasse Maretty
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -23,8 +24,8 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
-
 */
+
 
 template <typename Data>
 ProducerConsumerQueue<Data>::ProducerConsumerQueue(uint max_buffer_size_in) {

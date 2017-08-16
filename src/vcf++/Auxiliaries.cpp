@@ -1,6 +1,6 @@
 
 /*
-Auxiliaries.cpp - This file is part of BayesTyper (v0.9)
+Auxiliaries.cpp - This file is part of BayesTyper (v1.1)
 
 
 The MIT License (MIT)
@@ -578,7 +578,11 @@ namespace Auxiliaries {
 
             if (gpp_value.second) {
 
-                if (max_gpp_value < gpp_value.first) {
+                if (Utils::floatCompare(max_gpp_value, gpp_value.first)) {
+
+                    max_gpp_idx.second = false;
+
+                } else if (max_gpp_value < gpp_value.first) {
 
                     max_gpp_idx.first = gpp_idx;
                     max_gpp_idx.second = true;
@@ -614,6 +618,10 @@ namespace Auxiliaries {
 
                     sample->newGenotypeEstimate(vector<ushort>(1, max_gpp_idx.first));
                 }                 
+            
+            } else {
+
+                sample->newGenotypeEstimate(vector<ushort>());
             }
 
             for (uint allele_idx = 0; allele_idx < sample->alleleInfo().size(); allele_idx++) {

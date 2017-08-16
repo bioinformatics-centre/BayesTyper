@@ -1,6 +1,6 @@
 
 /*
-split.cpp - This file is part of BayesTyper (v0.9)
+split.cpp - This file is part of BayesTyper (v1.1)
 
 
 The MIT License (MIT)

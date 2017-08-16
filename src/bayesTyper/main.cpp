@@ -1,6 +1,6 @@
 
 /*
-main.cpp - This file is part of BayesTyper (v0.9)
+main.cpp - This file is part of BayesTyper (v1.1)
 
 
 The MIT License (MIT)
@@ -92,18 +92,19 @@ int main (int argc, char * const argv[]) {
 	graph.add_options()
 
 		("kmer-size", po::value<ushort>()->default_value(default_kmer_size)->notifier(bind(&OptionsContainer::parseValue<ushort>, &options_container, "kmer-size", placeholders::_1)), "kmer size (31, 39, 47, 55 or 63).")
-		("maximum-allele-length", po::value<uint>()->default_value(3000000)->notifier(bind(&OptionsContainer::parseValue<uint>, &options_container, "maximum-allele-length", placeholders::_1)), "exclude alleles (reference and alternative) longer than <length>.")
+		("max-allele-length", po::value<uint>()->default_value(3000000)->notifier(bind(&OptionsContainer::parseValue<uint>, &options_container, "max-allele-length", placeholders::_1)), "exclude alleles (reference and alternative) longer than <length>.")
 		("copy-number-variant-threshold", po::value<double>()->default_value(0.5, "0.5")->notifier(bind(&OptionsContainer::parseValue<double>, &options_container, "copy-number-variant-threshold", placeholders::_1)), "minimum fraction of identical kmers required between an allele and the downstream reference sequence in order for it to be classified as a copy number")
-		("number-of-haplotype-candidates-per-sample", po::value<ushort>()->default_value(8)->notifier(bind(&OptionsContainer::parseValue<ushort>, &options_container, "number-of-haplotype-candidates-per-sample", placeholders::_1)), "maximum number of haplotype candidates per sample.")
+		("max-number-of-sample-haplotype-candidates", po::value<ushort>()->default_value(24)->notifier(bind(&OptionsContainer::parseValue<ushort>, &options_container, "max-number-of-sample-haplotype-candidates", placeholders::_1)), "maximum number of haplotype candidates per sample (the total number of candidates will never exceed 256).")
 	;
 
 	po::options_description inference("== Inference ==", 160);
 	inference.add_options()
 
 		("gibbs-burn-in", po::value<ushort>()->default_value(100)->notifier(bind(&OptionsContainer::parseValue<ushort>, &options_container, "gibbs-burn-in", placeholders::_1)), "number of burn-in iterations.")
-		("gibbs-samples", po::value<ushort>()->default_value(200)->notifier(bind(&OptionsContainer::parseValue<ushort>, &options_container, "gibbs-samples", placeholders::_1)), "number of Gibbs iterations.")
-		("number-of-gibbs-chains", po::value<ushort>()->default_value(10)->notifier(bind(&OptionsContainer::parseValue<ushort>, &options_container, "number-of-gibbs-chains", placeholders::_1)), "number of parallel Gibbs sampling chains.")
-		("max-haplotype-variant-kmers", po::value<uint>()->default_value(500)->notifier(bind(&OptionsContainer::parseValue<uint>, &options_container, "max-haplotype-variant-kmers", placeholders::_1)), "maximum number of kmers, used for genotype inference, across a haplotype candidate for each variant (a new subset is sampled for each Gibbs sampling chain).")
+		("gibbs-samples", po::value<ushort>()->default_value(250)->notifier(bind(&OptionsContainer::parseValue<ushort>, &options_container, "gibbs-samples", placeholders::_1)), "number of Gibbs iterations.")
+		("number-of-gibbs-chains", po::value<ushort>()->default_value(20)->notifier(bind(&OptionsContainer::parseValue<ushort>, &options_container, "number-of-gibbs-chains", placeholders::_1)), "number of parallel Gibbs sampling chains.")
+		("kmer-subsampling-rate", po::value<float>()->default_value(0.1, "0.1")->notifier(bind(&OptionsContainer::parseValue<float>, &options_container, "kmer-subsampling-rate", placeholders::_1)), "subsampling rate for subsetting kmers used for genotype inference (a new subset is sampled for each Gibbs sampling chain).")
+		("max-haplotype-variant-kmers", po::value<uint>()->default_value(500)->notifier(bind(&OptionsContainer::parseValue<uint>, &options_container, "max-haplotype-variant-kmers", placeholders::_1)), "maximum number of kmers used for genotype inference after subsampling across a haplotype candidate for each variant (a new subset is sampled for each Gibbs sampling chain).")
 		("number-of-genomic-rate-gc-bias-bins", po::value<ushort>()->default_value(1)->notifier(bind(&OptionsContainer::parseValue<ushort>, &options_container, "number-of-genomic-rate-gc-bias-bins", placeholders::_1)), "number of genomic rate GC bias bins (a negative binomial distributed genomic rate is estimated for each bin).")
 	;
 
@@ -137,12 +138,14 @@ int main (int argc, char * const argv[]) {
 	assert((options_container.getValue<ushort>("kmer-size") == 31) or (options_container.getValue<ushort>("kmer-size") == 39) or (options_container.getValue<ushort>("kmer-size") == 47) or (options_container.getValue<ushort>("kmer-size") == 55) or (options_container.getValue<ushort>("kmer-size") == 63));
     assert(options_container.getValue<double>("copy-number-variant-threshold") >= 0);
     assert(options_container.getValue<double>("copy-number-variant-threshold") <= 1);
-    assert(options_container.getValue<ushort>("number-of-haplotype-candidates-per-sample") > 0);
+    assert(options_container.getValue<ushort>("max-number-of-sample-haplotype-candidates") > 0);
+    assert(options_container.getValue<ushort>("max-number-of-sample-haplotype-candidates") < floor(Utils::ushort_overflow/float(30)));
 
     assert(options_container.getValue<ushort>("gibbs-burn-in") > 0);
     assert(options_container.getValue<ushort>("gibbs-samples") > 0);
     assert(options_container.getValue<ushort>("number-of-gibbs-chains") > 0);
-    assert(options_container.getValue<uint>("max-haplotype-variant-kmers") > 0);
+    assert(options_container.getValue<float>("kmer-subsampling-rate") > 0);
+    assert(options_container.getValue<float>("kmer-subsampling-rate") <= 1);
     assert(options_container.getValue<ushort>("number-of-genomic-rate-gc-bias-bins") <= options_container.getValue<ushort>("kmer-size"));
 
     assert((options_container.getValue<pair<double,double> >("noise-rate-prior").first) > 0);
@@ -210,14 +213,11 @@ int main (int argc, char * const argv[]) {
 
     if (samples.size() > 30) {
 
-		cout << "\nERROR: The maximum number of samples supported by BayesTyper is 30.\n" << endl;
+		cout << "\nERROR: The maximum number of samples supported by BayesTyper is currently 30.\n" << endl;
 		exit(1);    	
     }
 
     const ushort num_samples = samples.size();
-
-    assert(options_container.getValue<ushort>("number-of-haplotype-candidates-per-sample") > 1);
-    assert(static_cast<uint>(options_container.getValue<ushort>("number-of-haplotype-candidates-per-sample") * num_samples) < static_cast<uint>(Utils::ushort_overflow));
 
 	cout << "\n[" << Utils::getLocalTime() << "] Parsed information for " << num_samples << " sample(s)\n" << endl;
 
@@ -271,20 +271,10 @@ int main (int argc, char * const argv[]) {
 
 	cout << "\n[" << Utils::getLocalTime() << "] " << Utils::getMaxMemoryUsage() << endl;
 
-	cout << "\n[" << Utils::getLocalTime() << "] Estimating noise model parameters ..." << endl;
-
 	inference_engine.estimateNoiseParameters(&count_distribution, &variant_cluster_groups, kmer_hash, samples);
 	count_distribution.writeNoiseParameterEstimates(options_container.getValue<string>("output-prefix"), samples);
 
-    cout << "\n[" << Utils::getLocalTime() << "] Sorting variant cluster groups by decreasing complexity (number of kmers and haplotype candidates) ..." << endl;
-
-    sort(variant_cluster_groups.begin(), variant_cluster_groups.end(), VariantClusterGroupCompare);
-
-    cout << "[" << Utils::getLocalTime() << "] Finished sorting\n" << endl;
-
 	cout << "\n[" << Utils::getLocalTime() << "] " << Utils::getMaxMemoryUsage() << endl;
-
-	cout << "\n[" << Utils::getLocalTime() << "] Genotyping variant cluster groups ..." << endl;
 
     GenotypeWriter genotype_writer(samples, options_container.getValue<string>("output-prefix"), options_container.getValue<ushort>("threads"));
 	
@@ -298,8 +288,6 @@ int main (int argc, char * const argv[]) {
 	cout << "\n[" << Utils::getLocalTime() << "] " << Utils::getMaxMemoryUsage() << endl;
 
 	delete kmer_hash;
-
-	cout << "\n[" << Utils::getLocalTime() << "] Writing genotypes to " << options_container.getValue<string>("output-prefix") << ".vcf ..." << endl;
     
 	uint num_written_variants = genotype_writer.writeGenotypesToVariantCallFormat(options_container.getValue<string>("vcf-file"), options_container.getValue<Regions>("chromosome-regions"), options_container.writeHeader(), options_container.getValue<string>("genome-file"), kmer_factory.numberOfVariants());
 

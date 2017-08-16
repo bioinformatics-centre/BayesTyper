@@ -1,6 +1,6 @@
 
 /*
-Combinator.cpp - This file is part of BayesTyper (v0.9)
+Combinator.cpp - This file is part of BayesTyper (v1.1)
 
 
 The MIT License (MIT)

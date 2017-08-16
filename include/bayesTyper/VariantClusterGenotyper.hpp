@@ -1,6 +1,6 @@
 
 /*
-VariantClusterGenotyper.hpp - This file is part of BayesTyper (v0.9)
+VariantClusterGenotyper.hpp - This file is part of BayesTyper (v1.1)
 
 
 The MIT License (MIT)
@@ -64,7 +64,7 @@ class VariantClusterGenotyper {
 
 	public: 
 
-		VariantClusterGenotyper(const vector<Sample> &);
+		VariantClusterGenotyper(const vector<Sample> &, const float);
 		~VariantClusterGenotyper();
 
 		void initialise(KmerHash *, VariantClusterGraph *, const uint prng_seed, const ushort, const uchar);
@@ -91,27 +91,23 @@ class VariantClusterGenotyper {
 		void sampleGenotype(const CountDistribution &, const ushort, const Utils::Ploidy);
 
 		ushort haplotypeToAlleleIndex(const ushort, const ushort);
-		pair<ushort, ushort> genotypeIndexToEstimate(const uint);
-		uint genotypeEstimateToIndex(const pair<ushort, ushort> &);
-
 		vector<ushort> getNonCoveredAlleles(const ushort);
 		vector<Genotypes::SampleStats> getGenotypeSampleStats(const uint, const vector<Utils::Ploidy> &);
 		Genotypes::VariantStats getGenotypeVariantStats(const uint, const vector<Genotypes::SampleStats> &);
 
 		const vector<Sample> & samples;
 
+		VariantClusterHaplotypes variant_cluster_haplotypes;
+
 		mt19937 prng;
 		
 		bool is_parameter_estimation_cluster : 1, use_multicluster_kmers : 1; 
 
-		bool has_complex_region;
 		bool has_redundant_sequence;
 		bool has_excluded_kmer;
-
-		VariantClusterHaplotypes variant_cluster_haplotypes;
 		
 		vector<VariantInfo> variant_cluster_info;
-		vector<VariantKmerStats> variant_kmer_stats;
+		vector<vector<AlleleKmerStats> > allele_kmer_stats;
 
 		vector<unordered_map<pair<ushort, ushort>, double, boost::hash<pair<ushort, ushort> > > > unique_diplotype_log_probabilities;
 		vector<unordered_map<pair<ushort, ushort>, double, boost::hash<pair<ushort, ushort> > > > multicluster_diplotype_log_probabilities;

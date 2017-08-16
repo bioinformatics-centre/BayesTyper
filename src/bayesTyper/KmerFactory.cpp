@@ -1,6 +1,6 @@
 
 /*
-KmerFactory.cpp - This file is part of BayesTyper (v0.9)
+KmerFactory.cpp - This file is part of BayesTyper (v1.1)
 
 
 The MIT License (MIT)
@@ -38,6 +38,7 @@ THE SOFTWARE.
 #include "KmerHash.hpp"
 #include "PerfectSet.hpp"
 #include "VariantFileParser.hpp"
+#include "VariantClusterGraph.hpp"
 #include "VariantClusterGroup.hpp"
 #include "KmerCounter.hpp"
 #include "Sample.hpp"
@@ -48,7 +49,7 @@ THE SOFTWARE.
 using namespace std;
 
 
-KmerFactory::KmerFactory(const OptionsContainer & options_container) : prng_seed(options_container.getValue<uint>("random-seed")), vcf_file(options_container.getValue<string>("vcf-file")), genome_file(options_container.getValue<string>("genome-file")), decoy_file(options_container.getValue<string>("decoy-file")), num_threads(options_container.getValue<ushort>("threads")), max_allele_length(options_container.getValue<uint>("maximum-allele-length")), copy_number_variant_threshold(options_container.getValue<double>("copy-number-variant-threshold")), num_haplotype_candidates_per_sample(options_container.getValue<ushort>("number-of-haplotype-candidates-per-sample")), num_genomic_rate_gc_bias_bins(options_container.getValue<uchar>("number-of-genomic-rate-gc-bias-bins")) {
+KmerFactory::KmerFactory(const OptionsContainer & options_container) : prng_seed(options_container.getValue<uint>("random-seed")), vcf_file(options_container.getValue<string>("vcf-file")), genome_file(options_container.getValue<string>("genome-file")), output_prefix(options_container.getValue<string>("output-prefix")), decoy_file(options_container.getValue<string>("decoy-file")), num_threads(options_container.getValue<ushort>("threads")), max_allele_length(options_container.getValue<uint>("max-allele-length")), copy_number_variant_threshold(options_container.getValue<double>("copy-number-variant-threshold")), max_sample_haplotype_candidates(options_container.getValue<ushort>("max-number-of-sample-haplotype-candidates")), num_genomic_rate_gc_bias_bins(options_container.getValue<uchar>("number-of-genomic-rate-gc-bias-bins")) {
 
 	number_of_variants = 0;
     min_sample_kmer_count = 0;
@@ -60,26 +61,28 @@ template <uchar kmer_size>
 KmerHash * KmerFactory::initKmerHash(vector<VariantClusterGroup*> * variant_cluster_groups, const vector<Sample> & samples) {
 
     assert(variant_cluster_groups->empty());
+    assert(!(samples.empty()));
+
+    vector<VariantClusterGraph*> variant_cluster_graphs;
 
 	VariantFileParser vcf_parser = VariantFileParser(genome_file, max_allele_length, copy_number_variant_threshold, num_threads, prng_seed);
+    
     vcf_parser.addDecoys<kmer_size>(decoy_file);
+    vcf_parser.readVariantFile<kmer_size>(vcf_file, &variant_cluster_graphs, variant_cluster_groups);
 
-    vcf_parser.readVariantFile<kmer_size>(vcf_file, variant_cluster_groups);
-
+    assert(!(variant_cluster_graphs.empty()));
     assert(!(variant_cluster_groups->empty()));
     
     number_of_variants = vcf_parser.getNumberOfVariants();
     max_alternative_alleles = vcf_parser.getMaxAlternativeAlleles();
 
-    cout << "[" << Utils::getLocalTime() << "] Sorting variant cluster groups by decreasing complexity (number of variants) ..." << endl;
+    cout << "[" << Utils::getLocalTime() << "] Sorting variant clusters by decreasing complexity (number of variants) ..." << endl;
 
-    sort(variant_cluster_groups->begin(), variant_cluster_groups->end(), VariantClusterGroupCompare);
+    sort(variant_cluster_graphs.begin(), variant_cluster_graphs.end(), VariantClusterGraphCompare);
 
     cout << "[" << Utils::getLocalTime() << "] Finished sorting\n" << endl;
 
     cout << "\n[" << Utils::getLocalTime() << "] " << Utils::getMaxMemoryUsage() << endl;
-
-    assert(!(samples.empty()));
 
     KmerHash * kmer_hash;
 
@@ -110,7 +113,7 @@ KmerHash * KmerFactory::initKmerHash(vector<VariantClusterGroup*> * variant_clus
     Utils::SmallmerSet smallmer_set = Utils::SmallmerSet(Utils::thread_buckets);
 
     KmerCounter<kmer_size> kmer_counter(kmer_hash, &smallmer_set, num_threads);
-    ulong num_unique_small_mers = kmer_counter.countVariantClusterSmallmers(variant_cluster_groups);
+    ulong num_unique_small_mers = kmer_counter.countVariantClusterSmallmers(&variant_cluster_graphs);
 
     cout << "[" << Utils::getLocalTime() << "] Counted " << num_unique_small_mers << " unique smallmers (" << to_string(Utils::small_kmer_size) << " nt)\n" << endl;
 
@@ -133,9 +136,15 @@ KmerHash * KmerFactory::initKmerHash(vector<VariantClusterGroup*> * variant_clus
  
     cout << "\n[" << Utils::getLocalTime() << "] " << Utils::getMaxMemoryUsage() << endl;
 
+    cout << "\n[" << Utils::getLocalTime() << "] Sorting variant cluster groups by decreasing complexity (number of variants) ..." << endl;
+
+    sort(variant_cluster_groups->begin(), variant_cluster_groups->end(), VariantClusterGroupCompare);
+
+    cout << "[" << Utils::getLocalTime() << "] Finished sorting" << endl;
+
     cout << "\n[" << Utils::getLocalTime() << "] Counting kmers in variant clusters ..." << endl;
 
-    kmer_counter.countVariantClusterKmers(variant_cluster_groups, prng_seed, samples.size(), num_haplotype_candidates_per_sample);
+    kmer_counter.countVariantClusterKmers(variant_cluster_groups, prng_seed, samples.size(), max_sample_haplotype_candidates);
 
     auto diploid_kmer_counts = kmer_hash->calculateKmerStats(num_genomic_rate_gc_bias_bins);
 
@@ -152,16 +161,29 @@ void KmerFactory::estimateGenomicCountDistributions(const vector<vector<vector<u
     assert(genomic_count_distributions.empty());
     genomic_count_distributions.reserve(diploid_kmer_counts.size());
 
+    ofstream kmer_coverage_estimates_file(output_prefix + "_kmer_coverage_estimates.txt");
+    assert(kmer_coverage_estimates_file.is_open());
+
+    kmer_coverage_estimates_file << "Sample\tMean\tVariance" << endl;
+
     for (ushort sample_idx = 0; sample_idx < samples.size(); sample_idx++) {
 
         genomic_count_distributions.emplace_back(vector<NegativeBinomialDistribution>());
         genomic_count_distributions.back().reserve(num_genomic_rate_gc_bias_bins);
 
+        vector<ulong> sample_diploid_kmer_counts(Utils::uchar_overflow + 1, 0);
+
         for (ushort bias_idx = 0; bias_idx < num_genomic_rate_gc_bias_bins; bias_idx++) {
+
+            ulong num_diploid_kmers = 0;
 
             assert(diploid_kmer_counts.at(sample_idx).at(bias_idx).size() == (Utils::uchar_overflow + 1));
 
-            ulong num_diploid_kmers = accumulate(diploid_kmer_counts.at(sample_idx).at(bias_idx).begin(), diploid_kmer_counts.at(sample_idx).at(bias_idx).end(), 0);
+            for (ushort count_idx = 0; count_idx < sample_diploid_kmer_counts.size(); count_idx++) {
+
+                num_diploid_kmers += diploid_kmer_counts.at(sample_idx).at(bias_idx).at(count_idx);
+                sample_diploid_kmer_counts.at(count_idx) += diploid_kmer_counts.at(sample_idx).at(bias_idx).at(count_idx);
+            }
 
             genomic_count_distributions.back().emplace_back(NegativeBinomialDistribution::methodOfMomentsEst(diploid_kmer_counts.at(sample_idx).at(bias_idx)));
             genomic_count_distributions.back().back().size(genomic_count_distributions.back().back().size()/2);
@@ -170,7 +192,14 @@ void KmerFactory::estimateGenomicCountDistributions(const vector<vector<vector<u
         }
 
         cout << endl;
+
+        NegativeBinomialDistribution sample_genomic_count_distributions = NegativeBinomialDistribution(NegativeBinomialDistribution::methodOfMomentsEst(sample_diploid_kmer_counts));
+        sample_genomic_count_distributions.size(sample_genomic_count_distributions.size()/2);
+
+        kmer_coverage_estimates_file << samples.at(sample_idx).name << "\t" << sample_genomic_count_distributions.mean() << "\t" << sample_genomic_count_distributions.var() << endl;
     }
+
+    kmer_coverage_estimates_file.close();
 }
 
 

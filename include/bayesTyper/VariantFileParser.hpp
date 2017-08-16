@@ -1,6 +1,6 @@
 
 /*
-VariantFileParser.hpp - This file is part of BayesTyper (v0.9)
+VariantFileParser.hpp - This file is part of BayesTyper (v1.1)
 
 
 The MIT License (MIT)
@@ -61,7 +61,7 @@ class VariantFileParser {
 		void addDecoys(const string);
 
 		template <int kmer_size>
-		void readVariantFile(const string, vector<VariantClusterGroup*> *);
+		void readVariantFile(const string, vector<VariantClusterGraph*> *, vector<VariantClusterGroup*> *);
 
 		struct InterClusterRegion {
 
@@ -76,7 +76,6 @@ class VariantFileParser {
 		const vector<InterClusterRegion> & getInterclusterRegions();
 		
 		ulong getNumberOfVariants();
-
 		ushort getMaxAlternativeAlleles();
 
 		static string simplifyChromosomeId(const string & chromosome);
@@ -93,8 +92,6 @@ class VariantFileParser {
 		mt19937 prng;
 
 		ulong number_of_variants;
-		ulong number_of_variant_clusters;
-
 		ushort max_alternative_alleles;
 
 		unordered_map<string, string *> genome_sequences;
@@ -124,12 +121,9 @@ class VariantFileParser {
 		void mergeVariantClusters(unordered_map<uint, VariantCluster*> *, list<unordered_set<uint> > &);
 		
 		template <int kmer_size>
-		void processVariantClusterGroupsCallback(ProducerConsumerQueue<vector<unordered_map<uint, VariantCluster*> * > * > *, mutex *, vector<VariantClusterGroup*> *);
+		void processVariantClusterGroupsCallback(ProducerConsumerQueue<vector<unordered_map<uint, VariantCluster*> * > * > *, mutex *, vector<VariantClusterGraph*> *, vector<VariantClusterGroup*> *);
 
 		unordered_map<uint, uint> getVariantClusterGroupDependencies(unordered_map<uint, VariantCluster*> *);
-		
-		template <int kmer_size>
-		VariantClusterGroup * constructVariantClusterGroup(const unordered_map<uint, VariantCluster*> &, const unordered_map<uint, uint> &);
 	
 		template <int kmer_size>
 		void addSequencesToInterclusterRegions(unordered_map<string, string *> &, unordered_set<string> *);

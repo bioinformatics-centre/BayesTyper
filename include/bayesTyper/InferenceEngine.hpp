@@ -1,6 +1,6 @@
 
 /*
-InferenceEngine.hpp - This file is part of BayesTyper (v0.9)
+InferenceEngine.hpp - This file is part of BayesTyper (v1.1)
 
 
 The MIT License (MIT)
@@ -68,11 +68,12 @@ class InferenceEngine {
 
 		const uint prng_seed;
 		const ushort num_threads;
-		const ushort num_haplotype_candidates_per_sample;
+		const ushort max_sample_haplotype_candidates;
 		const uchar num_genomic_rate_gc_bias_bins;
 		const ushort gibbs_burn;
 		const ushort gibbs_samples;
 		const ushort num_gibbs_chains;
+		const float kmer_subsampling_rate;
 		const uint max_haplotype_variant_kmers;
 		const ushort num_parameter_estimation_samples;
 		const uint num_parameter_estimation_snvs;

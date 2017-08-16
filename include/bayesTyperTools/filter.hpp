@@ -1,6 +1,6 @@
 
 /*
-filter.hpp - This file is part of BayesTyper (v0.9)
+filter.hpp - This file is part of BayesTyper (v1.1)
 
 
 The MIT License (MIT)
@@ -39,15 +39,14 @@ namespace Filter {
     struct FilterValues {
 
         float max_inbreeding_coef;
-        float max_homopolymer_length;
+        uint min_homozygote;
+        int max_homopolymer_length;
         float min_nak_value;
         vector<float> min_sample_fak_values;
-        float min_allelic_balance;
         float min_gpp_value;
-        uint min_homozygote;
     };
 
-    void filter(const string &, const string &, const string &, const string &, const string &, FilterValues);
+    void filter(const string &, const string &, const string &, const string &, string, FilterValues);
 }
 
 #endif

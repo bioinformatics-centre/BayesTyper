@@ -1,6 +1,6 @@
 
 /*
-Sample.hpp - This file is part of BayesTyper (v0.9)
+Sample.hpp - This file is part of BayesTyper (v1.1)
 
 
 The MIT License (MIT)
@@ -48,8 +48,9 @@ public:
     Sample();
     Sample(const string &, const string &, const map<string, Attribute::DetailedDescriptor> &, ushort, bool);
 
-    vector<ushort> oneToTwoDimIdx(uint) const;
+    vector<ushort> oneToTwoDimIdx(const uint) const;
     uint twoToOneDimIdx(const vector<ushort> &) const;
+
     uint numPossibleGenotypes();
 
     Ploidy ploidy() const;
