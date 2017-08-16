@@ -93,8 +93,8 @@ The BayesTyper package contains `bayesTyper`, which does the genotyping, and `ba
 ## Memory requirements ## 
 |Variants|Coverage|Samples|Singletons removed|Threads|Memory (GB)|Time (wall-time hours)|
 |--------|--------|-------|-------------------|-------|-----------|----------------------|
-|21M|~13X|10|No|32|280|20|
 |15M|30X|10|Yes|32|235|26|
+|21M|~13X|10|No|32|280|20|
 |51M|~50X|13|Yes|32|430|107|
 
 ## Third-party ## 
