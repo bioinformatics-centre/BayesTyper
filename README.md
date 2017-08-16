@@ -15,24 +15,28 @@ A signficant amount of both simple and complex variation is already known from l
 This approach can for instance be used to quickly augment a set of standard SNV and indel calls (e.g. from GATK) with structural variation by running BayesTyper on the SNV/indel calls combined with our variation database. For higher sensitivity, *in-sample* complex variation calls can be combined with the database to produce the final intergrated call-set.
 
 ## Installation ##
-The BayesTyper package contains `bayesTyper`, which does the genotyping, and `bayesTyperTools`, which is used to pre- and post-process VCF files for BayesTyper.
+BayesTyper can either be build from source or a static Linux x86_64 build can be downloaded under [releases](https://github.com/bioinformatics-centre/BayesTyper/releases).
+
+### Building BayesTyper ###
 
 #### Prerequisites ####
 * gcc (c++11 support required. Tested with gcc 4.8 and 4.9)
 * CMake (version 2.8.0 or higher)
 * Boost (tested with version 1.55.0 and 1.56.0)
 
-#### Building BayesTyper ####
-BayesTyper currently needs to be build from source; a pre-compiled version will be released at a later time. 
+#### Compilation ####
+
 1. `git clone https://github.com/bioinformatics-centre/BayesTyper.git`
 2. `cd BayesTyper`
 2. `mkdir build && cd build`
 5. `cmake ..`
 6. `make`
 
-The compiled `bayesTyper` and `bayesTyperTools` binaries are now located in the `bin` directory.
+The compiled `bayesTyper` and `bayesTyperTools` binaries are located in the `bin` directory.
 
 ## Basic usage ##
+The BayesTyper package contains `bayesTyper`, which does the genotyping, and `bayesTyperTools`, which is used to pre- and post-process VCF files for BayesTyper.
+
 1. Count k-mers
 
    1. Run [KMC3](https://github.com/refresh-bio/KMC) on each sample: `kmc -k55 sample_1.fq sample_1` 
@@ -57,10 +61,9 @@ The compiled `bayesTyper` and `bayesTyperTools` binaries are now located in the 
    2. Run BayesTyper: `bayesTyper -o integrated_calls -s samples.tsv -v bayesTyper_input.vcf -g hg38.fa -p <threads> > bayesTyper_log.txt`
    
 4. Filter output
-
-   1. Get coverage estimates for filters: `grep "Estimated" bayesTyper_log.txt | cut -f10,18,21 -d ' ' | tr ' ' '\t' > kmer_coverage_estimates.txt`
    
-   2. Run filtering: `bayesTyperTools filter -o integrated_calls_filtered -v integrated_calls.vcf -g hg38.fa --kmer-coverage-filename kmer_coverage_estimates.txt`
+   1. Run filtering: `bayesTyperTools filter -o integrated_calls_filtered -v integrated_calls.vcf -g hg38.fa --kmer-coverage-filename integrated_calls_kmer_coverage_estimates.txt`
+      * By default only genotypes with high confidence (posterior probability >= 0.99) are kept. If low confident genotypes are needed in a downstream analyses this can be changed using the option `--min-genotype-posterior`.
 
 ## Variant databases ##
 * [BayesTyper_varDB_GRCh37](http://people.binf.ku.dk/~lassemaretty/bayesTyper/SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh37.vcf)
@@ -68,8 +71,8 @@ The compiled `bayesTyper` and `bayesTyperTools` binaries are now located in the 
 
 ### Variant database sources ###
 #### GRCh37 ####
-|Source|Version|Filters|Lifted|Reference|
-|------|-------|-------|------|---------|
+|Source|Version|Filters*|Lifted|Reference|
+|------|-------|--------|------|---------|
 |dbSNP|150|No rare SNVs|No|[link](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC29783/)|
 |1000 Genomes Project (1KG)|Phase 3|No SNVs|No|[link](https://www.nature.com/nature/journal/v526/n7571/full/nature15394.html)||
 |Genome of the Netherlands Project (GoNL)|Release 6|No SNVs|No|[link](https://www.nature.com/articles/ncomms12989)|
@@ -77,22 +80,25 @@ The compiled `bayesTyper` and `bayesTyperTools` binaries are now located in the 
 |GenomeDenmark (GDK)|v1.0|No SNVs|From GRCh38|[link](http://www.nature.com/nature/journal/vaop/ncurrent/full/nature23264.html)|
 
 #### GRCh38 ####
-|Source|Version|Filters|Lifted|Reference|
-|------|-------|-------|------|---------|
+|Source|Version|Filters*|Lifted|Reference|
+|------|-------|--------|------|---------|
 |dbSNP|150|No rare SNVs|No|[link](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC29783/)|
 |1000 Genomes Project (1KG)|Phase 3|No SNVs|No|[link](https://www.nature.com/nature/journal/v526/n7571/full/nature15394.html)||
 |Genome of the Netherlands Project (GoNL)|Release 6|No SNVs|From GRCh37|[link](https://www.nature.com/articles/ncomms12989)|
 |Genotype-Tissue Expression (GTEx) Project|GTEx Analysis V6|No SNVs|From GRCh37|[link](http://www.nature.com/ng/journal/v49/n5/full/ng.3834.html)|
 |GenomeDenmark (GDK)|v1.0|No SNVs|No|[link](http://www.nature.com/nature/journal/vaop/ncurrent/full/nature23264.html)|
-   
+
+*Reference and alternative alleles containing ambiguous nucleotides were removed from all variant sources.
+
 ## Memory requirements ## 
-|Variants|Coverage|Samples|Singletons included|Threads|Memory (GB)|Time (wall-time hours)|
+|Variants|Coverage|Samples|Singletons removed|Threads|Memory (GB)|Time (wall-time hours)|
 |--------|--------|-------|-------------------|-------|-----------|----------------------|
-|50M|30X|10|No|24|340|67|
-|50M|10X|10|Yes|32|480|58|
+|21M|~13X|10|No|32|280|20|
+|15M|30X|10|Yes|32|235|26|
+|51M|~50X|13|Yes|32|430|107|
 
 ## Third-party ## 
-Third-party software used by BayesTyper (distributed together with the BayesTyper source code)
+Third-party software used by BayesTyper (distributed together with the BayesTyper source code).
 * [Edlib](https://github.com/Martinsos/edlib)
 * [Eigen](http://eigen.tuxfamily.org/index.php?title=Main_Page)
 * [KMC](https://github.com/refresh-bio/KMC)
