@@ -44,6 +44,7 @@ The BayesTyper package contains `bayesTyper`, which does the genotyping, and `ba
       * For low coverage data (<20X), include singleton k-mers by adding `-ci1` to the `kmc3` commandline.
       
 2. Prepare variant input
+      **IMPORTANT:** The variant input **must** contain simple variants (SNPs and short indels). These can be obtained by first running a standard tool like GATK, Platypus or Freebayes and then combine these variants with structural variants calls and/or prior as desired. 
 
    1. If required, convert allele IDs (e.g. \<DEL\>) to sequence: `bayesTyperTools convertAlleleId -o sample_1_sv_calls_seq -v sample_1_sv_calls.vcf -g hg38.fa`
       * Currently \<DEL\>, \<DUP\>, \<CN[digit(s)]\>, \<CNV\>, \<INV\>, \<INS:ME:[sequence name]\> are supported. The latter require a fasta file with the mobile element insertion sequences.
@@ -53,9 +54,10 @@ The BayesTyper package contains `bayesTyper`, which does the genotyping, and `ba
     
    3. Combine variant sets: `bayesTyperTools combine -o bayesTyper_input -v gatk:sample_1_gatk_norm.vcf,gatk:sample_2_gatk_norm.vcf,gatk:sample_3_gatk_norm.vcf,varDB:SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh38.vcf`
       * The contig fields in the headers need to be identical between variant sets and the variants sorted in the same order as the fields.
+      * **IMPORTANT:* The variant input must contain simple variants (SNPs and short indels). These can be obtained by first running a standard tool like GATK, Platypus or Freebayes 
       
 3. Genotype variants
-
+   **IMPORTANT:** If you want to run BayesTyper on 30 samples or more, you should run BayesTyper in batches of 30 samples or less but using the **full** set of variants (i.e. across all individuals)
    1. Prepare sample information: Create tsv file with one sample per row with columns \<sample_id\>, \<sex\> and \<path_to_kmc3_output\> ([example](http://people.binf.ku.dk/~lassemaretty/bayesTyper/bt_samples_example.tsv))
    
    2. Run BayesTyper: `bayesTyper -o integrated_calls -s samples.tsv -v bayesTyper_input.vcf -g hg38.fa -p <threads> > bayesTyper_log.txt`
