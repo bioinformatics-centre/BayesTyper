@@ -44,8 +44,8 @@ The BayesTyper package contains `bayesTyper`, which does the genotyping, and `ba
       * For low coverage data (<20X), include singleton k-mers by adding `-ci1` to the `kmc3` commandline.
       
 2. Prepare variant input
-      **IMPORTANT:** The variant input **must** contain simple variants (SNPs and short indels). These can be obtained by first running a standard tool like GATK, Platypus or Freebayes and then combine these variants with structural variants calls and/or prior as desired. 
 
+      **IMPORTANT:** The variant input **must** contain simple variants (SNPs and short indels). These can be obtained by first running a standard tool like GATK, Platypus or Freebayes and then combine these variants with structural variants calls and/or prior as desired. **At least 1 million simple variants are required**.
    1. If required, convert allele IDs (e.g. \<DEL\>) to sequence: `bayesTyperTools convertAlleleId -o sample_1_sv_calls_seq -v sample_1_sv_calls.vcf -g hg38.fa`
       * Currently \<DEL\>, \<DUP\>, \<CN[digit(s)]\>, \<CNV\>, \<INV\>, \<INS:ME:[sequence name]\> are supported. The latter require a fasta file with the mobile element insertion sequences.
       * This step can be skipped if the variant sets does not include any allele IDs (e.g. GATK, Platypus and Freebayes output).
@@ -57,10 +57,14 @@ The BayesTyper package contains `bayesTyper`, which does the genotyping, and `ba
       * **IMPORTANT:* The variant input must contain simple variants (SNPs and short indels). These can be obtained by first running a standard tool like GATK, Platypus or Freebayes 
       
 3. Genotype variants
-   **IMPORTANT:** If you want to run BayesTyper on 30 samples or more, you should run BayesTyper in batches of 30 samples or less but using the **full** set of variants (i.e. across all individuals)
+
+   **IMPORTANT:** If you want to run BayesTyper on more than 30 samples, you should run BayesTyper in batches of 30 samples or less but using the **full** set of variants (i.e. across all individuals)
    1. Prepare sample information: Create tsv file with one sample per row with columns \<sample_id\>, \<sex\> and \<path_to_kmc3_output\> ([example](http://people.binf.ku.dk/~lassemaretty/bayesTyper/bt_samples_example.tsv))
    
    2. Run BayesTyper: `bayesTyper -o integrated_calls -s samples.tsv -v bayesTyper_input.vcf -g hg38.fa -p <threads> > bayesTyper_log.txt`
+      * Decoy sequences: BayesTyper can be provided with decoy sequences using '-d' to handle sequence similarities between genotyped regions and non-genotyped regions (e.g. the mitochondrial genome and unplaced contigs in the reference). Matching reference and decoy sequences are available for
+         * GRCh37: [Reference](http://people.binf.ku.dk/~lassemaretty/bayesTyper/GRCh37/GRCh37_canon.fa) and [decoy](http://people.binf.ku.dk/~lassemaretty/bayesTyper/GRCh37/GRCh37_decoy.fa)
+         * GRCh38: [Reference](http://people.binf.ku.dk/~lassemaretty/bayesTyper/GRCh38/GRCh38_canon.fa) and [decoy](http://people.binf.ku.dk/~lassemaretty/bayesTyper/GRCh38/GRCh38_decoy.fa)
    
 4. Filter output
    
@@ -68,8 +72,8 @@ The BayesTyper package contains `bayesTyper`, which does the genotyping, and `ba
       * By default only genotypes with high confidence (posterior probability >= 0.99) are kept. If low confident genotypes are needed in a downstream analyses this can be changed using the option `--min-genotype-posterior`.
 
 ## Variant databases ##
-* [BayesTyper_varDB_GRCh37](http://people.binf.ku.dk/~lassemaretty/bayesTyper/SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh37.vcf)
-* [BayesTyper_varDB_GRCh38](http://people.binf.ku.dk/~lassemaretty/bayesTyper/SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh38.vcf)
+* [BayesTyper_varDB_GRCh37](http://people.binf.ku.dk/~lassemaretty/bayesTyper/GRCh37/SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh37.vcf)
+* [BayesTyper_varDB_GRCh38](http://people.binf.ku.dk/~lassemaretty/bayesTyper/GRCh38/SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh38.vcf)
 
 ### Variant database sources ###
 #### GRCh37 ####
