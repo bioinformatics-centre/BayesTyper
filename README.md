@@ -30,7 +30,7 @@ BayesTyper can either be build from source or a static Linux x86_64 build can be
 2. `cd BayesTyper`
 2. `mkdir build && cd build`
 5. `cmake ..`
-6. `make`
+6. `make -j <threads>`
 
 The compiled `bayesTyper` and `bayesTyperTools` binaries are located in the `bin` directory.
 
@@ -54,14 +54,13 @@ The BayesTyper package contains `bayesTyper`, which does the genotyping, and `ba
     
    3. Combine variant sets: `bayesTyperTools combine -o bayesTyper_input -v gatk:sample_1_gatk_norm.vcf,gatk:sample_2_gatk_norm.vcf,gatk:sample_3_gatk_norm.vcf,varDB:SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh38.vcf`
       * The contig fields in the headers need to be identical between variant sets and the variants sorted in the same order as the fields.
-      * **IMPORTANT:* The variant input must contain simple variants (SNPs and short indels). These can be obtained by first running a standard tool like GATK, Platypus or Freebayes 
       
 3. Genotype variants
 
    **IMPORTANT:** If you want to run BayesTyper on more than 30 samples, you should run BayesTyper in batches of 30 samples or less but using the **full** set of variants (i.e. across all individuals)
    1. Prepare sample information: Create tsv file with one sample per row with columns \<sample_id\>, \<sex\> and \<path_to_kmc3_output\> ([example](http://people.binf.ku.dk/~lassemaretty/bayesTyper/bt_samples_example.tsv))
    
-   2. Run BayesTyper: `bayesTyper -o integrated_calls -s samples.tsv -v bayesTyper_input.vcf -g hg38.fa -p <threads> > bayesTyper_log.txt`
+   2. Run BayesTyper: `bayesTyper -o integrated_calls -s samples.tsv -v bayesTyper_input.vcf -g hg38.fa -p <threads>`
       * Decoy sequences: BayesTyper can be provided with decoy sequences using '-d' to handle sequence similarities between genotyped regions and non-genotyped regions (e.g. the mitochondrial genome and unplaced contigs in the reference). Matching reference and decoy sequences are available for
          * GRCh37: [Reference](http://people.binf.ku.dk/~lassemaretty/bayesTyper/GRCh37/GRCh37_canon.fa) and [decoy](http://people.binf.ku.dk/~lassemaretty/bayesTyper/GRCh37/GRCh37_decoy.fa)
          * GRCh38: [Reference](http://people.binf.ku.dk/~lassemaretty/bayesTyper/GRCh38/GRCh38_canon.fa) and [decoy](http://people.binf.ku.dk/~lassemaretty/bayesTyper/GRCh38/GRCh38_decoy.fa)
