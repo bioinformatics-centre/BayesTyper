@@ -1,6 +1,6 @@
 
 /*
-assessHaplotypeTransmissionSupport.cpp - This file is part of BayesTyper (v1.1)
+assessHaplotypeTransmissionSupport.cpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -34,6 +34,7 @@ THE SOFTWARE.
 #include <algorithm>
 #include <iostream>
 #include <fstream>
+#include <numeric>
 
 #include "VcfFile.hpp"
 #include "Variant.hpp"
@@ -96,7 +97,7 @@ int main(int argc, char const *argv[]) {
 
 	if (argc != 4) {
 
-		std::cout << "USAGE: assessHaplotypeTransmissionSupport <callset.vcf> <haplotype_transmissions.txt> <output_prefix>" << std::endl;
+		std::cout << "USAGE: assessHaplotypeTransmissionSupport <input> <haplotype_transmissions> <output_prefix>" << std::endl;
 		return 1;
 	}
 
@@ -107,7 +108,7 @@ int main(int argc, char const *argv[]) {
 	auto output_meta_data = callset_vcf_reader.metaData();
 	assert(!output_meta_data.infoDescriptors().count("HTV"));
 
-	vector<pair<string, string> > htv_descriptor_elems({make_pair("ID","HTV"), make_pair("Number","1"), make_pair("Type","String"), make_pair("Description","Variant validated by haplotype transmission (TRUE, FALSE, NA).")});
+	vector<pair<string, string> > htv_descriptor_elems({make_pair("ID","HTV"), make_pair("Number","1"), make_pair("Type","String"), make_pair("Description","Variant validated by haplotype transmission (TRUE, MULTI-TRUE, FALSE, NA).")});
 	output_meta_data.infoDescriptors().emplace("HTV", Attribute::DetailedDescriptor(htv_descriptor_elems));
 
 	VcfFileWriter output_vcf(string(argv[3]) + ".vcf", output_meta_data, false);
@@ -179,6 +180,8 @@ int main(int argc, char const *argv[]) {
 	uint num_vars_pass_filtered_samples = 0;
 	uint num_vars_false = 0;
 	uint num_vars_false_ploidy = 0;
+	uint num_vars_pass_multi_hap_combs_validated = 0;
+	uint num_vars_pass_multi_hap_combs_validated_filtered_samples = 0;
 
 	while (callset_vcf_reader.getNextVariant(&cur_callset_var)) {
 
@@ -198,6 +201,8 @@ int main(int argc, char const *argv[]) {
 
 				vector<vector<uint> > hap_allele_assignment_combs = enumerateCombinations(4, cur_callset_var->numAlls());
 				assert(!hap_allele_assignment_combs.empty());
+
+				uint num_hap_assignment_comb_validated = 0;
 
 				bool all_samples_validated;
 				bool ploidy_mismatch;
@@ -252,20 +257,34 @@ int main(int argc, char const *argv[]) {
 
 					if (all_samples_validated) {
 
-						break;
+						++num_hap_assignment_comb_validated;
 					}
 				}
 
-				if (all_samples_validated) {
+				if (num_hap_assignment_comb_validated > 0) {
 
 					assert(!ploidy_mismatch);
-					cur_callset_var->info().setValue<string>("HTV", "TRUE");
-					++num_vars_pass;
-					if (filtered_samples > 0) {
 
-						++num_vars_pass_filtered_samples;
+					if (num_hap_assignment_comb_validated == 1) {
+
+						cur_callset_var->info().setValue<string>("HTV", "TRUE");
+						++num_vars_pass;
+						
+						if (filtered_samples > 0) {
+
+							++num_vars_pass_filtered_samples;
+						}
+
+					} else {
+
+						cur_callset_var->info().setValue<string>("HTV", "MULTI-TRUE");
+						++num_vars_pass_multi_hap_combs_validated;
+
+						if (filtered_samples > 0) {
+
+							++num_vars_pass_multi_hap_combs_validated_filtered_samples;
+						}
 					}
-					// cout << "VALIDATED" << endl;
 
 				} else {
 
@@ -274,15 +293,10 @@ int main(int argc, char const *argv[]) {
 					if (ploidy_mismatch) {
 
 						++num_vars_false_ploidy;
-						// cout << "PLOIDY MISMATCH" << endl;
-						// cout << "NEW ELIGIBLE VARIANT" << endl;
-						// cout << cur_callset_var->vcf(callset_vcf_reader.metaData()) << endl;
-						// cout << "Hap conf " << hap_block_iter->hap_conf << endl;
 
 					} else {
 
 						++num_vars_false;
-						// cout << "NON-VALIDATED" << endl;
 					}
 				}
 
@@ -310,6 +324,10 @@ int main(int argc, char const *argv[]) {
 
 	cout << "\n[" << Utils::getLocalTime() << "] " << num_vars_pass << " eligible variant(s) were supported by haplotype transmission" <<  endl;
 	cout << "\n[" << Utils::getLocalTime() << "] of these " << num_vars_pass_filtered_samples << " eligible variant(s) had filtered samples " <<  endl;
+
+	cout << "\n[" << Utils::getLocalTime() << "] " << num_vars_pass_multi_hap_combs_validated << " eligible variant(s) were supported by haplotype transmission in multiple samples" <<  endl;
+	cout << "\n[" << Utils::getLocalTime() << "] of these " << num_vars_pass_multi_hap_combs_validated_filtered_samples << " eligible variant(s) had filtered samples " <<  endl;
+
 	cout << "\n[" << Utils::getLocalTime() << "] " << num_vars_false + num_vars_false_ploidy << " eligble variant(s) were NOT supported by haplotype transmission" <<  endl;
 	cout << "\n[" << Utils::getLocalTime() << "] of these " << num_vars_false_ploidy << " eligible variant(s) had were NOT supported due to ploidy mismatch" <<  endl;
 

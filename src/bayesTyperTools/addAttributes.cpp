@@ -1,6 +1,6 @@
 
 /*
-addAttributes.cpp - This file is part of BayesTyper (v1.1)
+addAttributes.cpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -102,63 +102,6 @@ namespace AddAttributes {
         return repeat_annotations;
     }
 
-    vector<vector<float> > parseCDFFile(const string & cdf_filename, const vector<string> sample_ids, const string & attribute_id, const uint value_scaling) {
-
-        vector<vector<float> > sample_cdfs;
-
-        ifstream cdf_file(cdf_filename);
-        string line;
-
-        uint line_counter = 0;
-        vector<int> column_idx_sample_idx_map;
-
-        while (getline(cdf_file, line)) {
-
-            auto line_split = Utils::splitString(line, '\t');
-            assert(!(line_split.empty()));
-
-            if (line_counter == 0) {
-
-                assert((sample_ids.size() + 1) <= line_split.size());
-
-                assert(line_split.front() == attribute_id);
-                column_idx_sample_idx_map = vector<int>(line_split.size(), -1);
-
-                for (uint sample_idx = 0; sample_idx < sample_ids.size(); sample_idx++) {
-
-	                auto line_split_it = find(line_split.begin(), line_split.end(), sample_ids.at(sample_idx));
-	                
-	                assert(line_split_it != line_split.end());
-	                assert(line_split_it != line_split.begin());
-
-	                assert(column_idx_sample_idx_map.at(line_split_it - line_split.begin()) == -1);
-	                column_idx_sample_idx_map.at(line_split_it - line_split.begin()) = sample_idx;
-                }
-
-            } else {
-
-	            assert(line_split.size() == column_idx_sample_idx_map.size());
-	            assert(round(stof(line_split.front()) * value_scaling) == (line_counter - 1));
-
-	            sample_cdfs.emplace_back(sample_ids.size(), -1);
-
-	           	for (uint column_idx = 1; column_idx < line_split.size(); column_idx++) {
-
-	           		assert(column_idx_sample_idx_map.at(column_idx) >= 0);
-	           		assert(Utils::floatCompare(sample_cdfs.back().at(column_idx_sample_idx_map.at(column_idx)), -1));
-
-	           		sample_cdfs.back().at(column_idx_sample_idx_map.at(column_idx)) = stof(line_split.at(column_idx));
-	           	}
-	        }
-
-           	line_counter++;
-        }
-
-        cdf_file.close();
-
-        return sample_cdfs;
-    }
-
     uint calculateNucleotideCover(vector<pair<uint, uint> > cover) {
 
         assert(!(cover.empty()));
@@ -196,17 +139,15 @@ namespace AddAttributes {
         return nt_cover;
     }
 
-	void addAttributes(const string & vcf_filename, const string & output_prefix, const string & genome_filename, const string & repeat_filename, const string & parents_trio_regex, const string & trio_info_str, const string & fak_cdf_filename, const string & mac_cdf_filename) {
+	void addAttributes(const string & vcf_filename, const string & output_prefix, const string & genome_filename, const string & repeat_filename, const string & indepedent_samples_regex_str, const string & trio_sample_info_str) {
 
 
 		cout << "[" << Utils::getLocalTime() << "] Running BayesTyperTools (" << BT_VERSION << ") addAttributes ...\n" << endl;
 
         unordered_map<string, FastaRecord*> genome_seqs;
         unordered_map<string, map<string, vector<pair<uint, uint> > > > repeat_annotations;
-        regex parent_sample_id_regex;
+        regex indepedent_samples_regex;
 		vector<Trio::TrioInfo> all_trio_info;
-		vector<vector<float> > fak_sample_cdfs;
-		vector<vector<float> > mac_sample_cdfs;
 
 		GenotypedVcfFileReader vcf_reader(vcf_filename, true);
 		auto output_meta_data = vcf_reader.metaData();
@@ -215,7 +156,7 @@ namespace AddAttributes {
 
 		cout << "[" << Utils::getLocalTime() << "] Adding the following attributes:\n" << endl;
 
-		assert(!(genome_filename.empty()) or !(repeat_filename.empty()) or !(parents_trio_regex.empty()) or !(trio_info_str.empty()) or !(fak_cdf_filename.empty()) or !(mac_cdf_filename.empty()));
+		assert(!(genome_filename.empty()) or !(repeat_filename.empty()) or !(indepedent_samples_regex_str.empty()) or !(trio_sample_info_str.empty()));
 
 		if (!(genome_filename.empty())) {
 
@@ -242,48 +183,30 @@ namespace AddAttributes {
 			output_meta_data.infoDescriptors().emplace("RMA", Attribute::DetailedDescriptor("RMA", Attribute::Number::A, Attribute::Type::String, "RepeatMasker annotations (<family#nucleotide_cover>:...)"));
 		}
 
-		if (!(parents_trio_regex.empty())) {
+		if (!(indepedent_samples_regex_str.empty())) {
 
 			cout << "\t - Absolute inbreeding coefficient (IBC)" << endl;
 
-			parent_sample_id_regex = regex(parents_trio_regex);
+			indepedent_samples_regex = regex(indepedent_samples_regex_str);
 
 			output_meta_data.infoDescriptors().emplace("IBC", Attribute::DetailedDescriptor("IBC", Attribute::Number::One, Attribute::Type::String, "Absolute inbreeding coefficient (<Coefficient>:<Number of independent samples used>)"));
 		}
 
-		if (!(trio_info_str.empty())) {
+		if (!(trio_sample_info_str.empty())) {
 
  			cout << "\t - Is sample in corcordant trio (CONC)" << endl;
 
-			if (trio_info_str == "GenomeDKPedigree") {
+			if (trio_sample_info_str == "GenomeDKPedigree") {
 
 				all_trio_info = Trio::parseGenomeDKPedigree(vcf_reader.metaData());
 
 			} else {
 
-				all_trio_info = Trio::parsePedigree(vcf_reader.metaData(), trio_info_str);
+				all_trio_info = Trio::parsePedigree(vcf_reader.metaData(), trio_sample_info_str);
 			}
 
 			output_meta_data.formatDescriptors().emplace("CONC", Attribute::DetailedDescriptor("CONC", Attribute::Number::One, Attribute::Type::String, "Is sample in corcordant trio"));
  		}
-
-		if (!(fak_cdf_filename.empty())) {
-
-			cout << "\t - Fraction of observed kmers quantile (FAKQ)" << endl;
-
-			fak_sample_cdfs = parseCDFFile(fak_cdf_filename, sample_ids, "FAK", 1000);
-
-			output_meta_data.formatDescriptors().emplace("FAKQ", Attribute::DetailedDescriptor("FAKQ", Attribute::Number::R, Attribute::Type::Float, "Mean fraction of observed allele kmers quantile."));
-		}
-
-		if (!(mac_cdf_filename.empty())) {
-
-			cout << "\t - Kmer coverage quantile (MACQ)" << endl;
-
-			mac_sample_cdfs = parseCDFFile(mac_cdf_filename, sample_ids, "MAC", 10);
-
-			output_meta_data.formatDescriptors().emplace("MACQ", Attribute::DetailedDescriptor("MACQ", Attribute::Number::R, Attribute::Type::Float, "Mean mean allele kmer coverage quantile."));
-		}
 
 
         cout << "\n[" << Utils::getLocalTime() << "] Parsing variants ...\n" << endl;
@@ -355,9 +278,9 @@ namespace AddAttributes {
 	            }
 			}
 
-			if (!(parents_trio_regex.empty())) {
+			if (!(indepedent_samples_regex_str.empty())) {
 
-	            auto inbreeding_stats = Stats::calcInbreedingStats(*cur_var, parent_sample_id_regex);
+	            auto inbreeding_stats = Stats::calcInbreedingStats(*cur_var, indepedent_samples_regex);
 
 	            if (inbreeding_stats.is_fixed) {
 
@@ -369,7 +292,7 @@ namespace AddAttributes {
 	            }
 		    }
 
-			if (!(trio_info_str.empty())) {
+			if (!(trio_sample_info_str.empty())) {
 
 				for (auto & trio_info: all_trio_info) {
 
@@ -396,60 +319,6 @@ namespace AddAttributes {
 					cur_var->getSample(trio_info.father).info().setValue<string>("CONC", conc_status);
 					cur_var->getSample(trio_info.mother).info().setValue<string>("CONC", conc_status);
 					cur_var->getSample(trio_info.child).info().setValue<string>("CONC", conc_status);
-				}
-			}
-
-			if (!(fak_cdf_filename.empty())) {
-
-				for (uint sample_idx = 0; sample_idx < sample_ids.size(); sample_idx++) {
-
-					Sample * sample = &(cur_var->getSample(sample_ids.at(sample_idx)));
-
-					for (auto & allele_info: sample->alleleInfo()) {
-
-						auto fak_value = allele_info.getValue<float>("FAK");
-
-						if (fak_value.second) {
-
-							if (fak_value.first >= 0) {
-
-								assert(fak_sample_cdfs.at(round(fak_value.first * 1000)).at(sample_idx) >= 0);
-								allele_info.setValue<float>("FAKQ", fak_sample_cdfs.at(round(fak_value.first * 1000)).at(sample_idx));
-
-							} else {
-
-								assert(Utils::floatCompare(fak_value.first, -1));
-								allele_info.setValue<float>("FAKQ", -1);
-							}
-						}
-					}
-				}
-			}
-
-			if (!(mac_cdf_filename.empty())) {
-
-				for (uint sample_idx = 0; sample_idx < sample_ids.size(); sample_idx++) {
-
-					Sample * sample = &(cur_var->getSample(sample_ids.at(sample_idx)));
-
-					for (auto & allele_info: sample->alleleInfo()) {
-
-						auto mac_value = allele_info.getValue<float>("MAC");
-						
-						if (mac_value.second) {
-
-							if (mac_value.first >= 0) {
-
-								assert(mac_sample_cdfs.at(round(mac_value.first * 10)).at(sample_idx) >= 0);
-								allele_info.setValue<float>("MACQ", mac_sample_cdfs.at(round(mac_value.first * 10)).at(sample_idx));
-
-							} else {
-
-								assert(Utils::floatCompare(mac_value.first, -1));
-								allele_info.setValue<float>("MACQ", -1);
-							}
-						}
-					}
 				}
 			}
 

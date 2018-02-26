@@ -1,6 +1,6 @@
 
 /*
-VariantClusterGraphVertex.hpp - This file is part of BayesTyper (v1.1)
+VariantClusterGraphVertex.hpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -43,9 +43,11 @@ struct VariantClusterGraphVertex {
 	vector<ushort> reference_variant_indices;
 	
 	uint nested_variant_cluster_index;
+	bool is_first_nucleotides_redundant;
 
 	bool is_disconnected;
 	vector<bool> sequence;
+	
 };
 
 

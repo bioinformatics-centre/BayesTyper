@@ -1,6 +1,6 @@
 
 /*
-Kmer.hpp - This file is part of BayesTyper (v1.1)
+Kmer.hpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -108,6 +108,7 @@ class KmerPair : public KmerForward<size>, public KmerReverseComplement<size> {
 		bool move(bitset<2>);
 		void shrink(const uchar);
 		void reset();
+		bool isComplete();
 
 		const bitset<size*2> & getForwardKmer();
 		const bitset<size*2> & getReverseComplementKmer();

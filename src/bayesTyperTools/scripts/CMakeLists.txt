@@ -1,8 +1,7 @@
 
 SET(EXECUTABLE_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/bin/scripts)
-SET(EXTERNAL_DIR "${CMAKE_SOURCE_DIR}/external/")
 
-include_directories(${CMAKE_SOURCE_DIR}/include/bayesTyperTools/ ${CMAKE_SOURCE_DIR}/include/vcf++ ${Boost_INCLUDE_DIRS} ${EXTERNAL_DIR})
+include_directories(${CMAKE_SOURCE_DIR}/include/bayesTyperTools ${CMAKE_SOURCE_DIR}/include/vcf++ ${CMAKE_SOURCE_DIR}/external/ ${Boost_INCLUDE_DIRS})
 link_directories(${CMAKE_SOURCE_DIR}/lib ${Boost_LIB_DIRS})
 
 add_executable(generateDiplotypes generateDiplotypes.cpp)
@@ -11,11 +10,8 @@ target_link_libraries(generateDiplotypes vcf++)
 add_executable(filterStructuralVariants filterStructuralVariants.cpp)
 target_link_libraries(filterStructuralVariants vcf++)
 
-add_executable(getKmerStats getKmerStats.cpp ${EXTERNAL_DIR}/kmc_api/kmc_file.cpp ${EXTERNAL_DIR}/kmc_api/kmer_api.cpp ${EXTERNAL_DIR}/kmc_api/mmer.cpp)
-target_link_libraries(getKmerStats vcf++)
-
-add_executable(transferAlleleFreqFields transferAlleleFreqFields.cpp)
-target_link_libraries(transferAlleleFreqFields vcf++)
+add_executable(getKmerStats getKmerStats.cpp)
+target_link_libraries(getKmerStats vcf++ kmc)
 
 add_executable(collapseSummaryTable collapseSummaryTable.cpp)
 target_link_libraries(collapseSummaryTable vcf++)
@@ -38,8 +34,10 @@ target_link_libraries(addEditDistanceAndCondordance vcf++)
 add_executable(convertSeqToAlleleId convertSeqToAlleleId.cpp)
 target_link_libraries(convertSeqToAlleleId vcf++)
 
-add_executable(addGenotypeQuality addGenotypeQuality.cpp)
-target_link_libraries(addGenotypeQuality vcf++)
+add_executable(transferAlleleCallsetOrigin transferAlleleCallsetOrigin.cpp)
+target_link_libraries(transferAlleleCallsetOrigin vcf++)
 
+add_executable(writeIndels writeIndels.cpp)
+target_link_libraries(writeIndels vcf++)
 
 

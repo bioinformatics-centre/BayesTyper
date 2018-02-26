@@ -1,6 +1,6 @@
 
 /*
-main.cpp - This file is part of BayesTyper (v1.1)
+main.cpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -58,6 +58,7 @@ using namespace std;
 namespace po = boost::program_options;
 
 static const ushort default_kmer_size = 55;
+static const ushort max_num_samples = 30;
 
 int main (int argc, char * const argv[]) {
 
@@ -91,10 +92,10 @@ int main (int argc, char * const argv[]) {
 	po::options_description graph("== Graph ==", 160);
 	graph.add_options()
 
-		("kmer-size", po::value<ushort>()->default_value(default_kmer_size)->notifier(bind(&OptionsContainer::parseValue<ushort>, &options_container, "kmer-size", placeholders::_1)), "kmer size (31, 39, 47, 55 or 63).")
-		("max-allele-length", po::value<uint>()->default_value(3000000)->notifier(bind(&OptionsContainer::parseValue<uint>, &options_container, "max-allele-length", placeholders::_1)), "exclude alleles (reference and alternative) longer than <length>.")
+		("kmer-size", po::value<ushort>()->default_value(default_kmer_size)->notifier(bind(&OptionsContainer::parseValue<ushort>, &options_container, "kmer-size", placeholders::_1)), "kmer size (31, 39, 47, 55 or 63 supported).")
+		("max-allele-length", po::value<uint>()->default_value(500000)->notifier(bind(&OptionsContainer::parseValue<uint>, &options_container, "max-allele-length", placeholders::_1)), "exclude alleles (reference and alternative) longer than <length>.")
 		("copy-number-variant-threshold", po::value<double>()->default_value(0.5, "0.5")->notifier(bind(&OptionsContainer::parseValue<double>, &options_container, "copy-number-variant-threshold", placeholders::_1)), "minimum fraction of identical kmers required between an allele and the downstream reference sequence in order for it to be classified as a copy number")
-		("max-number-of-sample-haplotype-candidates", po::value<ushort>()->default_value(24)->notifier(bind(&OptionsContainer::parseValue<ushort>, &options_container, "max-number-of-sample-haplotype-candidates", placeholders::_1)), "maximum number of haplotype candidates per sample (the total number of candidates will never exceed 256).")
+		("max-number-of-sample-haplotype-candidates", po::value<ushort>()->default_value(16)->notifier(bind(&OptionsContainer::parseValue<ushort>, &options_container, "max-number-of-sample-haplotype-candidates", placeholders::_1)), "maximum number of haplotype candidates per sample (the minimum number of candidates per sample is one).")
 	;
 
 	po::options_description inference("== Inference ==", 160);
@@ -111,7 +112,7 @@ int main (int argc, char * const argv[]) {
 	po::options_description noise("== Noise ==", 160);
 	noise.add_options()
 
-		("noise-rate-prior", po::value<string>()->default_value("1,1")->notifier(bind(&OptionsContainer::parseValuePair<double>, &options_container, "noise-rate-prior", placeholders::_1)), "gamma parameters for Poisson noise rate prior (<shape>,<scale>). All samples will use the same parameters.")
+		("noise-rate-prior", po::value<string>()->default_value("1,1")->notifier(bind(&OptionsContainer::parseValuePair<double>, &options_container, "noise-rate-prior", placeholders::_1)), "parameters for Poisson noise rate gamme prior (<shape>,<scale>). All samples will use the same parameters.")
 		("number-of-parameter-estimation-samples", po::value<ushort>()->default_value(100)->notifier(bind(&OptionsContainer::parseValue<ushort>, &options_container, "number-of-parameter-estimation-samples", placeholders::_1)), "number of parameter estimation iterations.")
 		("number-of-parameter-estimation-SNVs", po::value<uint>()->default_value(1000000)->notifier(bind(&OptionsContainer::parseValue<uint>, &options_container, "number-of-parameter-estimation-SNVs", placeholders::_1)), "maximum number of autosomal SNVs to use for parameter estimation.")
 	;
@@ -139,7 +140,7 @@ int main (int argc, char * const argv[]) {
     assert(options_container.getValue<double>("copy-number-variant-threshold") >= 0);
     assert(options_container.getValue<double>("copy-number-variant-threshold") <= 1);
     assert(options_container.getValue<ushort>("max-number-of-sample-haplotype-candidates") > 0);
-    assert(options_container.getValue<ushort>("max-number-of-sample-haplotype-candidates") < floor(Utils::ushort_overflow/float(30)));
+    assert((options_container.getValue<ushort>("max-number-of-sample-haplotype-candidates") * max_num_samples) < Utils::ushort_overflow);
 
     assert(options_container.getValue<ushort>("gibbs-burn-in") > 0);
     assert(options_container.getValue<ushort>("gibbs-samples") > 0);
@@ -189,18 +190,22 @@ int main (int argc, char * const argv[]) {
     		sample.gender = Utils::Gender::Female;
     	}
 
-    	sample.file = split_sample_line.at(2);
+		ifstream kmer_prefix_file(split_sample_line.at(2) + ".kmc_pre");
+		ifstream kmer_suffix_file(split_sample_line.at(2) + ".kmc_suf");
+		ifstream kmer_bloom_file(split_sample_line.at(2) + ".bloom");
 
-		ifstream kmc_database_prefix_file(split_sample_line.at(2) + ".kmc_pre");
-		ifstream kmc_database_suffix_file(split_sample_line.at(2) + ".kmc_suf");
+		if (!kmer_prefix_file.good() or !kmer_suffix_file.good() or !kmer_bloom_file.good()) {
 
-		samples.push_back(sample);
-
-		if (!kmc_database_prefix_file.good() or !kmc_database_suffix_file.good()) {
-
-			cout << "\nERROR: " << split_sample_line.at(2) << ".kmc_pre or " << split_sample_line.at(2) << ".kmc_suf does not exist - or you do not have sufficient permissions.\n" << endl;
+			cout << "\nERROR: " << split_sample_line.at(2) << ".kmc_pre or " << split_sample_line.at(2) << ".kmc_suf or " << split_sample_line.at(2) << ".bloom does not exist - or you do not have sufficient permissions.\n" << endl;
 			exit(1);
 		}
+
+		kmer_prefix_file.close();
+		kmer_suffix_file.close();
+		kmer_bloom_file.close();
+
+    	sample.file = split_sample_line.at(2);
+		samples.push_back(sample);
 	}
 
     sample_file.close();
@@ -211,9 +216,9 @@ int main (int argc, char * const argv[]) {
 		exit(1);    	
     }
 
-    if (samples.size() > 30) {
+    if (samples.size() > max_num_samples) {
 
-		cout << "\nERROR: The maximum number of samples supported by BayesTyper is currently 30.\n" << endl;
+		cout << "\nERROR: The maximum number of samples supported by BayesTyper is currently " << max_num_samples << ".\n" << endl;
 		exit(1);    	
     }
 
@@ -281,9 +286,6 @@ int main (int argc, char * const argv[]) {
 	inference_engine.genotypeVariantClusterGroups(&variant_cluster_groups, kmer_factory.numberOfVariants(), kmer_hash, count_distribution, samples, &genotype_writer);
 
 	genotype_writer.completedGenotyping();
-
-    genotype_writer.writeSampleAlleleKmerFractionCumDistFunc();
-    genotype_writer.writeSampleAlleleKmerCoverageCumDistFunc();
 
 	cout << "\n[" << Utils::getLocalTime() << "] " << Utils::getMaxMemoryUsage() << endl;
 

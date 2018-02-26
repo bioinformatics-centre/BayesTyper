@@ -1,6 +1,6 @@
 
 /*
-addEditDistanceAndCondordance.cpp - This file is part of BayesTyper (v1.1)
+addEditDistanceAndCondordance.cpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -31,6 +31,7 @@ THE SOFTWARE.
 #include <iostream>
 #include <algorithm>
 #include <memory>
+#include <iterator>
 
 #include "VcfFile.hpp"
 #include "Variant.hpp"
@@ -38,6 +39,16 @@ THE SOFTWARE.
 #include "Auxiliaries.hpp"
 #include "FastaReader.hpp"
 #include "FastaRecord.hpp"
+
+
+struct AltAlleleInfo {
+
+	const uint pos;
+	const uint ref_len;
+	const uint alt_len;
+
+	AltAlleleInfo(const uint pos_in, const uint ref_len_in, const uint alt_len_in) : pos(pos_in), ref_len(ref_len_in), alt_len(alt_len_in) {}
+};
 
 
 pair<string, string> getAllelePair(Variant & variant, const uint allele_idx) {
@@ -53,21 +64,20 @@ pair<string, string> getAllelePair(Variant & variant, const uint allele_idx) {
     return make_pair(ref_allele.seq(), allele.seq());
 }
 
-vector<vector<bool> > getNestedIndex(vector<Variant *> & variants, const string sample_id) {
+vector<vector<AltAlleleInfo> > getHaplotypesAlleleInfo(vector<Variant *> & variants, const string sample_id) {
 
 	if (variants.empty()) {
 
-		return vector<vector<bool> >();
+		return vector<vector<AltAlleleInfo> >(1, vector<AltAlleleInfo>());
 	}
 
 	const uint ploidy = variants.front()->getSample(sample_id).genotypeEstimate().size();
 
-	vector<vector<bool> > nested_index(ploidy, vector<bool>(variants.size(), false));
-	vector<uint> max_allele_end_pos(ploidy, 0);
+	vector<vector<AltAlleleInfo> > haplotype_allele_info(ploidy, vector<AltAlleleInfo>());
 
-	for (uint i = 0; i < variants.size(); i++) {
+	for (auto & variant: variants) {
 
-    	Sample & sample = variants.at(i)->getSample(sample_id);
+    	Sample & sample = variant->getSample(sample_id);
 
 		assert(sample.ploidy() != Sample::Ploidy::Polyploid);
 		assert(sample.isPhased());
@@ -75,187 +85,129 @@ vector<vector<bool> > getNestedIndex(vector<Variant *> & variants, const string 
 
         for (uint genotyped_allele_idx = 0; genotyped_allele_idx < sample.genotypeEstimate().size(); genotyped_allele_idx++) {
 
-			if (variants.at(i)->pos() <= max_allele_end_pos.at(genotyped_allele_idx)) {
+        	if ((sample.genotypeEstimate().at(genotyped_allele_idx) > 0) and !(variant->allele(sample.genotypeEstimate().at(genotyped_allele_idx)).isMissing())) {
 
-				nested_index.at(genotyped_allele_idx).at(i) = true;
+				Allele ref_allele = variant->ref();
+				Allele alt_allele = variant->allele(sample.genotypeEstimate().at(genotyped_allele_idx));
 
-			} else {
+			    auto pos_shift = Auxiliaries::fullTrimAllelePair(&ref_allele, &alt_allele);
 
-	    		auto allele_pair = getAllelePair(*(variants.at(i)), sample.genotypeEstimate().at(genotyped_allele_idx));
-	            
-	            max_allele_end_pos.at(genotyped_allele_idx) = max(max_allele_end_pos.at(genotyped_allele_idx), static_cast<uint>(variants.at(i)->pos() + allele_pair.first.size() - 1));
-			}
+			    assert(!(ref_allele.seq().empty()) or !(alt_allele.seq().empty()));
+
+	        	if (!(haplotype_allele_info.at(genotyped_allele_idx).empty())) {
+
+	        		assert((haplotype_allele_info.at(genotyped_allele_idx).back().pos + haplotype_allele_info.at(genotyped_allele_idx).back().ref_len) <= (variant->pos() + pos_shift.first));
+	        	}
+
+	        	haplotype_allele_info.at(genotyped_allele_idx).emplace_back(variant->pos() + pos_shift.first, ref_allele.seq().size(), alt_allele.seq().size());
+	        }
         }
 	}
 
-	return nested_index;
+	return haplotype_allele_info;
 }
 
-pair<uint, bool> calculateFlankEditDistance(typename vector<Variant *>::iterator variants_it, vector<Variant *> & variants, const vector<vector<bool> > & nested_index, const string sample_id, const uint genotyped_allele_idx, const uint read_length) {
 
-	assert(variants_it != variants.end());
-	assert(genotyped_allele_idx < nested_index.size());
+pair<uint, bool> calculateFlankEditDistance(Variant * variant, const vector<AltAlleleInfo> & haplotype_allele_info, const uint read_length) {
 
-	if (nested_index.at(genotyped_allele_idx).at(variants_it - variants.begin())) {
-
-		return make_pair(0, false);
-	}
+	assert(variant);
 
 	uint flank_edit_distance = 0;
 
-	Sample & sample = (*variants_it)->getSample(sample_id);
-	assert(sample.genotypeEstimate().size() == nested_index.size());
+	if (haplotype_allele_info.empty()) {
 
-	auto main_allele_pair = getAllelePair(**variants_it, sample.genotypeEstimate().at(genotyped_allele_idx));
-
-	auto variants_rit = variants.rbegin();
-
-	while (variants_rit != variants.rend()) {
-
-		if (*variants_rit == *variants_it) {
-
-			break;
-		}
-
-		variants_rit++;		
+		return make_pair(flank_edit_distance, true);
 	}
 
-	assert(variants_rit != variants.rend());
+	vector<AltAlleleInfo>::const_iterator haplotype_allele_info_it = lower_bound(haplotype_allele_info.begin(), haplotype_allele_info.end(), variant->pos(), [](const AltAlleleInfo & elem, const uint & val) { return elem.pos < val;});
+	reverse_iterator<vector<AltAlleleInfo>::const_iterator> haplotype_allele_info_rit(haplotype_allele_info_it);
 
-	uint downstream_start_position = (*variants_rit)->pos();
-	uint left_flank_length = main_allele_pair.second.size() + 1;
+	if (haplotype_allele_info_rit != haplotype_allele_info.crend()) {
 
-	variants_rit++;
+		assert(haplotype_allele_info_rit->pos < variant->pos());
 
-	while (variants_rit != variants.rend()) {
+		if (variant->pos() < (haplotype_allele_info_rit->pos + haplotype_allele_info_rit->ref_len)) {
 
-		if (!(nested_index.at(genotyped_allele_idx).at(variants.rend() - variants_rit - 1))) {
-
-			Sample & cur_sample = (*variants_rit)->getSample(sample_id);
-			assert(cur_sample.genotypeEstimate().size() == nested_index.size());
-
-			if (cur_sample.genotypeEstimate().at(genotyped_allele_idx) > 0) {
-
-		    	auto cur_allele_pair = getAllelePair(*(*variants_rit), cur_sample.genotypeEstimate().at(genotyped_allele_idx));
-
-		    	assert(((*variants_rit)->pos() + cur_allele_pair.first.size() - 1) < downstream_start_position);
-
-				left_flank_length += downstream_start_position - ((*variants_rit)->pos() + cur_allele_pair.first.size() - 1) - 1;    	
-
-				if (left_flank_length <= read_length) {
-
-					flank_edit_distance++;
-				}
-
-				left_flank_length += cur_allele_pair.second.size();
-				downstream_start_position = (*variants_rit)->pos();	
-			}
+			return make_pair(flank_edit_distance, false);
 		}
-
-		if (read_length < left_flank_length) {
-
-			break;
-		}
-
-		variants_rit++;
 	}
 
+	uint upstream_end_position = variant->pos();
+	uint right_flank_length = 0;
 
-	uint upstream_end_position = (*variants_it)->pos() + main_allele_pair.first.size() - 1;
-	uint right_flank_length = main_allele_pair.second.size() + 1;
+	while (haplotype_allele_info_it != haplotype_allele_info.cend()) {
 
-	variants_it++;
+    	assert(upstream_end_position <= haplotype_allele_info_it->pos);
 
-	while (variants_it != variants.end()) {
+		right_flank_length += haplotype_allele_info_it->pos - upstream_end_position;    	
 
-		if (!(nested_index.at(genotyped_allele_idx).at(variants_it - variants.begin()))) {
+		if (right_flank_length < read_length) {
 
-	    	assert(upstream_end_position < (*variants_it)->pos());
-
-			Sample & cur_sample = (*variants_it)->getSample(sample_id);
-			assert(cur_sample.genotypeEstimate().size() == nested_index.size());
-
-			if (cur_sample.genotypeEstimate().at(genotyped_allele_idx) > 0) {
-
-		    	auto cur_allele_pair = getAllelePair(*(*variants_it), cur_sample.genotypeEstimate().at(genotyped_allele_idx));
-
-				right_flank_length += (*variants_it)->pos() - upstream_end_position - 1;
-
-				if (right_flank_length <= read_length) {
-
-					flank_edit_distance++;
-				}
-
-				right_flank_length += cur_allele_pair.second.size();
-				downstream_start_position = (*variants_it)->pos() + cur_allele_pair.first.size() - 1;
-			}
-		}
-
-		if (read_length < right_flank_length) {
+			flank_edit_distance++;
+		
+		} else {
 
 			break;
 		}
 
-		variants_it++;
+		right_flank_length += haplotype_allele_info_it->alt_len;
+		upstream_end_position = haplotype_allele_info_it->pos + haplotype_allele_info_it->ref_len;	
+
+		haplotype_allele_info_it++;
 	}	
+
+	uint downstream_start_position = variant->pos();
+	uint left_flank_length = 1;
+
+	while (haplotype_allele_info_rit != haplotype_allele_info.crend()) {
+
+    	assert((haplotype_allele_info_rit->pos + haplotype_allele_info_rit->ref_len) <= downstream_start_position);
+
+		left_flank_length += downstream_start_position - (haplotype_allele_info_rit->pos + haplotype_allele_info_rit->ref_len);    	
+
+		if (left_flank_length < read_length) {
+
+			flank_edit_distance++;
+		
+		} else {
+
+			break;
+		}
+
+		left_flank_length += haplotype_allele_info_rit->alt_len;
+		downstream_start_position = haplotype_allele_info_rit->pos;	
+
+		haplotype_allele_info_rit++;
+	}
 
 	return make_pair(flank_edit_distance, true);
 }
 
-void addMeanFlankEditDistance(Variant * cs_variant, typename vector<Variant *>::iterator gt_variants_it, vector<Variant *> * gt_variants, const vector<vector<bool> > & gt_nested_index, const string sample_id, const uint read_length) {
+void addMaxFlankEditDistance(Variant * variant, const vector<vector<AltAlleleInfo> > & haplotypes_allele_info, const string sample_id, const uint read_length) {
 
-	float mean_flank_edit_distance = -1;
+	assert(variant);
 
-	if (gt_variants_it != gt_variants->end()) {
+	pair<uint, bool> max_flank_edit_distance(0, false);
 
-		if (!(gt_nested_index.empty())) {
+    for (auto & haplotype_allele_info: haplotypes_allele_info) {
 
-	    	pair<uint, bool> sum_flank_edit_distance(0, true);
+    	auto flank_edit_distance = calculateFlankEditDistance(variant, haplotype_allele_info, read_length);
 
-            for (uint genotyped_allele_idx = 0; genotyped_allele_idx < gt_nested_index.size(); genotyped_allele_idx++) {
+    	if (flank_edit_distance.second) {
 
-            	auto flank_edit_distance = calculateFlankEditDistance(gt_variants_it, *gt_variants, gt_nested_index, sample_id, genotyped_allele_idx, read_length);
+    		max_flank_edit_distance.first = max(max_flank_edit_distance.first, flank_edit_distance.first);
+    		max_flank_edit_distance.second = true;
+    	}
+    }
 
-            	sum_flank_edit_distance.first += flank_edit_distance.first;
-            	sum_flank_edit_distance.second = flank_edit_distance.second;
+    if (max_flank_edit_distance.second) {
 
-            	if (!(sum_flank_edit_distance.second)) {
+		variant->getSample(sample_id).info().setValue<float>("MED", max_flank_edit_distance.first);    		
+    		    
+    } else {
 
-            		break;
-            	}
-            }
-
-            if (sum_flank_edit_distance.second) {
-
-            	mean_flank_edit_distance = sum_flank_edit_distance.first/static_cast<float>(gt_nested_index.size());
-            }
-        }
-
-	} 
-
-	if (cs_variant and (gt_variants_it != gt_variants->end())) {
-
-		if (cs_variant->pos() == (*gt_variants_it)->pos()) {
-
-			cs_variant->getSample(sample_id).info().setValue<float>("MFED", mean_flank_edit_distance);
-
-		} else {
-
-			cs_variant->getSample(sample_id).info().setValue<float>("MFED", -1);
-		}
-
-		(*gt_variants_it)->getSample(sample_id).info().setValue<float>("MFED", mean_flank_edit_distance);
-
-	} else if (cs_variant) {
-
-		assert(Utils::floatCompare(mean_flank_edit_distance, -1));
-		cs_variant->getSample(sample_id).info().setValue<float>("MFED", mean_flank_edit_distance);
-	
-	} else {
-
-		assert(gt_variants_it != gt_variants->end());
-		(*gt_variants_it)->getSample(sample_id).info().setValue<float>("MFED", mean_flank_edit_distance);
-	} 
+    	variant->getSample(sample_id).info().setValue<float>("MED", -1);
+    }		
 }
 
 void addGenotypeConcordance(Variant * gt_variant, Variant * cs_variant, const string sample_id) {
@@ -305,7 +257,7 @@ void addGenotypeConcordance(Variant * gt_variant, Variant * cs_variant, const st
     			auto gt_allele_pair_1 = getAllelePair(*gt_variant, gt_sample->genotypeEstimate().front());
     			auto cs_allele_pair_1 = getAllelePair(*cs_variant, cs_sample->genotypeEstimate().front());
 
-    			if (gt_allele_pair_1 ==  cs_allele_pair_1) {
+    			if (gt_allele_pair_1 == cs_allele_pair_1) {
 
     				genotype_concordance = "T";
 
@@ -320,7 +272,29 @@ void addGenotypeConcordance(Variant * gt_variant, Variant * cs_variant, const st
     		genotype_concordance = "F";
     	}
 
-		gt_sample->info().setValue<string>("GTCO", genotype_concordance);
+    	auto gt_sample_gtco = gt_sample->info().getValue<string>("GTCO");
+
+    	if (gt_sample_gtco.second) {
+
+    		if (genotype_concordance == "T") {
+
+	    		gt_sample->info().setValue<string>("GTCO", genotype_concordance);
+
+    		} else if ((genotype_concordance == "P") and ((gt_sample_gtco.first == "F") | (gt_sample_gtco.first == "I"))) {
+
+	    		gt_sample->info().setValue<string>("GTCO", genotype_concordance);
+    		
+    		} else if (gt_sample_gtco.first == "I") {
+
+	    		gt_sample->info().setValue<string>("GTCO", genotype_concordance);
+    		}
+    	
+    	} else {
+
+    		gt_sample->info().setValue<string>("GTCO", genotype_concordance);
+    	}
+
+		assert(!(cs_sample->info().getValue<string>("GTCO").second));
 		cs_sample->info().setValue<string>("GTCO", genotype_concordance);
 
 	} else {
@@ -339,7 +313,7 @@ void addGenotypeConcordance(Variant * gt_variant, Variant * cs_variant, const st
 
     	Sample * sample = &(variant->getSample(sample_id));
 
-		assert(sample->ploidy() != Sample::Ploidy::Polyploid);    
+		assert(sample->ploidy() != Sample::Ploidy::Polyploid);
     	assert(sample->genotypeEstimate().size() <= 2);
 
     	if (sample->genotypeEstimate().size() > 0) {
@@ -368,7 +342,7 @@ void addEditDistanceAndCondordance(vector<Variant *> * gt_variants, vector<Varia
 
 	for (auto & sample_id: sample_ids) {
 
-		auto gt_nested_index = getNestedIndex(*gt_variants, sample_id);
+		// auto gt_haplotypes_allele_info = getHaplotypesAlleleInfo(*gt_variants, sample_id);
 
 		auto gt_variants_it = gt_variants->begin();
 		auto cs_variants_it = cs_variants->begin();
@@ -382,57 +356,75 @@ void addEditDistanceAndCondordance(vector<Variant *> * gt_variants, vector<Varia
 
 				if ((*gt_variants_it)->pos() == (*cs_variants_it)->pos()) {
 
-					assert(gt_last_position < (*gt_variants_it)->pos());
-					assert(cs_last_position < (*cs_variants_it)->pos());
+					// addMaxFlankEditDistance(*gt_variants_it, gt_haplotypes_allele_info, sample_id, read_length);
+					// addMaxFlankEditDistance(*cs_variants_it, gt_haplotypes_allele_info, sample_id, read_length);
 
-					gt_last_position = (*gt_variants_it)->pos();
-					cs_last_position = (*cs_variants_it)->pos();
-
-					addMeanFlankEditDistance(*cs_variants_it, gt_variants_it, gt_variants, gt_nested_index, sample_id, read_length);
 					addGenotypeConcordance(*gt_variants_it, *cs_variants_it, sample_id);
 
-					gt_variants_it++;
+					assert(cs_last_position <= (*cs_variants_it)->pos());
+					cs_last_position = (*cs_variants_it)->pos();
+					
 					cs_variants_it++;
-				
+
+					assert(gt_last_position < (*gt_variants_it)->pos());
+
+					if (cs_variants_it != cs_variants->end()) {
+
+						assert(cs_last_position <= (*cs_variants_it)->pos());
+
+						if (cs_last_position < (*cs_variants_it)->pos()) {
+
+							gt_last_position = (*gt_variants_it)->pos();
+							gt_variants_it++;
+						}
+					
+					} else {
+
+						gt_last_position = (*gt_variants_it)->pos();
+						gt_variants_it++;
+					}
+
 				} else if ((*gt_variants_it)->pos() < (*cs_variants_it)->pos()) {
+
+					// addMaxFlankEditDistance(*gt_variants_it, gt_haplotypes_allele_info, sample_id, read_length);
+					addGenotypeConcordance(*gt_variants_it, nullptr, sample_id);
 
 					assert(gt_last_position < (*gt_variants_it)->pos());
 					gt_last_position = (*gt_variants_it)->pos();
-
-					addMeanFlankEditDistance(nullptr, gt_variants_it, gt_variants, gt_nested_index, sample_id, read_length);
-					addGenotypeConcordance(*gt_variants_it, nullptr, sample_id);
 
 					gt_variants_it++;
 
 				} else {
 
-					assert(cs_last_position < (*cs_variants_it)->pos());
-					cs_last_position = (*cs_variants_it)->pos();
+					assert(((*cs_variants_it)->pos() < (*gt_variants_it)->pos()));
 
-					addMeanFlankEditDistance(*cs_variants_it, gt_variants->end(), gt_variants, gt_nested_index, sample_id, read_length);
+					// addMaxFlankEditDistance(*cs_variants_it, gt_haplotypes_allele_info, sample_id, read_length);
 					addGenotypeConcordance(nullptr, *cs_variants_it, sample_id);
 
-					assert(((*cs_variants_it)->pos() < (*gt_variants_it)->pos()));
+					assert(cs_last_position <= (*cs_variants_it)->pos());
+					cs_last_position = (*cs_variants_it)->pos();
+					
 					cs_variants_it++;
 				}
 
 			} else if (gt_variants_it != gt_variants->end()) {
 
-				assert(gt_last_position < (*gt_variants_it)->pos());
-				gt_last_position = (*gt_variants_it)->pos();
-
-				addMeanFlankEditDistance(nullptr, gt_variants_it, gt_variants, gt_nested_index, sample_id, read_length);
+				// addMaxFlankEditDistance(*gt_variants_it, gt_haplotypes_allele_info, sample_id, read_length);
 				addGenotypeConcordance(*gt_variants_it, nullptr, sample_id);
-				
+
+				assert(gt_last_position < (*gt_variants_it)->pos());
+				gt_last_position = (*gt_variants_it)->pos();				
+
 				gt_variants_it++;
 
 			} else {
 
-				assert(cs_last_position < (*cs_variants_it)->pos());
-				cs_last_position = (*cs_variants_it)->pos();
 
-				addMeanFlankEditDistance(*cs_variants_it, gt_variants_it, gt_variants, gt_nested_index, sample_id, read_length);
+				// addMaxFlankEditDistance(*cs_variants_it, gt_haplotypes_allele_info, sample_id, read_length);
 				addGenotypeConcordance(nullptr, *cs_variants_it, sample_id);
+
+				assert(cs_last_position <= (*cs_variants_it)->pos());
+				cs_last_position = (*cs_variants_it)->pos();
 
 				cs_variants_it++;
 			}
@@ -450,27 +442,30 @@ int main(int argc, char const *argv[]) {
 
     cout << "\n[" << Utils::getLocalTime() << "] Running BayesTyperTools (" << BT_VERSION << ") addEditDistanceAndCondordance script ...\n" << endl;
 
+    cout << "[" << Utils::getLocalTime() << "] WARNING: edit distance calculation is currently disabled!\n" << endl;
+
 	GenotypedVcfFileReader gt_vcf_reader(argv[1], true);
 	GenotypedVcfFileReader cs_vcf_reader(argv[2], true);
 	
 	assert(gt_vcf_reader.metaData().contigs() == cs_vcf_reader.metaData().contigs());
 	assert(gt_vcf_reader.metaData().sampleIds() == cs_vcf_reader.metaData().sampleIds());
 
-	cout << "[" << Utils::getLocalTime() << "] Adding mean flank edit distance (MFED) and genotype concordance (GTCO) to " << gt_vcf_reader.metaData().sampleIds().size() << " samples ...\n" << endl;
+	cout << "[" << Utils::getLocalTime() << "] Adding maximum edit distance (MED) and genotype concordance (GTCO) to " << gt_vcf_reader.metaData().sampleIds().size() << " samples ...\n" << endl;
 
 	auto gt_output_meta_data = gt_vcf_reader.metaData();
 	auto cs_output_meta_data = cs_vcf_reader.metaData();
 
-	gt_output_meta_data.formatDescriptors().emplace("GTCO", Attribute::DetailedDescriptor("GTCO", Attribute::Number::One, Attribute::Type::String, "Genotype concordance"));
-	gt_output_meta_data.formatDescriptors().emplace("MFED", Attribute::DetailedDescriptor("MFED", Attribute::Number::One, Attribute::Type::Float, "Mean flank edit distance"));
+	const uint read_length = stoi(argv[5]);
 
+	gt_output_meta_data.formatDescriptors().emplace("MED", Attribute::DetailedDescriptor("MED", Attribute::Number::One, Attribute::Type::Float, "Maximum edit distance to reference within a window of size " + to_string(read_length * 2 - 1) + " centered at position"));
+	gt_output_meta_data.formatDescriptors().emplace("GTCO", Attribute::DetailedDescriptor("GTCO", Attribute::Number::One, Attribute::Type::String, "Genotype concordance"));
+
+	cs_output_meta_data.formatDescriptors().emplace("MED", Attribute::DetailedDescriptor("MED", Attribute::Number::One, Attribute::Type::Float, "Maximum edit distance to reference within a window of size " + to_string(read_length * 2 - 1) + " centered at position"));
 	cs_output_meta_data.formatDescriptors().emplace("GTCO", Attribute::DetailedDescriptor("GTCO", Attribute::Number::One, Attribute::Type::String, "Genotype concordance"));
-	cs_output_meta_data.formatDescriptors().emplace("MFED", Attribute::DetailedDescriptor("MFED", Attribute::Number::One, Attribute::Type::Float, "Mean flank edit distance"));
 
 	VcfFileWriter gt_vcf_writer(string(argv[3]) + ".vcf", gt_output_meta_data, true);
 	VcfFileWriter cs_vcf_writer(string(argv[4]) + ".vcf", cs_output_meta_data, true);
 
-	const uint read_length = stoi(argv[5]);
 	const vector<string> sample_ids = gt_vcf_reader.metaData().sampleIds();
 
 	Variant * gt_cur_var;
@@ -593,8 +588,8 @@ int main(int argc, char const *argv[]) {
 	assert(!(cs_vcf_reader.getNextVariant(&cs_cur_var)));
 	assert(!(gt_vcf_reader.getNextVariant(&gt_cur_var)));
 
-	cout << "\n[" << Utils::getLocalTime() << "] Added MFED and GTCO to genotypes on " << num_gt_variants << " ground truth variants." << endl;
-	cout << "[" << Utils::getLocalTime() << "] Added MFED and GTCO to genotypes on " << num_cs_variants << " callset variants." << endl;
+	cout << "\n[" << Utils::getLocalTime() << "] Added MED and GTCO to genotypes on " << num_gt_variants << " ground truth variants." << endl;
+	cout << "[" << Utils::getLocalTime() << "] Added MED and GTCO to genotypes on " << num_cs_variants << " callset variants." << endl;
 	cout << endl;
 
 	return 0;

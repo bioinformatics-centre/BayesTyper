@@ -1,6 +1,6 @@
 
 /*
-generateDiplotypes.cpp - This file is part of BayesTyper (v1.1)
+generateDiplotypes.cpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -55,7 +55,7 @@ int main(int argc, char const *argv[]) {
 
 	if ((argc != 4) and (argc != 5)) {
 
-		std::cout << "USAGE: generateDiplotypes <vcf> <genome> <output_prefix> (<sample_ambiguous>)" << std::endl;
+		std::cout << "USAGE: generateDiplotypes <input> <genome> <output_prefix> (<sample_ambiguous>)" << std::endl;
 		return 1;
 	}
 

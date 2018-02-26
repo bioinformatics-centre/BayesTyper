@@ -1,6 +1,6 @@
 
 /*
-AttributeSet.cpp - This file is part of BayesTyper (v1.1)
+AttributeSet.cpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)

@@ -1,6 +1,6 @@
 
 /*
-VariantClusterHaplotypes.hpp - This file is part of BayesTyper (v1.1)
+VariantClusterHaplotypes.hpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -46,9 +46,7 @@ class VariantClusterHaplotypes {
 
 	public:
 
-		VariantClusterHaplotypes(const float);
-
-		bernoulli_distribution bernoulli_dist;
+		VariantClusterHaplotypes() {};
 
 		struct HaplotypeInfo {
 
@@ -67,9 +65,9 @@ class VariantClusterHaplotypes {
 
 			KmerCounts * const counts;
 			const uchar bias_idx;
-			const vector<pair<ushort, vector<bool> > > variant_haplotype_indices;
+			vector<pair<ushort, vector<bool> > > variant_haplotype_indices;
 
-			KmerInfo(KmerCounts * const counts_in, const uchar bias_idx_in, const vector<pair<ushort, vector<bool> > > & variant_haplotype_indices_in) : counts(counts_in), bias_idx(bias_idx_in), variant_haplotype_indices(variant_haplotype_indices_in) {}
+			KmerInfo(KmerCounts * const counts_in, const uchar bias_idx_in) : counts(counts_in), bias_idx(bias_idx_in) {}
 		};
 
 		vector<KmerInfo> unique_kmers;
@@ -98,13 +96,11 @@ class VariantClusterHaplotypes {
 		
 		vector<KmerStatsCache> kmer_stats_cache;
 
-		bool empty();
-
 		uchar getUniqueKmerMultiplicity(const uint, const pair<ushort,ushort> &, const Utils::Gender);
 		uchar getMulticlusterKmerMultiplicity(const uint, const pair<ushort,ushort> &, const pair<ushort,ushort> &, const ushort, const Utils::Gender);
 		uchar getPreviousMulticlusterKmerMultiplicity(const uint, const pair<ushort,ushort> &, const pair<ushort,ushort> &, const ushort, const Utils::Gender);
 
-		void sampleKmerSubset(mt19937 *, const uint, const ushort);
+		void sampleKmerSubset(mt19937 *, const float, const uint, const ushort);
 
 		bool isMulticlusterKmerUpdated(const uint, const ushort);
 		void updateMulticlusterKmerMultiplicities(const pair<ushort,ushort> &, const pair<ushort,ushort> &, const ushort);
@@ -115,7 +111,7 @@ class VariantClusterHaplotypes {
 		uchar getDiplotypeUniqueKmerMultiplicity(const uint, const pair<ushort,ushort> &);
 		uchar getDiplotypeMulticlusterKmerMultiplicity(const uint, const pair<ushort,ushort> &);
 
-		bool isKmerInSubset(mt19937 *, vector<vector<uint> > *, const uint, const vector<pair<ushort, vector<bool> > > &);
+		bool isMaxHaplotypeVariantKmer(vector<vector<uint> > *, const uint, const vector<pair<ushort, vector<bool> > > &);
 
 		void updateKmerStatsCache(KmerInfo &, const pair<ushort,ushort> &, const ushort, const float);
 };

@@ -1,6 +1,6 @@
 
 /*
-KmerCounter.hpp - This file is part of BayesTyper (v1.1)
+KmerCounter.hpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -36,13 +36,13 @@ THE SOFTWARE.
 #include "kmc_api/kmer_api.h"
 #include "boost/graph/adjacency_list.hpp"
 
-#include "ProducerConsumerQueue.hpp"
+#include "KmerBloom.hpp"
 
 #include "Utils.hpp"
 #include "KmerHash.hpp"
 #include "PerfectSet.hpp"
 #include "Sample.hpp"
-#include "VariantClusterGroup.hpp"
+#include "VariantClusterGraph.hpp"
 #include "VariantFileParser.hpp"
 
 
@@ -51,15 +51,14 @@ class KmerCounter {
 
 	public:
 
-		KmerCounter(KmerHash * const, Utils::SmallmerSet * const, const ushort);
+		KmerCounter(const ushort, const ulong, const uchar);
+		~KmerCounter();
 
-		ulong countVariantClusterSmallmers(vector<VariantClusterGraph *> *);
-		ulong countInterclusterKmers(const vector<VariantFileParser::InterClusterRegion> &);
-		ulong countSampleKmers(const vector<Sample> &);
-		void countVariantClusterKmers(vector<VariantClusterGroup *> *, const uint, const ushort, const ushort);
+		void findVariantClusterPaths(vector<VariantClusterGraph *> *, const vector<Sample> &, const uint, const ushort);
+		void countInterclusterKmers(KmerHash *, const vector<VariantFileParser::InterClusterRegion> &, const uchar);
+		void parseSampleKmers(KmerHash *, const vector<Sample> &);
+		void countVariantClusterKmers(KmerHash *, vector<VariantClusterGroup *> *);
 
-		uchar minSampleKmerCount();
-		
 	private:
 
 		typedef vector<pair<CKmerAPI, uint32> > KmerBatch;
@@ -73,17 +72,16 @@ class KmerCounter {
 			KmerBatchInfo(const ushort sample_idx_in, const KmerBatch::iterator begin_it_in, const KmerBatch::iterator end_it_in) : sample_idx(sample_idx_in), begin_it(begin_it_in), end_it(end_it_in) {}
 		};
 
-		KmerHash * const kmer_hash;
-		Utils::SmallmerSet * const smallmer_set;
 		const ushort num_threads;
+		const uint max_intercluster_kmers;
 
-		uchar min_sample_kmer_count;
+		ThreadedBasicKmerBloom<kmer_size> * path_bloom;
 
-		void countVariantClusterSmallmersCallback(vector<VariantClusterGraph *> *, const ushort, mutex *, ulong *);
-		void countInterclusterKmersCallback(const vector<VariantFileParser::InterClusterRegion> &, const ushort, mutex *, ulong *);
-		void countSampleKmersCallBack(ProducerConsumerQueue<KmerBatchInfo *> *, ProducerConsumerQueue<KmerBatchInfo *> *, mutex *, ulong *);
-		void countVariantClusterKmersCallback(vector<VariantClusterGroup *> *, const uint, const ushort, const ushort, const ushort);
+		void findVariantClusterPathsCallback(vector<VariantClusterGraph *> *, KmerBloom *, const ushort, const uint, const ushort, const ushort);
+		void selectParameterInterclusterKmersCallback(const vector<VariantFileParser::InterClusterRegion> &, const ushort, const uint);
+		void countInterclusterKmersCallback(KmerHash *, const vector<VariantFileParser::InterClusterRegion> &, const ushort);
+		void parseSampleKmersCallBack(KmerHash *, ProducerConsumerQueue<KmerBatchInfo *> *, ProducerConsumerQueue<KmerBatchInfo *> *);
+		void countVariantClusterKmersCallback(KmerHash *, vector<VariantClusterGroup *> *, const ushort);
 };
-
 
 #endif

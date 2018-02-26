@@ -1,6 +1,6 @@
 
 /*
-Genotypes.hpp - This file is part of BayesTyper (v1.1)
+Genotypes.hpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -57,8 +57,6 @@ class Genotypes {
 		ushort variant_cluster_size;
 		uint variant_cluster_group_size;
 
-		bool has_redundant_sequence;
-
 		VariantInfo variant_info;
 		vector<ushort> non_covered_alleles;
 
@@ -84,17 +82,9 @@ class Genotypes {
 		    vector<float> allele_posteriors;
 			AlleleKmerStats allele_kmer_stats;
 
-			bool is_allele_kmer_estimate_variant;
-
-			SampleStats() {
-
-				is_allele_kmer_estimate_variant = false;
-			};
-
 			SampleStats(const ushort num_alleles, const uint num_genotypes) : genotype_posteriors(num_genotypes, 0), allele_posteriors(num_alleles, 0) {
 
 				genotype_estimate.reserve(2);
-				is_allele_kmer_estimate_variant = false;
 			}
 		};
 

@@ -1,6 +1,6 @@
 
 /*
-filter.cpp - This file is part of BayesTyper (v1.1)
+filter.cpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -44,12 +44,12 @@ static const uint min_homozygote_samples = 10;
 
 namespace Filter {
 
-    pair<float, bool> calcInbreedingCoefficient(Variant & cur_var, const Contig::Type chrom_type, const ushort num_parent_samples, const regex & parent_sample_id_regex) {
+    pair<float, bool> calcInbreedingCoefficient(Variant & cur_var, const Contig::Type chrom_type, const ushort num_indepedent_samples, const regex & indepedent_sample_regex) {
 
         if (chrom_type == Contig::Type::Autosomal) {
 
-            auto inbreeding_stats = Stats::calcInbreedingStats(cur_var, parent_sample_id_regex);
-            assert(inbreeding_stats.num_samples == num_parent_samples);
+            auto inbreeding_stats = Stats::calcInbreedingStats(cur_var, indepedent_sample_regex);
+            assert(inbreeding_stats.num_samples == num_indepedent_samples);
 
             if (!(inbreeding_stats.is_fixed)) {
 
@@ -74,7 +74,7 @@ namespace Filter {
         }
     }
 
-    void filter(const string & vcf_filename, const string & genome_filename, const string & output_prefix, const string & kmer_coverage_filename, string parents_trio_regex, FilterValues filter_values) {
+    void filter(const string & vcf_filename, const string & genome_filename, const string & output_prefix, const string & kmer_coverage_filename, string indepedent_samples_regex_str, FilterValues filter_values) {
 
         cout << "[" << Utils::getLocalTime() << "] Running BayesTyperTools (" << BT_VERSION << ") filter ...\n" << endl;
         cout << "[" << Utils::getLocalTime() << "] Parsing reference genome fasta ..." << endl;
@@ -96,29 +96,24 @@ namespace Filter {
         auto sample_ids = vcf_reader.metaData().sampleIds();
         assert(!(sample_ids.empty()));
 
-        uint num_parent_samples = 0;
+        uint num_indepedent_samples = 0;
 
-        if (parents_trio_regex.empty()) {
-
-            parents_trio_regex = "^$";
-        }
-
-        regex parent_sample_id_regex(parents_trio_regex);
+        regex indepedent_sample_regex(indepedent_samples_regex_str);
 
         for (auto & sample_id: sample_ids) {
 
-            if (regex_match(sample_id, parent_sample_id_regex)) {
+            if (regex_match(sample_id, indepedent_sample_regex)) {
 
-                num_parent_samples++;
+                num_indepedent_samples++;
             }
         }
 
-        if (num_parent_samples >= min_inbreeding_samples) {
+        if (num_indepedent_samples >= min_inbreeding_samples) {
 
             assert(filter_values.max_inbreeding_coef >= 0);
             assert(filter_values.max_inbreeding_coef <= 1);
 
-            cout << "[" << Utils::getLocalTime() << "] Calculating inbreeding coefficient using " << num_parent_samples << " independent samples\n" << endl;
+            cout << "[" << Utils::getLocalTime() << "] Calculating inbreeding coefficient using " << num_indepedent_samples << " independent samples\n" << endl;
             cout << "[" << Utils::getLocalTime() << "] Adding absolute inbreeding coefficient filter (> " << filter_values.max_inbreeding_coef << ")" << endl;
         }
 
@@ -264,9 +259,9 @@ namespace Filter {
                 filtered_alleles = getFilteredHomopolymerAlleles(*cur_var, genome_seqs_it->second->seq(), filter_values.max_homopolymer_length);
             }
 
-            if (num_parent_samples >= min_inbreeding_samples) {
+            if (num_indepedent_samples >= min_inbreeding_samples) {
 
-                auto inbreeding_coefficient = calcInbreedingCoefficient(*cur_var, cur_chromosome_type, num_parent_samples, parent_sample_id_regex);
+                auto inbreeding_coefficient = calcInbreedingCoefficient(*cur_var, cur_chromosome_type, num_indepedent_samples, indepedent_sample_regex);
 
                 if (inbreeding_coefficient.second and (inbreeding_coefficient.first > filter_values.max_inbreeding_coef)) {
 

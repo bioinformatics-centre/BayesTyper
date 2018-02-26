@@ -1,6 +1,6 @@
 
 /*
-getSummary.cpp - This file is part of BayesTyper (v1.1)
+getSummary.cpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -45,9 +45,9 @@ THE SOFTWARE.
 namespace GetSummary {
 
 
-	static const vector<string> variant_attributes({"Count","ChromType","Filter","VariantType","HasMissing","HasRedundant","NumAlleles","EffectiveNumAlleles","MaxAltACP","MaxAltAC","AN","HPL","HasHomopolymer","HTV","NumCompleteSamples","NumCONCTrue","NumCONCFalse","BASE","CALL","GTCO","MFED"});
+	static const vector<string> variant_attributes({"Count","ChromType","Filter","VariantType","HasMissing","HasRedundant","NumAlleles","EffectiveNumAlleles","MaxAltACP","MaxAltAC","AN","ACO","HPL","HasHomopolymer","HTV","NumCompleteSamples","NumCONCTrue","NumCONCFalse","BASE","CALL","GTCO","MED"});
 	
-	static const vector<string> allele_attributes({"Count","ChromType","Filter","AlleleType","AlleleLength","AlleleSVLength","IsRedundant","NumAlleles","EffectiveNumAlleles","ACP","AC","AN","HPL","IsHomopolymer","HTV","NumCompleteSamples","NumCONCTrue","NumCONCFalse","BASE","CALL","GTCO","MFED","MinNAK","MinFAK"});
+	static const vector<string> allele_attributes({"Count","ChromType","Filter","AlleleType","AlleleLength","AlleleSVLength","IsRedundant","NumAlleles","EffectiveNumAlleles","ACP","AC","AN","ACO","HPL","IsHomopolymer","HTV","NumCompleteSamples","NumCONCTrue","NumCONCFalse","BASE","CALL","GTCO","MED","MinNAK","MinFAK"});
 
 
 	pair<float, bool> parseSampleAlleleValue(const pair<float, bool> & att_value) {
@@ -250,7 +250,7 @@ namespace GetSummary {
 
 			for (uint allele_idx = 0; allele_idx < cur_var->numAlls(); allele_idx++) {
 
-                if (!(Utils::floatCompare(call_probs.allele_call_probs.at(allele_idx), 0))) {
+                if (allele_stats.allele_counts.at(allele_idx) > 0) {
 
                     effective_num_alleles++;
                 }
@@ -323,7 +323,7 @@ namespace GetSummary {
             uint num_conc_false = 0;
 
             pair<string, bool> gtco_value("", false);
-            pair<float, bool> mfed_value(0, false);
+            pair<float, bool> med_value(0, false);
 
             vector<pair<float, bool> > allele_min_nak(cur_var->numAlls(), make_pair(0, false));
             vector<pair<float, bool> > allele_min_fak(cur_var->numAlls(), make_pair(0, false));
@@ -354,7 +354,7 @@ namespace GetSummary {
 				}
 	
 				gtco_value = cur_sample.info().getValue<string>("GTCO");
-				mfed_value = cur_sample.info().getValue<float>("MFED");
+				med_value = cur_sample.info().getValue<float>("MED");
 
 				assert(cur_sample.alleleInfo().size() == cur_var->numAlls());
 
@@ -368,7 +368,7 @@ namespace GetSummary {
 			if (vcf_reader.metaData().sampleIds().size() != 1) {
 
            		gtco_value = make_pair("", false);
-            	mfed_value = make_pair(0, false);
+            	med_value = make_pair(0, false);
 			}
 
 			for (uint allele_idx = 0; allele_idx < cur_var->numAlls(); allele_idx++) {
@@ -388,6 +388,7 @@ namespace GetSummary {
 				allele_summary_stats_str.join(convertValueToString(make_pair(call_probs.allele_call_probs.at(allele_idx), true), 2));
 				allele_summary_stats_str.join(convertValueToString(make_pair(allele_stats.allele_counts.at(allele_idx), true)));
 				allele_summary_stats_str.join(convertValueToString(make_pair(allele_stats.allele_count_sum, true)));
+				allele_summary_stats_str.join(convertValueToString(cur_var->allele(allele_idx).info().getValue<string>("ACO")));
 				allele_summary_stats_str.join(convertValueToString(hpl_value_1));
 				allele_summary_stats_str.join(convertValueToString(make_pair(static_cast<bool>(homopolymer_alleles.first.at(allele_idx)), homopolymer_alleles.second)));
 				allele_summary_stats_str.join(convertValueToString(cur_var->info().getValue<string>("HTV")));
@@ -397,14 +398,14 @@ namespace GetSummary {
 				allele_summary_stats_str.join(convertValueToString(cur_var->info().getValue<string>("BASE")));
 				allele_summary_stats_str.join(convertValueToString(cur_var->info().getValue<string>("CALL")));
 				allele_summary_stats_str.join(convertValueToString(gtco_value));
-				allele_summary_stats_str.join(convertValueToString(mfed_value, 2));
+				allele_summary_stats_str.join(convertValueToString(med_value, 2));
 				allele_summary_stats_str.join(convertValueToString(allele_min_nak.at(allele_idx), 1));
 				allele_summary_stats_str.join(convertValueToString(allele_min_fak.at(allele_idx), 2));
 
 				auto allele_summary_stats_it = allele_summary_stats.emplace(allele_summary_stats_str.str(), 0);
 				allele_summary_stats_it.first->second++;
 			}
-			
+
 			JoiningString variant_summary_stats_str('\t');
 
 			variant_summary_stats_str.join(convertValueToString(make_pair(chrom_type, true)));
@@ -417,6 +418,7 @@ namespace GetSummary {
 			variant_summary_stats_str.join(convertValueToString(make_pair(max_alt_acp, true), 2));
 			variant_summary_stats_str.join(convertValueToString(make_pair(max_alt_ac, true)));
 			variant_summary_stats_str.join(convertValueToString(make_pair(allele_stats.allele_count_sum, true)));
+			variant_summary_stats_str.join(convertValueToString(Auxiliaries::variantOrigins(*cur_var)));
 			variant_summary_stats_str.join(convertValueToString(hpl_value_1));
 			variant_summary_stats_str.join(convertValueToString(make_pair(has_homopolymer_allele, homopolymer_alleles.second)));
 			variant_summary_stats_str.join(convertValueToString(cur_var->info().getValue<string>("HTV")));
@@ -426,7 +428,7 @@ namespace GetSummary {
 			variant_summary_stats_str.join(convertValueToString(cur_var->info().getValue<string>("BASE")));
 			variant_summary_stats_str.join(convertValueToString(cur_var->info().getValue<string>("CALL")));
 			variant_summary_stats_str.join(convertValueToString(gtco_value));
-			variant_summary_stats_str.join(convertValueToString(mfed_value, 2));
+			variant_summary_stats_str.join(convertValueToString(med_value, 2));
 
 			auto variant_summary_stats_it = variant_summary_stats.emplace(variant_summary_stats_str.str(), 0);
 			variant_summary_stats_it.first->second++;
@@ -450,7 +452,7 @@ namespace GetSummary {
 
 		writeSummaryStats(allele_summary_stats, output_prefix + "_allele.txt", allele_summary_stats_header.str());
 
-		cout << "\n[" << Utils::getLocalTime() << "] Wrote summary statistics for a total of " << num_variants << " variants, " << num_alleles << " alleles" << endl;
+		cout << "\n[" << Utils::getLocalTime() << "] Wrote summary statistics for a total of " << num_variants << " variants and " << num_alleles << " alleles" << endl;
 		cout << endl;
 	}
 }

@@ -1,6 +1,6 @@
 
 /*
-VariantClusterGenotyper.hpp - This file is part of BayesTyper (v1.1)
+VariantClusterGenotyper.hpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -64,15 +64,10 @@ class VariantClusterGenotyper {
 
 	public: 
 
-		VariantClusterGenotyper(const vector<Sample> &, const float);
+		VariantClusterGenotyper(VariantClusterGraph *, KmerHash *, const vector<Sample> &, const uint, const uchar);
 		~VariantClusterGenotyper();
 
-		void initialise(KmerHash *, VariantClusterGraph *, const uint prng_seed, const ushort, const uchar);
-
-		void restart(const uint);
-
-		bool hasMulticlusterKmer();
-		bool hasExcludedKmer();
+		void restart(const float, const uint);
 
 		void sampleGenotypes(const CountDistribution &, const vector<Utils::Ploidy> &, const bool);
 		void getCountAllocations(CountAllocation *, const CountDistribution &);
@@ -97,14 +92,11 @@ class VariantClusterGenotyper {
 
 		const vector<Sample> & samples;
 
-		VariantClusterHaplotypes variant_cluster_haplotypes;
-
 		mt19937 prng;
-		
-		bool is_parameter_estimation_cluster : 1, use_multicluster_kmers : 1; 
 
-		bool has_redundant_sequence;
-		bool has_excluded_kmer;
+		bool use_multicluster_kmers; 
+
+		VariantClusterHaplotypes variant_cluster_haplotypes;
 		
 		vector<VariantInfo> variant_cluster_info;
 		vector<vector<AlleleKmerStats> > allele_kmer_stats;

@@ -1,6 +1,6 @@
 
 /*
-HaplotypeFrequencyDistribution.cpp - This file is part of BayesTyper (v1.1)
+HaplotypeFrequencyDistribution.cpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -32,68 +32,100 @@ THE SOFTWARE.
 #include "FrequencyDistribution.hpp"
 
 
-HaplotypeFrequencyDistribution::HaplotypeFrequencyDistribution(FrequencyDistribution * frequency_distribution_in) : frequency_distribution(frequency_distribution_in) {
+HaplotypeFrequencyDistribution::HaplotypeFrequencyDistribution() {
 
-    sum_haplotype_count = 0;
-    sum_missing_count = 0;
+	num_haplotype_count = 0;
+	num_missing_count = 0;
+}
+
+uint HaplotypeFrequencyDistribution::numHaplotypeCount() {
+
+	return num_haplotype_count; 
+}
+
+uint HaplotypeFrequencyDistribution::numMissingCount() {
+
+	return num_missing_count; 
 }
 
 
-HaplotypeFrequencyDistribution::~HaplotypeFrequencyDistribution() {
+UniformHaplotypeFrequencyDistribution::UniformHaplotypeFrequencyDistribution(const ushort num_haplotypes) : HaplotypeFrequencyDistribution(), frequency(1 / static_cast<double>(num_haplotypes)) {}
+
+void UniformHaplotypeFrequencyDistribution::reset() {
+
+	assert(num_haplotype_count == 0);
+	assert(num_missing_count == 0);
+
+}
+
+pair<bool, double> UniformHaplotypeFrequencyDistribution::getElementFrequency(const ushort element_idx) {
+
+	assert(element_idx < Utils::ushort_overflow);
+	return make_pair(true, frequency);
+}
+
+void UniformHaplotypeFrequencyDistribution::incrementObservationCount(const ushort element_idx) {
+
+	if (element_idx == Utils::ushort_overflow) {
+
+		num_missing_count++;
+
+	} else {
+
+		num_haplotype_count++;
+	}
+}
+
+void UniformHaplotypeFrequencyDistribution::sampleFrequencies() {
+
+	num_haplotype_count = 0;
+	num_missing_count = 0;
+}
+
+
+SparseHaplotypeFrequencyDistribution::SparseHaplotypeFrequencyDistribution(FrequencyDistribution * frequency_distribution_in) : HaplotypeFrequencyDistribution(), frequency_distribution(frequency_distribution_in) {}
+
+
+SparseHaplotypeFrequencyDistribution::~SparseHaplotypeFrequencyDistribution() {
 
 	delete frequency_distribution;
 }
 
+void SparseHaplotypeFrequencyDistribution::reset() {
 
-void HaplotypeFrequencyDistribution::reset() {
-
-	assert(sum_haplotype_count == 0);
-	assert(sum_missing_count == 0);
+	assert(num_haplotype_count == 0);
+	assert(num_missing_count == 0);
 
 	frequency_distribution->reset();
 }
 
-pair<bool, double> HaplotypeFrequencyDistribution::getElementFrequency(const ushort element_idx) {
+pair<bool, double> SparseHaplotypeFrequencyDistribution::getElementFrequency(const ushort element_idx) {
 
 	assert(element_idx < Utils::ushort_overflow);
 	return frequency_distribution->getElementFrequency(element_idx);
 }
 
-
-void HaplotypeFrequencyDistribution::incrementObservationCount(const ushort element_idx) {
+void SparseHaplotypeFrequencyDistribution::incrementObservationCount(const ushort element_idx) {
 
 	if (element_idx == Utils::ushort_overflow) {
 
-		sum_missing_count++;
+		num_missing_count++;
 
 	} else {
 
-		sum_haplotype_count++;
+		num_haplotype_count++;
 		frequency_distribution->incrementObservationCount(element_idx);
 	}
 }
 
+void SparseHaplotypeFrequencyDistribution::sampleFrequencies() {
 
-uint HaplotypeFrequencyDistribution::sumHaplotypeCount() {
-
-	return sum_haplotype_count; 
-}
-
-
-uint HaplotypeFrequencyDistribution::sumMissingCount() {
-
-	return sum_missing_count; 
-}
-
-
-void HaplotypeFrequencyDistribution::sampleFrequencies() {
-
-	if (sum_haplotype_count > 0) {
+	if (num_haplotype_count > 0) {
 		
-		frequency_distribution->sampleFrequencies(sum_haplotype_count);
+		frequency_distribution->sampleFrequencies(num_haplotype_count);
 	}
 
-	sum_haplotype_count = 0;
-	sum_missing_count = 0;
+	num_haplotype_count = 0;
+	num_missing_count = 0;
 }
 

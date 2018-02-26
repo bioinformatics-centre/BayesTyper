@@ -1,6 +1,6 @@
 
 /*
-merge.cpp - This file is part of BayesTyper (v1.1)
+merge.cpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -155,11 +155,6 @@ namespace Merge {
 					for (auto & var_value_assert_key : var_value_assert_keys) {
 
 						assert(cur_tmpl_var->info().getValue(var_value_assert_key) == cur_in_var->info().getValue(var_value_assert_key));
-					}
-
-					if (cur_in_var->info().getValue("HRS").second) {
-
-						cur_tmpl_var->info().addFlag("HRS");
 					}
 
 					auto cur_in_var_anc_values = cur_in_var->info().getValue<string>("ANC");

@@ -1,6 +1,6 @@
 
 /*
-VariantFileParser.hpp - This file is part of BayesTyper (v1.1)
+VariantFileParser.hpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -54,14 +54,13 @@ class VariantFileParser {
   
 	public:
 
-		VariantFileParser(const string, const uint, const double, const ushort, const uint);
+		VariantFileParser(const string, const uint, const double, const ushort);
 		~VariantFileParser();
 
-		template <int kmer_size>
-		void addDecoys(const string);
+		void addDecoys(const string, const uchar);
 
-		template <int kmer_size>
-		void readVariantFile(const string, vector<VariantClusterGraph*> *, vector<VariantClusterGroup*> *);
+		template <uchar kmer_size>
+		void readVariantFile(const string, vector<VariantClusterGraph*> *, vector<VariantClusterGroup*> *, const uint);
 
 		struct InterClusterRegion {
 
@@ -77,22 +76,22 @@ class VariantFileParser {
 		
 		ulong getNumberOfVariants();
 		ushort getMaxAlternativeAlleles();
+		ulong getVariableRegionLength();
 
 		static string simplifyChromosomeId(const string & chromosome);
 		static Utils::ChromosomeClass classifyGenomeChromosome(const string & chromosome);
 
 	private:
 
-		enum class AlleleCount : uchar {Total = 0, Excluded_genome, Excluded_match, Excluded_canon, Excluded_end, Excluded_length, ALLELE_COUNT_SIZE};
+		enum class AlleleCount : uchar {Total = 0, Excluded_genome, Excluded_match, Excluded_end, Excluded_length, ALLELE_COUNT_SIZE};
 
 		const uint max_allele_length;
 		const double copy_number_variant_threshold;
 		const ushort num_threads;
 
-		mt19937 prng;
-
 		ulong number_of_variants;
 		ushort max_alternative_alleles;
+		ulong variable_region_length;
 
 		unordered_map<string, string *> genome_sequences;
 		unordered_map<string, string *> decoy_sequences;
@@ -104,32 +103,33 @@ class VariantFileParser {
 
 		ulong parseFasta(const string, unordered_map<string, string *> *);
 
-		template <typename FileType, int kmer_size>
+		void addSequenceToInterclusterRegions(const string, string::const_iterator, string::const_iterator, const uchar);
+
+		template <typename FileType, uchar kmer_size>
 		pair<vector<uint>, vector<uint> > parseVariants(FileType *, ProducerConsumerQueue<vector<unordered_map<uint, VariantCluster*> * > * > *);
 
 		void rightTrimAllele(string *, string *);
-		void parseAllele(const string &, const string &, const uint, const ushort, VariantCluster::Variant *, const string &);
+		void parseAllele(const string &, const string &, const ushort, VariantCluster::Variant *);
 		Utils::VariantType classifyAllele(const int, const int);		
 
-		template <int kmer_size>
+		template <uchar kmer_size>
 		uint copyNumberVariantLength(const string &, const uint, const string &, const uint);
 
-		template <int kmer_size>
+		template <uchar kmer_size>
 		void clusterVariants(VariantCluster::Variant &, const uint, const set<uint>, const string &, const string &, uint *, map<uint, VariantCluster*> *, unordered_map<uint, VariantCluster*> *, list<unordered_set<uint> > *);
 		
 		void processVariantClusters(ProducerConsumerQueue<vector<unordered_map<uint, VariantCluster*> * > * > *, vector<unordered_map<uint, VariantCluster*> * > **, uint *, unordered_map<uint, VariantCluster*> **, list<unordered_set<uint> > *, map<uint, VariantCluster*> *);
 		void mergeVariantClusters(unordered_map<uint, VariantCluster*> *, list<unordered_set<uint> > &);
 		
-		template <int kmer_size>
-		void processVariantClusterGroupsCallback(ProducerConsumerQueue<vector<unordered_map<uint, VariantCluster*> * > * > *, mutex *, vector<VariantClusterGraph*> *, vector<VariantClusterGroup*> *);
+		template <uchar kmer_size>
+		void processVariantClusterGroupsCallback(vector<VariantClusterGraph*> *, vector<VariantClusterGroup*> *, ProducerConsumerQueue<vector<unordered_map<uint, VariantCluster*> * > * > *, mutex *);
 
 		unordered_map<uint, uint> getVariantClusterGroupDependencies(unordered_map<uint, VariantCluster*> *);
 	
-		template <int kmer_size>
-		void addSequencesToInterclusterRegions(unordered_map<string, string *> &, unordered_set<string> *);
-
 		Utils::ChromosomeClass classifyChromosome(const string & chromosome);
 };
+
+bool InterclusterRegionsCompare(const VariantFileParser::InterClusterRegion &, const VariantFileParser::InterClusterRegion &);
 
 
 #endif

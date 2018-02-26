@@ -1,6 +1,6 @@
 
 /*
-Utils.hpp - This file is part of BayesTyper (v1.1)
+Utils.hpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -67,7 +67,6 @@ namespace Eigen {
     typedef Eigen::Matrix<uchar,Eigen::Dynamic,1> ColVectorXuchar;
     typedef Eigen::Matrix<bool,1,Eigen::Dynamic,Eigen::RowMajor> RowVectorXbool;
     typedef Eigen::Matrix<bool,Eigen::Dynamic,1> ColVectorXbool;
-
 }
 
 namespace Utils {
@@ -84,12 +83,6 @@ namespace Utils {
     static const uchar bit7_overflow = 127;
 
     static const ushort queue_size_thread_scaling = 2;
-    static const uint thread_buckets = 1000000;
-
-    static const float min_posterior_allele_kmer_estimate = 0.99;
-
-    static const uchar small_kmer_size = SMALLMERSIZE;
-    typedef ThreadedPerfectSet<small_kmer_size * 2> SmallmerSet;
 
     enum class VariantType : uchar {SNP = 0, Insertion, Deletion, Complex, Mixture, Unsupported, VARIANT_TYPE_SIZE};
     static const vector<string> variant_type_strings = {"SNP", "Insertion", "Deletion", "Complex", "Mixture", "Unsupported"};

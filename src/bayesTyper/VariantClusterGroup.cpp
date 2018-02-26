@@ -1,6 +1,6 @@
 
 /*
-VariantClusterGroup.cpp - This file is part of BayesTyper (v1.1)
+VariantClusterGroup.cpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -56,11 +56,11 @@ VariantClusterGroup::VariantClusterGroup(const vector<VariantCluster *> & varian
 
  	number_of_variants = 0;
 
-	is_single_nucleotide_polymorphism = false;
+	is_snv = false;
 
 	if ((variant_clusters.size() == 1) and (variant_clusters.front()->variants.size() == 1) and (variant_clusters.front()->variants.begin()->second.type == Utils::VariantType::SNP)) {
 
-		is_single_nucleotide_polymorphism = true;
+		is_snv = true;
 	}
 
 	unordered_map<uint, uint> variant_cluster_idx_to_vertex_id;
@@ -75,13 +75,14 @@ VariantClusterGroup::VariantClusterGroup(const vector<VariantCluster *> & varian
 
 		assert(variant_cluster_idx_to_vertex_id.emplace(variant_clusters.at(i)->cluster_idx, vertices.size()).second);
 
-		vertices.emplace_back(variant_clusters.at(i)->cluster_idx, variant_clusters.at(i)->left_flank + 1, variant_clusters.at(i)->variants.rbegin()->first + 1);
+		vertices.emplace_back(variant_clusters.at(i)->cluster_idx, variant_clusters.at(i)->variants.begin()->first + 1, variant_clusters.at(i)->variants.rbegin()->first + 1);
 
 		vertices.back().graph = variant_cluster_graphs.at(i);
 		vertices.back().genotyper = nullptr;
 
 		assert(variant_clusters.at(i)->contained_clusters.empty());
 		assert(variant_clusters.at(i)->left_flank == variant_clusters.at(i)->variants.begin()->first);
+		assert(variant_clusters.at(i)->right_flank >= variant_clusters.at(i)->variants.rbegin()->first);
 
 		start_position = min(start_position, vertices.back().start_position);
 		end_position = max(end_position, vertices.back().end_position);
@@ -133,108 +134,6 @@ uint VariantClusterGroup::numberOfVariantClusterGroupTrees() const {
 }
 
 
-bool VariantClusterGroup::isAutosomal() const {
-
-	return (chromosome_class == Utils::ChromosomeClass::Autosomal);
-}
-
-
-bool VariantClusterGroup::isSingleNucleotidePolymorphism() const {
-
-	return is_single_nucleotide_polymorphism;
-}
-
-
-bool VariantClusterGroup::hasAmbiguousNucleotide() const {
-
-	for (auto & vertex: vertices) {
-
-		assert(vertex.graph);
-		assert(!(vertex.genotyper));
-
-		if (vertex.graph->hasAmbiguousNucleotide()) {
-
-			return true;
-		}	
-	}
-
-	return false;
-}
-
-
-bool VariantClusterGroup::hasRedundantSequence() const {
-
-	for (auto & vertex: vertices) {
-
-		assert(vertex.graph);
-		assert(!(vertex.genotyper));
-
-		if (vertex.graph->hasRedundantSequence()) {
-
-			return true;
-		}	
-	}
-
-	return false;
-}
-
-
-bool VariantClusterGroup::hasInterclusterKmer() const {
-
-	for (auto & vertex: vertices) {
-
-		assert(vertex.graph);
-		assert(!(vertex.genotyper));
-
-		if (vertex.graph->hasInterclusterKmer()) {
-
-			return true;
-		}
-	}
-
-	return false;
-}
-
-
-bool VariantClusterGroup::hasMulticlusterKmer() const {
-
-	for (auto & vertex: vertices) {
-
-		assert(vertex.genotyper);
-		assert(!(vertex.graph));
-
-		if (vertex.genotyper->hasMulticlusterKmer()) {
-
-			return true;
-		}
-	}
-
-	return false;
-}
-
-
-bool VariantClusterGroup::hasExcludedKmer() const {
-
-	for (auto & vertex: vertices) {
-
-		assert(vertex.genotyper);
-		assert(!(vertex.graph));
-
-		if (vertex.genotyper->hasExcludedKmer()) {
-
-			return true;
-		}
-	}
-
-	return false;
-}
-
-
-uint VariantClusterGroup::uniqueSeed(const uint global_seed, const VariantClusterVertex & vertex) {
-
-	return accumulate(chromosome_id.begin(), chromosome_id.end(), global_seed + start_position + vertex.variant_cluster_idx);
-}
-
 
 bool VariantClusterGroup::isInChromosomeRegions(const Regions & chromosome_regions) {
 
@@ -242,31 +141,48 @@ bool VariantClusterGroup::isInChromosomeRegions(const Regions & chromosome_regio
 }
 
 
-void VariantClusterGroup::countKmers(KmerHash * kmer_hash, const uint variant_cluster_group_idx, const uint prng_seed, const ushort num_samples, const ushort max_sample_haplotype_candidates) {
+void VariantClusterGroup::countKmers(KmerHash * kmer_hash, const uint variant_cluster_group_idx) {
 
 	for (auto & vertex: vertices) {
 
-		vertex.graph->countKmers(kmer_hash, variant_cluster_group_idx, uniqueSeed(prng_seed, vertex), num_samples, max_sample_haplotype_candidates);
+		vertex.graph->countPathKmers(kmer_hash, variant_cluster_group_idx);
 	}
 }
 
 
-void VariantClusterGroup::initialise(KmerHash * kmer_hash, const vector<Sample> & samples, const uint prng_seed, const ushort max_sample_haplotype_candidates, const uchar num_genomic_rate_gc_bias_bins, const float kmer_subsampling_rate, const uint max_haplotype_variant_kmers) {
+bool VariantClusterGroup::isAutosomalSimpleSNV(KmerHash * kmer_hash) const {
+
+	if (!is_snv or (chromosome_class != Utils::ChromosomeClass::Autosomal)) {
+
+		return false;
+	}
+
+	assert(numberOfVariants() == 1);
+	assert(numberOfVariantClusters() == 1);
+	assert(numberOfVariantClusterGroupTrees() == 1);
+
+	assert(vertices.front().graph);
+	assert(!(vertices.front().genotyper));
+
+	return vertices.front().graph->isSimpleCluster(kmer_hash);
+}
+
+
+void VariantClusterGroup::initialise(KmerHash * kmer_hash, const vector<Sample> & samples, const uint prng_seed, const uchar num_genomic_rate_gc_bias_bins, const float kmer_subsampling_rate, const uint max_haplotype_variant_kmers) {
 
 	for (auto & vertex: vertices) {
 
 		if (vertex.genotyper) {
 
 			assert(!(vertex.graph));
-			vertex.genotyper->restart(max_haplotype_variant_kmers);
+			vertex.genotyper->restart(kmer_subsampling_rate, max_haplotype_variant_kmers);
 			
 		} else {	
 
 			assert(vertex.graph);
 
-			vertex.genotyper = new VariantClusterGenotyper(samples, kmer_subsampling_rate);
-			vertex.genotyper->initialise(kmer_hash, vertex.graph, uniqueSeed(prng_seed, vertex), max_sample_haplotype_candidates, num_genomic_rate_gc_bias_bins);
-			vertex.genotyper->restart(max_haplotype_variant_kmers);
+			vertex.genotyper = new VariantClusterGenotyper(vertex.graph, kmer_hash, samples, prng_seed + vertex.variant_cluster_idx, num_genomic_rate_gc_bias_bins);
+			vertex.genotyper->restart(kmer_subsampling_rate, max_haplotype_variant_kmers);
 			
 			delete vertex.graph;
 			vertex.graph = nullptr;

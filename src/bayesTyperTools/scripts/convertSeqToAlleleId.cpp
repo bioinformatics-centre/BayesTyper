@@ -1,6 +1,6 @@
 
 /*
-convertSeqToAlleleId.cpp - This file is part of BayesTyper (v1.1)
+convertSeqToAlleleId.cpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -54,8 +54,11 @@ int main(int argc, char const *argv[]) {
 	VcfFileReader vcf_reader(string(argv[1]), true);
 	auto output_meta_data = vcf_reader.metaData();
 
-	output_meta_data.infoDescriptors().emplace("END", Attribute::DetailedDescriptor("END", Attribute::Number::A, Attribute::Type::Int, "End position of the variant described in this record"));
-	output_meta_data.infoDescriptors().emplace("SVTYPE", Attribute::DetailedDescriptor("SVTYPE", Attribute::Number::A, Attribute::Type::String, "Type of structural variant"));
+    output_meta_data.infoDescriptors().clear();
+	output_meta_data.infoDescriptors().emplace("END", Attribute::DetailedDescriptor("END", Attribute::Number::One, Attribute::Type::Int, "End position of the variant described in this record"));
+	output_meta_data.infoDescriptors().emplace("SVTYPE", Attribute::DetailedDescriptor("SVTYPE", Attribute::Number::One, Attribute::Type::String, "Type of structural variant"));
+	output_meta_data.infoDescriptors().emplace("CIPOS", Attribute::DetailedDescriptor("CIPOS", Attribute::Number::Two, Attribute::Type::Int, "Confidence interval around POS for imprecise variants"));
+	output_meta_data.infoDescriptors().emplace("CIEND", Attribute::DetailedDescriptor("CIEND", Attribute::Number::Two, Attribute::Type::Int, "Confidence interval around END for imprecise variants"));
 
 	VcfFileWriter vcf_writer(string(argv[2]) + ".vcf", output_meta_data, true);
 
@@ -67,8 +70,10 @@ int main(int argc, char const *argv[]) {
 
 	while (genome_reader.getNextRecord(&cur_fasta_rec)) {
 
-        assert(genome_seqs.emplace(cur_fasta_rec->id(), cur_fasta_rec).second);
-        genome_seqs.at(cur_fasta_rec->id())->convertToUppercase();
+        string cur_fasta_id = Utils::splitString(cur_fasta_rec->id(), '\t').front();
+
+        assert(genome_seqs.emplace(cur_fasta_id, cur_fasta_rec).second);
+        genome_seqs.at(cur_fasta_id)->convertToUppercase();
     }
 
     cout << "[" << Utils::getLocalTime() << "] Parsed " << genome_seqs.size() << " chromosome(s)\n" << endl;
@@ -99,106 +104,108 @@ int main(int argc, char const *argv[]) {
             cur_chromosome = cur_var->chrom();
         }
 
-        vector<uint> excluded_alt_indices;
-        excluded_alt_indices.reserve(cur_var->numAlts());
+        Auxiliaries::rightTrimVariant(cur_var);
 
-		for (uint alt_allele_idx = 0; alt_allele_idx < cur_var->numAlts(); alt_allele_idx++) {
+        multimap<uint, Variant> converted_variants;
 
-			assert(!(cur_var->alt(alt_allele_idx).isID()));
+        for (uint alt_allele_idx = 0; alt_allele_idx < cur_var->numAlts(); alt_allele_idx++) {
 
-			auto allele_attributes = Auxiliaries::alleleAttributes(cur_var->alt(alt_allele_idx), cur_var->ref());
+            bool alt_allele_excluded = true;
 
-			if (allele_attributes.type == Auxiliaries::Type::Deletion) {
+            uint cur_pos = cur_var->pos();
 
-				Allele ref_allele = cur_var->ref();
-	        	Allele alt_allele = cur_var->alt(alt_allele_idx);
+    		assert(!(cur_var->alt(alt_allele_idx).isID()));
 
-	            Auxiliaries::rightTrimAllelePair(&ref_allele, &alt_allele);
+            Allele cur_ref_allele = cur_var->ref();
+            Allele cur_alt_allele = cur_var->alt(alt_allele_idx);
 
-	            assert(ref_allele.seq().size() > 1);
-	            assert(alt_allele.seq().size() == 1);
+            Auxiliaries::rightTrimAllelePair(&cur_ref_allele, &cur_alt_allele);
 
-	            if (min_sv_length <= (ref_allele.seq().size() - 1)) {
+            assert(!(cur_ref_allele.seq().empty()));
+            assert(!(cur_alt_allele.seq().empty()));
 
-	            	num_converted_deletions++;
+            if ((cur_ref_allele.seq().size() == cur_alt_allele.seq().size()) and (cur_ref_allele.seq().size() == 1)) {
 
-	            	cur_var->alt(alt_allele_idx).seq() = "<DEL>";
-	            	cur_var->alt(alt_allele_idx).info().setValue<int>("END", cur_var->pos() + ref_allele.seq().size() - 1);
-	            	cur_var->alt(alt_allele_idx).info().setValue<string>("SVTYPE", "DEL");
+                continue;
+            }
 
-	            } else {
+            AttributeSet cur_info;
 
-	            	excluded_alt_indices.push_back(alt_allele_idx);
-	            }
+            if ((cur_ref_allele.seq().size() > 1) and (cur_alt_allele.seq().size() == 1) and (cur_ref_allele.seq().front() == cur_alt_allele.seq().front())) {
 
-			} else if (allele_attributes.type == Auxiliaries::Type::Insertion) {
+    	        if (min_sv_length <= (cur_ref_allele.seq().size() - 1)) {
 
-				Allele ref_allele = cur_var->ref();
-	        	Allele alt_allele = cur_var->alt(alt_allele_idx);
+    	        	alt_allele_excluded = false;
+                    num_converted_deletions++;
 
-	            Auxiliaries::rightTrimAllelePair(&ref_allele, &alt_allele);
+    	        	cur_info.setValue<int>("END", cur_pos + cur_ref_allele.seq().size() - 1);
+    	        	cur_info.setValue<string>("SVTYPE", "DEL");
 
-	            assert(ref_allele.seq().size() == 1);
-	            assert(alt_allele.seq().size() > 1);
+                    cur_ref_allele.seq() = cur_ref_allele.seq().front();
+                    cur_alt_allele = Allele("<DEL>");
+    	        } 
+            
+            } else if ((cur_ref_allele.seq().size() == 1) and (cur_alt_allele.seq().size() > 1) and (cur_ref_allele.seq().front() == cur_alt_allele.seq().front())) {
 
-	            if ((min_sv_length <= (alt_allele.seq().size() - 1)) and (genome_seqs_it->second->seq().substr(cur_var->pos() - 1, alt_allele.seq().size()) == alt_allele.seq())) {
+                if ((min_sv_length <= (cur_alt_allele.seq().size() - 1)) and (genome_seqs_it->second->seq().substr(cur_pos - 1, cur_alt_allele.seq().size()) == cur_alt_allele.seq())) {
 
-	            	num_converted_duplications++;
+            		alt_allele_excluded = false;
+                    num_converted_duplications++;
 
-	            	cur_var->alt(alt_allele_idx).seq() = "<DUP>";
-	            	cur_var->alt(alt_allele_idx).info().setValue<int>("END", cur_var->pos() + alt_allele.seq().size() - 1);
-	            	cur_var->alt(alt_allele_idx).info().setValue<string>("SVTYPE", "DUP");
+                	cur_info.setValue<int>("END", cur_pos + cur_alt_allele.seq().size() - 1);
+                	cur_info.setValue<string>("SVTYPE", "DUP");
 
-	            } else {
+                    cur_ref_allele.seq() = cur_ref_allele.seq().front();
+                    cur_alt_allele = Allele("<DUP>");
+                }
 
-	            	excluded_alt_indices.push_back(alt_allele_idx);
-	            }
+            } else if (cur_ref_allele.seq().size() == cur_alt_allele.seq().size()) {
 
-			} else if (allele_attributes.type == Auxiliaries::Type::Inversion) {
+                if ((cur_ref_allele.seq().front() == cur_alt_allele.seq().front()) and (min_sv_length <= (cur_ref_allele.seq().size() - 1)) and (cur_ref_allele.seq().substr(1, string::npos) == Auxiliaries::reverseComplementSequence(cur_alt_allele.seq().substr(1, string::npos)))) {
 
-				Allele ref_allele = cur_var->ref();
-	        	Allele alt_allele = cur_var->alt(alt_allele_idx);
+                    alt_allele_excluded = false;
+                    num_converted_inversions++;
 
-	            Auxiliaries::rightTrimAllelePair(&ref_allele, &alt_allele);
+                    cur_alt_allele = Allele("<INV>");
+                    cur_info.setValue<int>("END", cur_pos + cur_ref_allele.seq().size() - 1);
+                    cur_info.setValue<string>("SVTYPE", "INV");
 
-	            assert(ref_allele.seq().size() == alt_allele.seq().size());
+                    cur_ref_allele.seq() = cur_ref_allele.seq().front();
+                
+                } else if ((cur_ref_allele.seq().front() != cur_alt_allele.seq().front()) and (min_sv_length <= cur_ref_allele.seq().size()) and (cur_ref_allele.seq() == Auxiliaries::reverseComplementSequence(cur_alt_allele.seq()))) {
 
-	            if ((min_sv_length <= (ref_allele.seq().size() - 1)) and (ref_allele.seq().substr(1, string::npos) == Auxiliaries::reverseComplementSequence(alt_allele.seq().substr(1, string::npos)))) {
+                    alt_allele_excluded = false;
+                    num_converted_inversions++;
 
-	            	num_converted_inversions++;
+                    cur_pos--;                
 
-	            	cur_var->alt(alt_allele_idx).seq() = "<INV>";
-	            	cur_var->alt(alt_allele_idx).info().setValue<int>("END", cur_var->pos() + ref_allele.seq().size() - 1);
-	            	cur_var->alt(alt_allele_idx).info().setValue<string>("SVTYPE", "INV");
+                    cur_alt_allele = Allele("<INV>");
+                    cur_info.setValue<int>("END", cur_pos + cur_ref_allele.seq().size());
+                    cur_info.setValue<string>("SVTYPE", "INV");
 
-	            } else {
+                    cur_ref_allele.seq() = genome_seqs_it->second->seq().at(cur_pos - 1);                
+                }
+    		}         
 
-	            	excluded_alt_indices.push_back(alt_allele_idx);
-	            }
+            if (!alt_allele_excluded) {
 
-			} else {
+                assert(cur_alt_allele.isID());
 
-            	excluded_alt_indices.push_back(alt_allele_idx);				
-			}
-		}         
+                cur_info.setValue<string>("CIPOS", "0,0");
+                cur_info.setValue<string>("CIEND", "0,0");
 
-        assert(cur_var->numAlts() > 0);
-        assert(cur_var->numAlts() >= excluded_alt_indices.size());
-
-        if (!(excluded_alt_indices.empty())) {
-
-            cur_var->removeAlts(excluded_alt_indices);
+                converted_variants.emplace(cur_pos, Variant(cur_chromosome, cur_pos, cur_ref_allele, vector<Allele>(1, cur_alt_allele), cur_info));
+            }
         }
 
-        if (cur_var->numAlts() > 0) {
+        for (auto & converted_variant: converted_variants) {
 
-        	cur_var->ref().seq() = cur_var->ref().seq().front();
-            vcf_writer.write(cur_var);
+            vcf_writer.write(&(converted_variant.second));
         }
 
 		delete cur_var;
 
-		if ((num_variants % 100000) == 0) {
+		if ((num_variants % 1000000) == 0) {
 
 			std::cout << "[" << Utils::getLocalTime() << "] Parsed " << num_variants << " variants" << endl;
 		}

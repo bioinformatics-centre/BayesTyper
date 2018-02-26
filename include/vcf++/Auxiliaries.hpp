@@ -1,6 +1,6 @@
 
 /*
-Auxiliaries.hpp - This file is part of BayesTyper (v1.1)
+Auxiliaries.hpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -62,7 +62,7 @@ namespace Auxiliaries {
     AlleleAttributes alleleAttributes(Allele &, Allele &);
     string variantType(Variant &);
 
-    string variantOrigins(Variant &);
+    pair<string, bool> variantOrigins(Variant &);
 
     bool isInversion(Allele &, Allele &, const float, const uint);
     string reverseComplementSequence(const string &);

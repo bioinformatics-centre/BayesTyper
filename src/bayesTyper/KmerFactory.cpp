@@ -1,6 +1,6 @@
 
 /*
-KmerFactory.cpp - This file is part of BayesTyper (v1.1)
+KmerFactory.cpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -52,7 +52,6 @@ using namespace std;
 KmerFactory::KmerFactory(const OptionsContainer & options_container) : prng_seed(options_container.getValue<uint>("random-seed")), vcf_file(options_container.getValue<string>("vcf-file")), genome_file(options_container.getValue<string>("genome-file")), output_prefix(options_container.getValue<string>("output-prefix")), decoy_file(options_container.getValue<string>("decoy-file")), num_threads(options_container.getValue<ushort>("threads")), max_allele_length(options_container.getValue<uint>("max-allele-length")), copy_number_variant_threshold(options_container.getValue<double>("copy-number-variant-threshold")), max_sample_haplotype_candidates(options_container.getValue<ushort>("max-number-of-sample-haplotype-candidates")), num_genomic_rate_gc_bias_bins(options_container.getValue<uchar>("number-of-genomic-rate-gc-bias-bins")) {
 
 	number_of_variants = 0;
-    min_sample_kmer_count = 0;
 	max_alternative_alleles = 0;
 }
 
@@ -65,24 +64,15 @@ KmerHash * KmerFactory::initKmerHash(vector<VariantClusterGroup*> * variant_clus
 
     vector<VariantClusterGraph*> variant_cluster_graphs;
 
-	VariantFileParser vcf_parser = VariantFileParser(genome_file, max_allele_length, copy_number_variant_threshold, num_threads, prng_seed);
+	VariantFileParser vcf_parser = VariantFileParser(genome_file, max_allele_length, copy_number_variant_threshold, num_threads);
     
-    vcf_parser.addDecoys<kmer_size>(decoy_file);
-    vcf_parser.readVariantFile<kmer_size>(vcf_file, &variant_cluster_graphs, variant_cluster_groups);
+    vcf_parser.addDecoys(decoy_file, kmer_size);
+    vcf_parser.readVariantFile<kmer_size>(vcf_file, &variant_cluster_graphs, variant_cluster_groups, prng_seed);
 
-    assert(!(variant_cluster_graphs.empty()));
     assert(!(variant_cluster_groups->empty()));
     
     number_of_variants = vcf_parser.getNumberOfVariants();
     max_alternative_alleles = vcf_parser.getMaxAlternativeAlleles();
-
-    cout << "[" << Utils::getLocalTime() << "] Sorting variant clusters by decreasing complexity (number of variants) ..." << endl;
-
-    sort(variant_cluster_graphs.begin(), variant_cluster_graphs.end(), VariantClusterGraphCompare);
-
-    cout << "[" << Utils::getLocalTime() << "] Finished sorting\n" << endl;
-
-    cout << "\n[" << Utils::getLocalTime() << "] " << Utils::getMaxMemoryUsage() << endl;
 
     KmerHash * kmer_hash;
 
@@ -108,47 +98,32 @@ KmerHash * KmerFactory::initKmerHash(vector<VariantClusterGroup*> * variant_clus
         kmer_hash = new HybridKmerHash<kmer_size, 30>(samples.size(), num_threads);
     } 
 
-    cout << "\n[" << Utils::getLocalTime() << "] Counting smallmers ..." << endl;
-
-    Utils::SmallmerSet smallmer_set = Utils::SmallmerSet(Utils::thread_buckets);
-
-    KmerCounter<kmer_size> kmer_counter(kmer_hash, &smallmer_set, num_threads);
-    ulong num_unique_small_mers = kmer_counter.countVariantClusterSmallmers(&variant_cluster_graphs);
-
-    cout << "[" << Utils::getLocalTime() << "] Counted " << num_unique_small_mers << " unique smallmers (" << to_string(Utils::small_kmer_size) << " nt)\n" << endl;
-
-    cout << "\n[" << Utils::getLocalTime() << "] " << Utils::getMaxMemoryUsage() << endl;
-
-    cout << "\n[" << Utils::getLocalTime() << "] Counting kmers in genomic regions between variant clusters including the decoy sequence(s) ..." << endl;
-
-    ulong num_intercluster_kmers = kmer_counter.countInterclusterKmers(vcf_parser.getInterclusterRegions());
-
-    cout << "[" << Utils::getLocalTime() << "] Counted " << num_intercluster_kmers << " unique kmers passing the smallmer filter\n" << endl;
-
-    cout << "\n[" << Utils::getLocalTime() << "] " << Utils::getMaxMemoryUsage() << endl;
-
-    cout << "\n[" << Utils::getLocalTime() << "] Parsing and filtering KMC k-mer tables from " << samples.size() << " sample(s) ...\n" << endl;
-
-    ulong num_sample_unique_kmers = kmer_counter.countSampleKmers(samples);
-    min_sample_kmer_count = kmer_counter.minSampleKmerCount(); 
-  
-    cout << "\n[" << Utils::getLocalTime() << "] Counted " << num_sample_unique_kmers << " unique kmers passing smallmer filter\n" << endl;
- 
-    cout << "\n[" << Utils::getLocalTime() << "] " << Utils::getMaxMemoryUsage() << endl;
-
-    cout << "\n[" << Utils::getLocalTime() << "] Sorting variant cluster groups by decreasing complexity (number of variants) ..." << endl;
-
+    sort(variant_cluster_graphs.begin(), variant_cluster_graphs.end(), VariantClusterGraphCompare);
     sort(variant_cluster_groups->begin(), variant_cluster_groups->end(), VariantClusterGroupCompare);
 
-    cout << "[" << Utils::getLocalTime() << "] Finished sorting" << endl;
+    const ulong expected_num_path_kmers = vcf_parser.getVariableRegionLength() * (2 + (0.05 * samples.size() * 2));
 
-    cout << "\n[" << Utils::getLocalTime() << "] Counting kmers in variant clusters ..." << endl;
+    KmerCounter<kmer_size> kmer_counter(num_threads, expected_num_path_kmers, num_genomic_rate_gc_bias_bins);
 
-    kmer_counter.countVariantClusterKmers(variant_cluster_groups, prng_seed, samples.size(), max_sample_haplotype_candidates);
+    cout << "\n[" << Utils::getLocalTime() << "] " << Utils::getMaxMemoryUsage() << endl;
 
+    kmer_counter.findVariantClusterPaths(&variant_cluster_graphs, samples, prng_seed, max_sample_haplotype_candidates);
+
+    cout << "\n[" << Utils::getLocalTime() << "] " << Utils::getMaxMemoryUsage() << endl;
+
+    kmer_counter.countInterclusterKmers(kmer_hash, vcf_parser.getInterclusterRegions(), num_genomic_rate_gc_bias_bins);
+
+    cout << "\n[" << Utils::getLocalTime() << "] " << Utils::getMaxMemoryUsage() << endl;
+
+    kmer_counter.parseSampleKmers(kmer_hash, samples);
+
+    cout << "\n[" << Utils::getLocalTime() << "] " << Utils::getMaxMemoryUsage() << endl;
+
+    kmer_counter.countVariantClusterKmers(kmer_hash, variant_cluster_groups);
     auto diploid_kmer_counts = kmer_hash->calculateKmerStats(num_genomic_rate_gc_bias_bins);
 
-    cout << "\n[" << Utils::getLocalTime() << "] Estimating haploid kmer count distribtion(s) ...\n" << endl;
+    mt19937 prng = mt19937(prng_seed);
+    shuffle(variant_cluster_groups->begin(), variant_cluster_groups->begin() + floor(variant_cluster_groups->size() * 0.5), prng);
 
     estimateGenomicCountDistributions(diploid_kmer_counts, samples);
     
@@ -157,6 +132,8 @@ KmerHash * KmerFactory::initKmerHash(vector<VariantClusterGroup*> * variant_clus
 
 
 void KmerFactory::estimateGenomicCountDistributions(const vector<vector<vector<ulong> > > & diploid_kmer_counts, const vector<Sample> & samples) {
+
+    cout << "\n[" << Utils::getLocalTime() << "] Estimating genomic haploid kmer count distribtion(s) ...\n" << endl;
 
     assert(genomic_count_distributions.empty());
     genomic_count_distributions.reserve(diploid_kmer_counts.size());
@@ -212,12 +189,6 @@ ulong KmerFactory::numberOfVariants() {
 ushort KmerFactory::maxAlternativeAlleles() {
 
 	return max_alternative_alleles;
-}
-
-
-uchar KmerFactory::minSampleKmerCount() {
-
-    return min_sample_kmer_count;
 }
 
 

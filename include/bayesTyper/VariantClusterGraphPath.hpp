@@ -1,6 +1,6 @@
 
 /*
-VariantClusterGraphPath.hpp - This file is part of BayesTyper (v1.1)
+VariantClusterGraphPath.hpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -30,19 +30,13 @@ THE SOFTWARE.
 #ifndef __bayesTyper__VariantClusterGraphPath_hpp
 #define __bayesTyper__VariantClusterGraphPath_hpp
 
-#include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include <memory>
-#include <algorithm>
-
-#include "boost/functional/hash.hpp"
-#include "boost/graph/adjacency_list.hpp"
 
 #include "Utils.hpp"
 #include "Kmer.hpp"
-#include "KmerCounts.hpp"
 #include "VariantClusterGraphVertex.hpp"
+#include "KmerBloom.hpp"
 
 using namespace std;
 
@@ -50,28 +44,39 @@ using namespace std;
 template <uchar kmer_size>
 class VariantClusterGraphPath {
 
-	private:
-
-		vector<pair<uint, const VariantClusterGraphVertex *> > path;
-		pair<uint, uint> path_score;
-
 	public:
+
+		struct PathVertexInfo {
+
+			const uint index;
+			const VariantClusterGraphVertex * const vertex;
+			uchar num_observed_kmers;
+
+			PathVertexInfo(const uint index_in, const VariantClusterGraphVertex * const vertex_in) : index(index_in), vertex(vertex_in) {
+
+				num_observed_kmers = 0;
+			}
+		};
 
 		VariantClusterGraphPath(const ushort);
 
-		void addVertex(const uint, const VariantClusterGraphVertex &);
-		void updateScore(KmerCounts *, const ushort);
+		void addVertex(const uint, const VariantClusterGraphVertex &, KmerBloom *);
 
-		const vector<pair<uint, const VariantClusterGraphVertex *> > & getPath() const;
+		const vector<PathVertexInfo> & getPath() const;
 
-		double getPathKmerScore() const;
-		uint getPathVertexScore(const unordered_set<uint> &) const;
+		double getKmerScore() const;
+		uint getVertexScore(const vector<bool> &, const bool) const;
 
-		void updateCoveredVertices(unordered_set<uint> *) const;
+		void updateObservedCoveredVertices(vector<bool> *, const bool) const;
 
-		bool operator == (const VariantClusterGraphPath<kmer_size> &) const;
+	private:
 
-		KmerPair<kmer_size> kmer_pair;		
+		KmerPair<kmer_size> kmer_pair;
+
+		vector<PathVertexInfo> path;
+		pair<uint, uint> kmer_score;
+
+		void updateScore(const bool, uint);
 };
 
 

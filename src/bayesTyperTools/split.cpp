@@ -1,6 +1,6 @@
 
 /*
-split.cpp - This file is part of BayesTyper (v1.1)
+split.cpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -40,15 +40,13 @@ THE SOFTWARE.
 
 namespace Split {
 
-	enum class SplitDescriptor {VCG, CHR, SIZE};
-
 	struct Batch {
 
 		uint start_variant_idx;
 		string directory;
 	};
 
-	void splitCallback(const string & vcf_batch_name, const string & vcf_file, const vector<Batch> & batches, const SplitDescriptor split_descriptor) {
+	void splitCallback(const string & vcf_batch_name, const string & vcf_file, const vector<Batch> & batches) {
 
 		GenotypedVcfFileReader vcf_reader(vcf_file, true);
 		auto output_meta_data = vcf_reader.metaData();
@@ -69,33 +67,21 @@ namespace Split {
 		assert(batch_it != batches.end());
 		assert(batch_it->start_variant_idx == 0);
 
-		string cur_split_descriptor = "";
-		string prev_split_descriptor = "";
+		string cur_variant_cluster_group_id = "";
+		string prev_variant_cluster_group_id = "";
 
 		while (vcf_reader.getNextVariant(&cur_var)) {
-
-			if (split_descriptor == SplitDescriptor::VCG) {
 				
-				auto vcgi_att = cur_var->info().getValue<string>("VCGI");
-				assert(vcgi_att.second);
+			auto vcgi_value = cur_var->info().getValue<string>("VCGI");
+			assert(vcgi_value.second);
 
-				cur_split_descriptor = vcgi_att.first;
-
-			} else if (split_descriptor == SplitDescriptor::CHR) {
-
-				cur_split_descriptor = cur_var->chrom();
-
-			} else {
-
-				assert(split_descriptor == SplitDescriptor::SIZE);
-				cur_split_descriptor = to_string(num_vars);
-			}
+			cur_variant_cluster_group_id = vcgi_value.first;
 
 			if (batch_it != batches.end()) {
 
 				if (num_vars == batch_it->start_variant_idx) {
 
-					assert(cur_split_descriptor != prev_split_descriptor);
+					assert(cur_variant_cluster_group_id != prev_variant_cluster_group_id);
 
 					if (batch_it != batches.begin()) {
 
@@ -111,7 +97,7 @@ namespace Split {
 			vcf_writer->write(cur_var);
 
 			num_vars++;
-			prev_split_descriptor = cur_split_descriptor;
+			prev_variant_cluster_group_id = cur_variant_cluster_group_id;
 
 			delete cur_var;
 		}
@@ -121,22 +107,9 @@ namespace Split {
 		delete vcf_writer;
 	}
 
-	void split(const vector<string> & vcf_filenames, const uint min_batch_size, const bool use_vcg_split_descriptor, const bool use_chr_split_descriptor) {
+	void split(const vector<string> & vcf_filenames, const uint min_batch_size) {
 
 		cout << "[" << Utils::getLocalTime() << "] Running BayesTyperTools (" << BT_VERSION << ") split ...\n" << endl;
-
-		assert(!use_vcg_split_descriptor or !use_chr_split_descriptor); 
-
-		SplitDescriptor split_descriptor = SplitDescriptor::SIZE;
-
-		if (use_vcg_split_descriptor) {
-
-			split_descriptor = SplitDescriptor::VCG;
-
-		} else if (use_chr_split_descriptor) {
-
-			split_descriptor = SplitDescriptor::CHR;
-		}
 
 		assert(!(vcf_filenames.empty()));
 
@@ -153,31 +126,19 @@ namespace Split {
 		uint num_vars = 0;
 		uint cur_batch_size = min_batch_size;
 
-		string cur_split_descriptor = "";
-		string prev_split_descriptor = "";
+		string cur_variant_cluster_group_id = "";
+		string prev_variant_cluster_group_id = "";
 
 		vector<Batch> batches;
 
 		while (tmpl_vcf_reader.getNextVariant(&cur_var)) {
-
-			if (split_descriptor == SplitDescriptor::VCG) {
 				
-				auto vcgi_att = cur_var->info().getValue<string>("VCGI");
-				assert(vcgi_att.second);
+			auto vcgi_value = cur_var->info().getValue<string>("VCGI");
+			assert(vcgi_value.second);
 
-				cur_split_descriptor = vcgi_att.first;
+			cur_variant_cluster_group_id = vcgi_value.first;
 
-			} else if (split_descriptor == SplitDescriptor::CHR) {
-
-				cur_split_descriptor = cur_var->chrom();
-
-			} else {
-
-				assert(split_descriptor == SplitDescriptor::SIZE);
-				cur_split_descriptor = to_string(num_vars);
-			}
-
-			if (cur_split_descriptor != prev_split_descriptor) {
+			if (cur_variant_cluster_group_id != prev_variant_cluster_group_id) {
 
 				if (cur_batch_size >= min_batch_size) {
 				
@@ -191,7 +152,7 @@ namespace Split {
 			num_vars++;
 			cur_batch_size++;
 
-			prev_split_descriptor = cur_split_descriptor;
+			prev_variant_cluster_group_id = cur_variant_cluster_group_id;
 
 			delete cur_var;
 		}
@@ -213,7 +174,7 @@ namespace Split {
 			auto vcf_split = Utils::splitString(vcf, ':');	
 			assert(vcf_split.size() == 2);
 
-	   	    splitting_threads.emplace_back(thread(&splitCallback, vcf_split.front(), vcf_split.back(), batches, split_descriptor));
+	   	    splitting_threads.emplace_back(thread(&splitCallback, vcf_split.front(), vcf_split.back(), batches));
 	    }
 
 	    for (auto & thread: splitting_threads) {

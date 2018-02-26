@@ -1,6 +1,6 @@
 
 /*
-VariantClusterGraphPath.cpp - This file is part of BayesTyper (v1.1)
+VariantClusterGraphPath.cpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -27,20 +27,24 @@ THE SOFTWARE.
 */
 
 
-#include "VariantClusterGraphPath.hpp"
+#include <functional>
 
+#include "VariantClusterGraphPath.hpp"
+#include "Sequence.hpp"
+
+static const uchar min_observed_kmers = 2;
 
 template <uchar kmer_size>
 VariantClusterGraphPath<kmer_size>::VariantClusterGraphPath(const ushort num_variants) {
 
 	path.reserve(num_variants * 2);
 
-	path_score.first = 0;
-	path_score.second = 0;
+	kmer_score.first = 0;
+	kmer_score.second = 0;
 }
 
 template <uchar kmer_size>
-void VariantClusterGraphPath<kmer_size>::addVertex(const uint vertex_idx, const VariantClusterGraphVertex & vertex) {
+void VariantClusterGraphPath<kmer_size>::addVertex(const uint vertex_idx, const VariantClusterGraphVertex & vertex, KmerBloom * kmer_bloom) {
 
 	if (path.empty()) {
 
@@ -48,40 +52,99 @@ void VariantClusterGraphPath<kmer_size>::addVertex(const uint vertex_idx, const 
 	
 	} else {
 
-		assert(path.back().first < vertex_idx);
+		assert(path.back().index < vertex_idx);
 	}
 
-	path.emplace_back(vertex_idx, &vertex);
+	path.emplace_back(vertex_idx, &vertex); 
+
+    if (vertex.is_disconnected) {
+
+    	if (vertex.sequence.empty()) {
+
+    		path.back().num_observed_kmers = min_observed_kmers;
+    	}
+
+    	kmer_pair.reset();
+    } 
+
+    bitset<2> nt_bits;
+
+    assert((vertex.sequence.size() % 2) == 0);
+    auto sequence_it = vertex.sequence.begin();
+
+    while (sequence_it != vertex.sequence.end()) {
+
+        nt_bits.set(0, *sequence_it);
+        sequence_it++;
+
+        nt_bits.set(1, *sequence_it);
+        sequence_it++;
+
+        if (kmer_pair.move(nt_bits)) {
+
+            updateScore(static_cast<BasicKmerBloom<kmer_size> *>(kmer_bloom)->lookup(kmer_pair.getLexicographicalLowestKmer()), (sequence_it - vertex.sequence.begin()) / 2);
+        }
+    }
 }
 
 template <uchar kmer_size>
-const vector<pair<uint, const VariantClusterGraphVertex *> > & VariantClusterGraphPath<kmer_size>::getPath() const {
+void VariantClusterGraphPath<kmer_size>::updateScore(const bool is_kmer_observed, uint cur_sequence_length) {
+
+	assert(cur_sequence_length > 0);
+	assert(!(path.empty()));
+
+	if (is_kmer_observed) {
+
+		kmer_score.first++;
+
+		auto path_rit = path.rbegin();
+		assert(path_rit != path.rend());
+
+	    if ((cur_sequence_length > 1) or !(path_rit->vertex->is_first_nucleotides_redundant)) {
+
+	    	if (path_rit->num_observed_kmers < min_observed_kmers) {
+
+	    		path_rit->num_observed_kmers++;
+	    	}
+	    }
+		    
+		path_rit++;
+
+		while (path_rit != path.rend()) {
+
+	        if ((kmer_size <= cur_sequence_length) or (path_rit->num_observed_kmers == min_observed_kmers)) {
+
+	            break;
+	        }
+
+	    	if (path_rit->num_observed_kmers < min_observed_kmers) {
+
+	    		path_rit->num_observed_kmers++;
+	    	}
+
+		    cur_sequence_length += (path_rit->vertex->sequence.size() / 2);
+
+			path_rit++;
+		}
+	}
+
+	kmer_score.second++;
+}
+
+template <uchar kmer_size>
+const vector<typename VariantClusterGraphPath<kmer_size>::PathVertexInfo> & VariantClusterGraphPath<kmer_size>::getPath() const {
 
 	return path;
 }
 
 template <uchar kmer_size>
-void VariantClusterGraphPath<kmer_size>::updateScore(KmerCounts * kmer_counts, const ushort sample_idx) {
+double VariantClusterGraphPath<kmer_size>::getKmerScore() const {
 
-	if (kmer_counts) {
+	assert(kmer_score.first <= kmer_score.second);
 
-		if (kmer_counts->getSampleCount(sample_idx) > 0) {
-
-			path_score.first++;
-		}
-	}
-
-	path_score.second++;
-}
-
-template <uchar kmer_size>
-double VariantClusterGraphPath<kmer_size>::getPathKmerScore() const {
-
-	assert(path_score.first <= path_score.second);
-
-	if (path_score.second > 0) {
+	if (kmer_score.second > 0) {
 		
-		return (path_score.first / static_cast<double>(path_score.second));
+		return (kmer_score.first / static_cast<double>(kmer_score.second));
 	
 	} else {
 
@@ -90,129 +153,81 @@ double VariantClusterGraphPath<kmer_size>::getPathKmerScore() const {
 }
 
 template <uchar kmer_size>
-uint VariantClusterGraphPath<kmer_size>::getPathVertexScore(const unordered_set<uint> & covered_vertices) const {
+uint VariantClusterGraphPath<kmer_size>::getVertexScore(const vector<bool> & covered_observed_vertices, const bool is_complete) const {
 
-	uint path_vertex_score = 0;
-
-	for (auto & vertex: path) {
-
-		assert(vertex.second);
-
-		if (covered_vertices.count(vertex.first) < 1) {
-
-			path_vertex_score++;
-		}
-	}
-
-	return path_vertex_score;
-}
-
-template <uchar kmer_size>
-void VariantClusterGraphPath<kmer_size>::updateCoveredVertices(unordered_set<uint> * covered_vertices) const {
+	uint observed_vertex_score = 0;
 
 	for (auto & vertex: path) {
 
-		assert(vertex.second);
-		covered_vertices->insert(vertex.first);
+		assert(vertex.num_observed_kmers <= min_observed_kmers);
+
+		if ((vertex.num_observed_kmers == min_observed_kmers) and !(covered_observed_vertices.at(vertex.index))) {
+
+			observed_vertex_score++;
+		}
 	}
+
+	if (!is_complete) {
+
+		auto path_rit = path.rbegin();
+		assert(path_rit != path.rend());
+
+		uint cur_sequence_length = 0;
+
+		while (path_rit != path.rend()) {
+
+	        if (((kmer_size - 1) <= cur_sequence_length) or (path_rit->num_observed_kmers == min_observed_kmers)) {
+
+	            break;
+	        }
+
+			if (!(covered_observed_vertices.at(path_rit->index))) {
+
+				observed_vertex_score++;
+			}
+
+		    cur_sequence_length += (path_rit->vertex->sequence.size() / 2);
+			path_rit++;
+		}
+	}
+
+	assert(observed_vertex_score <= path.size());
+	return observed_vertex_score;
 }
 
 template <uchar kmer_size>
-bool VariantClusterGraphPath<kmer_size>::operator == (const VariantClusterGraphPath<kmer_size> & rhs) const {
+void VariantClusterGraphPath<kmer_size>::updateObservedCoveredVertices(vector<bool> * covered_observed_vertices, const bool is_complete) const {
 
-	auto path_it_1 = this->path.crbegin();
-	auto path_it_2 = rhs.path.crbegin();
+	for (auto & vertex: path) {
 
-	assert(path_it_1 != this->path.crend());
-	assert(path_it_2 != rhs.path.crend());
+		assert(vertex.num_observed_kmers <= min_observed_kmers);
 
-	auto sequence_it_1 = path_it_1->second->sequence.crbegin();
-	auto sequence_it_2 = path_it_2->second->sequence.crbegin();
+		if (vertex.num_observed_kmers == min_observed_kmers) {
 
-	bool is_disconnected_1 = false;
-	bool is_disconnected_2 = false;
-
-	while (true) {
-
-		while (sequence_it_1 == path_it_1->second->sequence.crend()) {
-			
-			assert(path_it_1 != this->path.crend());
-
-			if (path_it_1->second->is_disconnected) {
-
-				is_disconnected_1 = true;
-			}
-
-			path_it_1++;
-
-			if (path_it_1 != this->path.crend()) {
-
-				sequence_it_1 = path_it_1->second->sequence.crbegin();
-			
-			} else {
-
-				break;
-			}
-		}
-
-		while (sequence_it_2 == path_it_2->second->sequence.crend()) {
-
-			assert(path_it_2 != rhs.path.crend());
-
-			if (path_it_2->second->is_disconnected) {
-
-				is_disconnected_2 = true;
-			}
-
-			path_it_2++;
-
-			if (path_it_2 != rhs.path.crend()) {
-
-				sequence_it_2 = path_it_2->second->sequence.crbegin();
-			
-			} else {
-
-				break;
-			}
-		}
-		
-		if (is_disconnected_1 != is_disconnected_2) {
-
-			return false;
-		}	
-
-		is_disconnected_1 = false;
-		is_disconnected_2 = false;
-
-		if ((path_it_1 == this->path.crend()) or (path_it_2 == rhs.path.crend())) {
-
-			break;
-		}	
-
-		if (sequence_it_1 == sequence_it_2) {
-
-			sequence_it_1 = path_it_1->second->sequence.crend();
-			sequence_it_2 = path_it_2->second->sequence.crend();
-		}	
-
-		while ((sequence_it_1 != path_it_1->second->sequence.crend()) and (sequence_it_2 != path_it_2->second->sequence.crend())) {
-
-			if (*sequence_it_1 != *sequence_it_2) {
-
-				return false;
-			}
-
-			sequence_it_1++;
-			sequence_it_2++;
+			covered_observed_vertices->at(vertex.index) = true;
 		}
 	}
 
-	if ((path_it_1 != this->path.crend()) or (path_it_2 != rhs.path.crend())) {
+	if (!is_complete) {
 
-		return false;
+		auto path_rit = path.rbegin();
+		assert(path_rit != path.rend());
+
+		uint cur_sequence_length = 0;
+
+		while (path_rit != path.rend()) {
+
+	        if (((kmer_size - 1) <= cur_sequence_length) or (path_rit->num_observed_kmers == min_observed_kmers)) {
+
+	            break;
+	        }
+
+			covered_observed_vertices->at(path_rit->index) = true;
+
+		    cur_sequence_length += (path_rit->vertex->sequence.size() / 2);
+			path_rit++;
+		}
 	}
-
-	return true;
 }
 
 

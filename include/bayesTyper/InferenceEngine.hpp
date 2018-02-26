@@ -1,6 +1,6 @@
 
 /*
-InferenceEngine.hpp - This file is part of BayesTyper (v1.1)
+InferenceEngine.hpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -68,25 +68,25 @@ class InferenceEngine {
 
 		const uint prng_seed;
 		const ushort num_threads;
-		const ushort max_sample_haplotype_candidates;
-		const uchar num_genomic_rate_gc_bias_bins;
 		const ushort gibbs_burn;
 		const ushort gibbs_samples;
 		const ushort num_gibbs_chains;
 		const float kmer_subsampling_rate;
 		const uint max_haplotype_variant_kmers;
+		const uchar num_genomic_rate_gc_bias_bins;
 		const ushort num_parameter_estimation_samples;
 		const uint num_parameter_estimation_snvs;
 
 		struct VariantClusterGroupBatch {
 
+			uint first_variant_cluster_groups_idx;
 			uint number_of_variants;
 
 			vector<VariantClusterGroup*>::iterator start_it; 
 			vector<VariantClusterGroup*>::iterator end_it;
 
 			VariantClusterGroupBatch() {}
-			VariantClusterGroupBatch(const uint number_of_variants_in, const vector<VariantClusterGroup*>::iterator start_it_in, const vector<VariantClusterGroup*>::iterator end_it_in) : number_of_variants(number_of_variants_in), start_it(start_it_in), end_it(end_it_in) {}
+			VariantClusterGroupBatch(const uint first_variant_cluster_groups_idx_in, const uint number_of_variants_in, const vector<VariantClusterGroup*>::iterator start_it_in, const vector<VariantClusterGroup*>::iterator end_it_in) : first_variant_cluster_groups_idx(first_variant_cluster_groups_idx_in), number_of_variants(number_of_variants_in), start_it(start_it_in), end_it(end_it_in) {}
 		};
 
 		void allocateShuffledIndicesToThreads(vector<vector<uint> > *, const uint);

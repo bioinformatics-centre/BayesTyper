@@ -1,6 +1,6 @@
 
 /*
-VariantCluster.hpp - This file is part of BayesTyper (v1.1)
+VariantCluster.hpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -50,14 +50,22 @@ class VariantCluster {
 
 		struct Variant {
 
-			uint id;
-			Utils::VariantType type;
-			
-			bool has_dependency;
+			const uint id;
+			const bool has_dependency;
+
+			Utils::VariantType type;			
 			uint max_reference_length;
+			uint num_redundant_nucleotides;
 			
 			vector<ushort> excluded_alt_alleles;
 			vector<pair<ushort, pair<uint, const string> > > alternative_alleles;
+
+			Variant(const uint id_in, const bool has_dependency_in) : id(id_in), has_dependency(has_dependency_in) {
+
+				type = Utils::VariantType::Unsupported;
+				max_reference_length = 0;
+				num_redundant_nucleotides = Utils::uint_overflow;
+			}
 		};
 
 		struct ContainedCluster {

@@ -1,6 +1,6 @@
 
 /*
-HybridHash.tpp - This file is part of BayesTyper (v1.1)
+HybridHash.tpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -53,7 +53,7 @@ HybridHash<ValueType, root_hash_size, leaf_hash_size>::HybridHash() {
 
 	root_hash_bit_values.reserve(root_hash_size);
 	
-	ushort root_hash_key_index_shift = std::floor(static_cast<float>(root_hash_size + leaf_hash_size)/root_hash_size);
+	const ushort root_hash_key_index_shift = std::floor(static_cast<float>(root_hash_size + leaf_hash_size)/root_hash_size);
 	assert(root_hash_key_index_shift > 0);
 
 	for (ushort i = 0; i < (root_hash_size / 2); i++) {
@@ -127,17 +127,9 @@ std::pair<typename HybridHash<ValueType, root_hash_size, leaf_hash_size>::iterat
 	if (root_hash.at(root_hash_idx)) {
 
 		auto leaf_hash_insert_result = root_hash.at(root_hash_idx)->insert(std::make_pair(key, value), add_sorted);
-
 		auto return_iterator = iterator(this, root_hash.begin() + root_hash_idx, leaf_hash_insert_result.first);
 
-		if (leaf_hash_insert_result.second) {
-
-			return std::pair<iterator,bool> (return_iterator, true);
-		
-		} else {
-
-			return std::pair<iterator,bool> (return_iterator, false);
-		}
+		return std::pair<iterator,bool> (return_iterator, leaf_hash_insert_result.second);
 
 	} else {
 
@@ -145,7 +137,6 @@ std::pair<typename HybridHash<ValueType, root_hash_size, leaf_hash_size>::iterat
 		root_hash.at(root_hash_idx) = new_leaf_hash;
 
 		auto leaf_hash_insert_result = new_leaf_hash->insert(std::make_pair(key, value), add_sorted);
-
 		assert(leaf_hash_insert_result.second);
 
 		return std::pair<iterator,bool> (iterator(this, root_hash.begin() + root_hash_idx, leaf_hash_insert_result.first), true);

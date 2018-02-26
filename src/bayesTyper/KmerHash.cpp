@@ -1,6 +1,6 @@
 
 /*
-KmerHash.cpp - This file is part of BayesTyper (v1.1)
+KmerHash.cpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -100,45 +100,41 @@ vector<vector<vector<ulong> > > HybridKmerHash<kmer_size, sample_bin>::calculate
     vector<vector<vector<ulong> > > diploid_kmer_counts(num_samples, vector<vector<ulong> >(num_genomic_rate_gc_bias_bins, vector<ulong>(Utils::uchar_overflow + 1, 0)));
 
     ulong total_count = 0;
+
     ulong unique_count = 0;
     ulong multicluster_count = 0;
     ulong decoy_count = 0;
     ulong max_multiplicity_count = 0;
     ulong multicluster_group_count = 0;
-    ulong constant_multiplicity_count = 0;
-    ulong no_match_count = 0;
+    ulong non_cluster_count = 0;
+    
+    auto hash_it = _hash->begin();
 
-    auto kit = _hash->begin();
-
-    while (kit != _hash->end()) {
+    while (hash_it != _hash->end()) {
 
         total_count++;
 
-        if ((*kit).second.hasClusterOccurrence()) {
+        if ((*hash_it).second.hasClusterOccurrence()) {
 
-            if ((*kit).second.isExcluded()) {
+            if ((*hash_it).second.isExcluded()) {
 
-                if ((*kit).second.hasDecoyOccurrence()) {
+                if ((*hash_it).second.hasDecoyOccurrence()) {
 
                     decoy_count++;
 
-                } else if ((*kit).second.hasMaxMultiplicity()) {
+                } else if ((*hash_it).second.hasMaxMultiplicity()) {
 
                     max_multiplicity_count++;
 
-                } else if ((*kit).second.hasMulticlusterGroupOccurrence()) {
-
-                    multicluster_group_count++;
-                
                 } else {
 
-                    assert((*kit).second.hasConstantMultiplicity());
-                    constant_multiplicity_count++;
+                    assert((*hash_it).second.hasMulticlusterGroupOccurrence());
+                    multicluster_group_count++;         
                 } 
 
-            } else if ((*kit).second.hasMulticlusterOccurrence()) { 
+            } else if ((*hash_it).second.hasMulticlusterOccurrence()) { 
 
-                assert(!((*kit).second.hasMulticlusterGroupOccurrence()));
+                assert(!((*hash_it).second.hasMulticlusterGroupOccurrence()));
                 multicluster_count++;
 
             } else {
@@ -148,24 +144,24 @@ vector<vector<vector<ulong> > > HybridKmerHash<kmer_size, sample_bin>::calculate
 
         } else {
 
-            no_match_count++;
+            non_cluster_count++;
 
-            assert(!((*kit).second.hasMulticlusterOccurrence()));
-            assert(!((*kit).second.hasMulticlusterGroupOccurrence()));
+            assert(!((*hash_it).second.hasMulticlusterOccurrence()));
+            assert(!((*hash_it).second.hasMulticlusterGroupOccurrence()));
 
-            if (!((*kit).second.hasDecoyOccurrence()) and ((*kit).second.getInterclusterMultiplicity(Utils::Gender::Male) == 2) and ((*kit).second.getInterclusterMultiplicity(Utils::Gender::Female) == 2)) {
+            if (!((*hash_it).second.hasDecoyOccurrence()) and ((*hash_it).second.getInterclusterMultiplicity(Utils::Gender::Male) == 2) and ((*hash_it).second.getInterclusterMultiplicity(Utils::Gender::Female) == 2)) {
 
                 for (ushort sample_idx = 0; sample_idx < num_samples; sample_idx++) {
 
-                    diploid_kmer_counts.at(sample_idx).at(Sequence::gcBiasBin<kmer_size>((*kit).first, num_genomic_rate_gc_bias_bins)).at((*kit).second.getSampleCount(sample_idx))++;
+                    diploid_kmer_counts.at(sample_idx).at(Sequence::gcBiasBin<kmer_size>((*hash_it).first, num_genomic_rate_gc_bias_bins)).at((*hash_it).second.getSampleCount(sample_idx))++;
                 }
             }
         }
 
-        kit++;
+        hash_it++;
     }
 
-    assert(total_count == (unique_count + multicluster_count + decoy_count + multicluster_group_count + max_multiplicity_count + constant_multiplicity_count + no_match_count));
+    assert(total_count == (unique_count + multicluster_count + decoy_count + multicluster_group_count + max_multiplicity_count + non_cluster_count));
 
     cout << "[" << Utils::getLocalTime() << "] Out of " << total_count << " unique kmers:\n" << endl;
     cout << "\t- " << unique_count << " have a unique match to a single variant cluster" << endl;
@@ -174,10 +170,9 @@ vector<vector<vector<ulong> > > HybridKmerHash<kmer_size, sample_bin>::calculate
     cout << "\n\t- " << decoy_count << " have match to at least one variant cluster and has match to a decoy sequence (not used for inference)" << endl;
     cout << "\t- " << max_multiplicity_count << " have match to at least one variant cluster and has a maximum haploid multiplicity higher than " << to_string(Utils::bit7_overflow) << " (not used for inference)" << endl;
     cout << "\t- " << multicluster_group_count << " have matches to multiple variant cluster groups (not used for inference)" << endl;
-    cout << "\t- " << constant_multiplicity_count << " have match to at least one variant cluster and has constant multiplicity across all haplotype candidates (not used for inference)" << endl;
     
-    cout << "\n\t- " << no_match_count << " have no match to a variant cluster\n" << endl;
-
+    cout << "\n\t- " << non_cluster_count << " have no match to a variant cluster (used for negative binomial parameter estimation)" << endl;
+    
     return diploid_kmer_counts;
 }
 

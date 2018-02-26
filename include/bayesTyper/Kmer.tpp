@@ -1,6 +1,6 @@
 
 /*
-Kmer.tpp - This file is part of BayesTyper (v1.1)
+Kmer.tpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -187,6 +187,13 @@ void KmerPair<size>::reset() {
 
 	KmerForward<size>::reset();
 	KmerReverseComplement<size>::reset();
+}
+
+template<uchar size>
+bool KmerPair<size>::isComplete() {
+
+	assert(KmerForward<size>::is_complete == KmerReverseComplement<size>::is_complete);
+	return KmerForward<size>::is_complete;
 }
 
 template<uchar size>

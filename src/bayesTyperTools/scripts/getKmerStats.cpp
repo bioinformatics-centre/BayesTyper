@@ -1,6 +1,6 @@
 
 /*
-getKmerStats.cpp - This file is part of BayesTyper (v1.1)
+getKmerStats.cpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -47,7 +47,7 @@ int main(int argc, char const *argv[]) {
 
 	if (argc != 3) {
 
-		std::cout << "USAGE: getKmerStats <kmc_prefix> <output_prefix>" << std::endl;
+		std::cout << "USAGE: getKmerStats <kmc_table_prefix> <output_prefix>" << std::endl;
 		return 1;
 	}
 

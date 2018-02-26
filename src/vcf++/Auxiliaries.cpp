@@ -1,6 +1,6 @@
 
 /*
-Auxiliaries.cpp - This file is part of BayesTyper (v1.1)
+Auxiliaries.cpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -307,7 +307,7 @@ namespace Auxiliaries {
         return cur_type.typeStr();
     }
 
-    string variantOrigins(Variant & variant) {
+    pair<string, bool> variantOrigins(Variant & variant) {
 
         vector<string> variant_origins;
         
@@ -337,7 +337,7 @@ namespace Auxiliaries {
 
         if (variant_origins.empty()) {
 
-            return "NA";
+            return make_pair("", false);
        
         } else {
 
@@ -346,7 +346,7 @@ namespace Auxiliaries {
             JoiningString variant_origins_str(':');
             variant_origins_str.join(variant_origins);
 
-            return variant_origins_str.str();
+            return make_pair(variant_origins_str.str(), true);
         }
     }
 

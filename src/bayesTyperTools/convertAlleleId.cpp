@@ -1,6 +1,6 @@
 
 /*
-convertAlleleId.cpp - This file is part of BayesTyper (v1.1)
+convertAlleleId.cpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -98,7 +98,7 @@ namespace ConvertAlleleId {
         regex tra1_regex("^[\\[|\\]]\\S+:\\d+[\\[|\\]]\\S+$");
         regex tra2_regex("^\\S+[\\[|\\]]\\S+:\\d+[\\[|\\]]$");
 
-        VcfFileReader vcf_reader(vcf_filename, false);
+        GenotypedVcfFileReader vcf_reader(vcf_filename, false);
         auto output_meta_data = vcf_reader.metaData();
 
         VcfFileWriter vcf_writer(output_prefix + ".vcf", output_meta_data, false);
@@ -187,7 +187,7 @@ namespace ConvertAlleleId {
 
                     if ((cur_var->alt(alt_allele_idx).seq() == "<TRA>") or (regex_match(cur_var->alt(alt_allele_idx).seq(), tra1_regex)) or (regex_match(cur_var->alt(alt_allele_idx).seq(), tra2_regex))) {
 
-                        allele_type = "transversion";
+                        allele_type = "translocation";
 
                         is_excluded = true;
                         excluded_alt_indices.push_back(alt_allele_idx);
@@ -316,6 +316,9 @@ namespace ConvertAlleleId {
 
                     } else if (cur_var->alt(alt_allele_idx).seq() == "<INV>") {
 
+                        assert(cur_var->numAlts() == 1);
+                        assert(cur_var->numAlts() == cur_num_alts);                        
+
                         if (end_variant_seq.empty() or (end_variant_seq.find_first_not_of("ACGTN") != string::npos)) {
 
                             is_excluded = true;
@@ -323,13 +326,15 @@ namespace ConvertAlleleId {
 
                         } else {
 
-                            cur_var->ref().seq() = anchor_nt + end_variant_seq;
-                            cur_var->alt(alt_allele_idx).seq() = anchor_nt + Auxiliaries::reverseComplementSequence(end_variant_seq);                                
+                            cur_var->setPos(cur_var->pos() + 1);
+                            cur_var->ref().seq() = end_variant_seq;
+                            cur_var->alt(alt_allele_idx).seq() = Auxiliaries::reverseComplementSequence(end_variant_seq);                                
                         }
 
                     } else if (regex_match(cur_var->alt(alt_allele_idx).seq(), me_match_res, me_regex)) {
 
                         assert(cur_var->numAlts() == 1);
+                        assert(cur_var->numAlts() == cur_num_alts);                        
 
                         assert(cur_var->ref().seq() == anchor_nt);
 

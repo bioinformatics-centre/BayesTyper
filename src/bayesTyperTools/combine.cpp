@@ -1,6 +1,6 @@
 
 /*
-combine.cpp - This file is part of BayesTyper (v1.1)
+combine.cpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -35,6 +35,7 @@ THE SOFTWARE.
 #include <sstream>
 #include <iostream>
 #include <algorithm>
+#include <numeric>
 
 #include "JoiningString.hpp"
 #include "Auxiliaries.hpp"
@@ -62,7 +63,7 @@ namespace Combine {
 
 		vector<pair<Variant *, uint> > alleles;
 		uint prev_end_pos;
-		
+
 		string alt_seq;
 		string ref_seq;
 	};
@@ -123,7 +124,7 @@ namespace Combine {
 			    	Auxiliaries::rightTrimAllelePair(&cur_ref_allele, &cur_allele);
 
 			    	assert(!(cur_ref_allele.seq().empty()));
-			    	assert(!(cur_allele.seq().empty()));	
+			    	assert(!(cur_allele.seq().empty()));
 
 			    	cur_allele_set.prev_end_pos = contig_variants_it->second->pos() + cur_ref_allele.seq().size() - 1;
 
@@ -136,10 +137,10 @@ namespace Combine {
 			    	if ((cur_allele_set.ref_seq == ref_allele_seq) and (cur_allele_set.alt_seq == alt_allele_seq)) {
 
 			    		if (cur_allele_set.alleles.size() > 1) {
-			    			
-			    			redundant_allele_sets->push_back(cur_allele_set);	
-			    		}		    			
-			    	
+
+			    			redundant_allele_sets->push_back(cur_allele_set);
+			    		}
+
 			    	} else if ((cur_allele_set.ref_seq == ref_allele_seq.substr(0, cur_allele_set.ref_seq.size())) and (cur_allele_set.alt_seq == alt_allele_seq.substr(0, cur_allele_set.alt_seq.size()))) {
 
 			    		auto next_contig_variants_it = contig_variants_it;
@@ -147,7 +148,7 @@ namespace Combine {
 
 			    		getRedundantAlleleSets(redundant_allele_sets, cur_allele_set, ref_allele_seq, alt_allele_seq, next_contig_variants_it, contig_variants_eit);
 			    	}
-				}	
+				}
 			}
 		}
 	}
@@ -155,7 +156,7 @@ namespace Combine {
     bool isAltAlleleRedundant(typename map<uint, Variant *>::iterator contig_variants_it, typename map<uint, Variant *>::iterator contig_variants_eit, const uint alt_allele_idx) {
 
     	assert(contig_variants_it != contig_variants_eit);
-    	
+
     	Allele ref_allele = contig_variants_it->second->ref();
     	Allele alt_allele = contig_variants_it->second->alt(alt_allele_idx);
 
@@ -210,7 +211,7 @@ namespace Combine {
 		auto aco_value = cur_allele->info().getValue<string>("ACO");
 
 		if (aco_value.second) {
-	
+
 			auto aco_value_split = Utils::splitString(aco_value.first, ':');
 
 			if (find(aco_value_split.begin(), aco_value_split.end(), call_set_name) == aco_value_split.end()) {
@@ -252,7 +253,7 @@ namespace Combine {
 
         	excluded_alt_allele_indices = vector<uint>(cur_var->numAlts());
         	iota(excluded_alt_allele_indices.begin(), excluded_alt_allele_indices.end(), 0);
-        } 
+        }
 
         assert(excluded_alt_allele_indices.empty() or (excluded_alt_allele_indices.size() == cur_var->numAlts()));
 
@@ -267,7 +268,7 @@ namespace Combine {
 				} else if (cur_var->alt(alt_allele_idx).isMissing()) {
 
 					excluded_alt_allele_indices.push_back(alt_allele_idx);
-				
+
 				} else if (exclude_ambiguous_alleles and (cur_var->alt(alt_allele_idx).seq().find_first_not_of("ACGT") != string::npos)) {
 
 					excluded_alt_allele_indices.push_back(alt_allele_idx);
@@ -381,7 +382,7 @@ namespace Combine {
 			for (auto & input_call_set: input_call_sets) {
 
 				while (input_call_set.variant) {
-					
+
 					if (input_call_set.variant->chrom() != contig.id()) {
 
 						break;
@@ -408,15 +409,15 @@ namespace Combine {
 
             		if (isAltAlleleRedundant(contig_variants_it, contig_variants.end(), alt_allele_idx)) {
 
-            			redundant_alt_allele_indices.push_back(alt_allele_idx);                			
+            			redundant_alt_allele_indices.push_back(alt_allele_idx);
             		}
 				}
 
 				assert(redundant_alt_allele_indices.size() <= contig_variants_it->second->numAlts());
 				contig_variants_it->second->removeAlts(redundant_alt_allele_indices);
-				
+
 				if (contig_variants_it->second->numAlts() > 0) {
-					
+
 					Auxiliaries::rightTrimVariant(contig_variants_it->second);
 
 					num_combined_alt_alleles += contig_variants_it->second->numAlts();
@@ -435,7 +436,7 @@ namespace Combine {
 		if (exclude_ambiguous_alleles) {
 
 			cout << ", missing and ambiguous";
-		
+
 		} else {
 
 			cout << " and missing";

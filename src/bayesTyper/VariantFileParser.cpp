@@ -1,6 +1,6 @@
 
 /*
-VariantFileParser.cpp - This file is part of BayesTyper (v1.1)
+VariantFileParser.cpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -55,16 +55,14 @@ THE SOFTWARE.
 
 using namespace std;
 
-static const uint max_chromosome_substring_size = 10000;
 static const uint variant_cluster_group_batch_size = 1000;
+static const uint max_intercluster_batch_size = 1000;
 
-
-VariantFileParser::VariantFileParser(const string genome_filename, const uint max_allele_length_in, const double copy_number_variant_threshold_in, const ushort num_threads_in, const uint prng_seed) : max_allele_length(max_allele_length_in), copy_number_variant_threshold(copy_number_variant_threshold_in), num_threads(num_threads_in) {
+VariantFileParser::VariantFileParser(const string genome_filename, const uint max_allele_length_in, const double copy_number_variant_threshold_in, const ushort num_threads_in) : max_allele_length(max_allele_length_in), copy_number_variant_threshold(copy_number_variant_threshold_in), num_threads(num_threads_in) {
 
     number_of_variants = 0;
     max_alternative_alleles = 0;
-
-    prng = mt19937(prng_seed);
+    variable_region_length = 0;
 
     cout << "[" << Utils::getLocalTime() << "] Parsing reference genome ..." << endl;
 
@@ -150,8 +148,27 @@ ulong VariantFileParser::parseFasta(const string filename, unordered_map<string,
 }
 
 
-template <int kmer_size>
-void VariantFileParser::addDecoys(const string decoy_filename) {
+void VariantFileParser::addSequenceToInterclusterRegions(const string sequence_id, string::const_iterator sequence_it, string::const_iterator sequence_eit, const uchar kmer_size) {
+
+    assert(sequence_it <= sequence_eit);
+
+    if ((sequence_eit - sequence_it) >= static_cast<uint>(kmer_size)) {
+
+        while (max_intercluster_batch_size < (sequence_eit - sequence_it)) {
+
+            intercluster_regions.emplace_back(sequence_it, sequence_it + max_intercluster_batch_size, classifyChromosome(sequence_id));
+            sequence_it += (max_intercluster_batch_size - (kmer_size - 1));
+        }
+    
+        if ((sequence_eit - sequence_it) >= static_cast<uint>(kmer_size)) {
+
+            intercluster_regions.emplace_back(sequence_it, sequence_eit, classifyChromosome(sequence_id)); 
+        }             
+    }
+}
+
+
+void VariantFileParser::addDecoys(const string decoy_filename, const uchar kmer_size) {
 
     cout << "[" << Utils::getLocalTime() << "] Parsing decoy sequence(s) ..." << endl;
 
@@ -166,22 +183,22 @@ void VariantFileParser::addDecoys(const string decoy_filename) {
             assert(genome_sequences.find(cit.first) == genome_sequences.end());
         }
 
-        unordered_set<string> empty_set; 
-        assert(empty_set.empty());
+        for (auto & decoy_sequence: decoy_sequences) {
 
-        addSequencesToInterclusterRegions<kmer_size>(decoy_sequences, &empty_set);
-        assert(empty_set.size() == decoy_sequences.size());
+            addSequenceToInterclusterRegions(decoy_sequence.first, decoy_sequence.second->begin(), decoy_sequence.second->end(), kmer_size);
+        }
     }
 
     cout << "[" << Utils::getLocalTime() << "] Parsed " << decoy_sequences.size() << " decoy sequence(s) (" << decoy_size << " nucleotides)\n" << endl;
 }
 
 
-template <int kmer_size>
-void VariantFileParser::readVariantFile(const string vcf_filename, vector<VariantClusterGraph*> * variant_cluster_graphs, vector<VariantClusterGroup*> * variant_cluster_groups) { 
+template <uchar kmer_size>
+void VariantFileParser::readVariantFile(const string vcf_filename, vector<VariantClusterGraph*> * variant_cluster_graphs, vector<VariantClusterGroup*> * variant_cluster_groups, const uint prng_seed) { 
 
     ProducerConsumerQueue<vector<unordered_map<uint, VariantCluster*> * > * > variant_cluster_group_queue(Utils::queue_size_thread_scaling * num_threads);
-    mutex counting_mutex;
+
+    mutex process_mutex;
 
     pair<vector<uint>, vector<uint> > variant_stats;
 
@@ -189,7 +206,7 @@ void VariantFileParser::readVariantFile(const string vcf_filename, vector<Varian
 
     for (int i=0; i < num_threads; i++) {
 
-        processing_threads.at(i) = thread(&VariantFileParser::processVariantClusterGroupsCallback<kmer_size>, this, &variant_cluster_group_queue, &counting_mutex, variant_cluster_graphs, variant_cluster_groups);
+        processing_threads.at(i) = thread(&VariantFileParser::processVariantClusterGroupsCallback<kmer_size>, this, variant_cluster_graphs, variant_cluster_groups, &variant_cluster_group_queue, &process_mutex);
     }  
 
     if ((vcf_filename.substr(vcf_filename.size()-3,3) == ".gz") or (vcf_filename.substr(vcf_filename.size()-5,5) == ".gzip")) {
@@ -222,10 +239,12 @@ void VariantFileParser::readVariantFile(const string vcf_filename, vector<Varian
         th.join();
     } 
 
+    mt19937 prng = mt19937(prng_seed);
+    shuffle(intercluster_regions.begin(), intercluster_regions.end(), prng);
+
     cout << "\n[" << Utils::getLocalTime() << "] Parsed " << variant_stats.first.at(uchar(AlleleCount::Total)) << " alternative alleles and excluded:\n" << endl; 
     cout << "\t- Alleles on chromosome(s) not in genome: " << variant_stats.first.at(uchar(AlleleCount::Excluded_genome)) << endl;  
     cout << "\t- Alleles with reference not equal to genome sequence: " << variant_stats.first.at(uchar(AlleleCount::Excluded_match)) << endl;
-    cout << "\t- Alleles with non-canonical bases (not ACGTN): " << variant_stats.first.at(uchar(AlleleCount::Excluded_canon)) << endl;
     cout << "\t- Alleles within " << kmer_size << " bases of chromosome end: " << variant_stats.first.at(uchar(AlleleCount::Excluded_end)) << endl;
     cout << "\t- Alleles longer than " << max_allele_length << " bases: " << variant_stats.first.at(uchar(AlleleCount::Excluded_length)) << endl;
 
@@ -245,19 +264,13 @@ void VariantFileParser::readVariantFile(const string vcf_filename, vector<Varian
     }
 
     assert(number_of_variants == sum_variant_types);
+    assert(variant_cluster_groups->size() <= variant_cluster_graphs->size());
 
     cout << "\n[" << Utils::getLocalTime() << "] Merged variants into " << variant_cluster_graphs->size() << " clusters and further into " << variant_cluster_groups->size() << " groups\n" << endl;
-
-
-    cout << "[" << Utils::getLocalTime() << "] Shuffling intercluster regions ..." << endl;
-
-    shuffle(intercluster_regions.begin(), intercluster_regions.end(), prng);
-
-    cout << "[" << Utils::getLocalTime() << "] Finished shuffling\n" << endl;
 }
 
 
-template <typename FileType, int kmer_size>
+template <typename FileType, uchar kmer_size>
 pair<vector<uint>, vector<uint> > VariantFileParser::parseVariants(FileType * vcf_file, ProducerConsumerQueue<vector<unordered_map<uint, VariantCluster*> * > * > * variant_cluster_group_queue) {
 
     cout << "[" << Utils::getLocalTime() << "] Parsing variant file ..." << endl; 
@@ -272,11 +285,11 @@ pair<vector<uint>, vector<uint> > VariantFileParser::parseVariants(FileType * vc
     
     unordered_map<string, string *>::iterator chromosome_seq_it = genome_sequences.end();
 
-    long cur_position = 0;
-    long prev_position = -1;
+    int cur_position = 0;
+    int prev_position = -1;
 
-    long prev_var_end_position = -1;
-    long cur_group_end_position = -1;     
+    int prev_var_end_position = -1;
+    int cur_group_end_position = -1;     
 
     vector<unordered_map<uint, VariantCluster*> * > * variant_cluster_group_batch = new vector<unordered_map<uint, VariantCluster*> * >();  
     variant_cluster_group_batch->reserve(variant_cluster_group_batch_size);
@@ -375,12 +388,12 @@ pair<vector<uint>, vector<uint> > VariantFileParser::parseVariants(FileType * vc
 
         if ((prev_chromosome_id != "") and (cur_chromosome_id != prev_chromosome_id)) {
 
-            auto pgit = genome_sequences.find(prev_chromosome_id);
+            auto prev_chromosome_seq_it = genome_sequences.find(prev_chromosome_id);
 
-            if (pgit != genome_sequences.end()) {
+            if (prev_chromosome_seq_it != genome_sequences.end()) {
 
-                processVariantClusters(variant_cluster_group_queue, &variant_cluster_group_batch, &variant_cluster_group_batch_complexity, &variant_cluster_group, &variant_cluster_group_merge_sets, &variant_cluster_group_flanks);                   
-                intercluster_regions.emplace_back(pgit->second->cbegin() + prev_var_end_position + 1, pgit->second->cend(), classifyChromosome(prev_chromosome_id));
+                processVariantClusters(variant_cluster_group_queue, &variant_cluster_group_batch, &variant_cluster_group_batch_complexity, &variant_cluster_group, &variant_cluster_group_merge_sets, &variant_cluster_group_flanks);
+                addSequenceToInterclusterRegions(prev_chromosome_id, prev_chromosome_seq_it->second->cbegin() + prev_var_end_position + 1, prev_chromosome_seq_it->second->cend(), kmer_size);
 
                 prev_var_end_position = -1;
                 cur_group_end_position = -1;
@@ -405,14 +418,6 @@ pair<vector<uint>, vector<uint> > VariantFileParser::parseVariants(FileType * vc
             assert(prev_position < cur_position);
         }
 
-        VariantCluster::Variant cur_variant;
-        cur_variant.id = number_of_variants;
-        cur_variant.type = Utils::VariantType::Unsupported;
-        cur_variant.max_reference_length = 0;
-
-        number_of_variants += 1;
-        chromosome_variant_counter += 1;
-
         prev_chromosome_id = cur_chromosome_id;
         prev_chromosome_name = cur_chromosome_name;
         prev_position = cur_position;
@@ -431,7 +436,7 @@ pair<vector<uint>, vector<uint> > VariantFileParser::parseVariants(FileType * vc
         
         while (vit != variant_depedencies.end()) {
             
-            if (*vit >= cur_position) {
+            if (static_cast<int>(*vit) >= cur_position) {
 
                 break;
             }
@@ -440,7 +445,11 @@ pair<vector<uint>, vector<uint> > VariantFileParser::parseVariants(FileType * vc
             vit = variant_depedencies.begin();
         }
 
-        cur_variant.has_dependency = !(variant_depedencies.empty());
+
+        VariantCluster::Variant cur_variant(number_of_variants, !(variant_depedencies.empty()));
+
+        number_of_variants += 1;
+        chromosome_variant_counter += 1;
 
         if (alt_alleles.back() == "*") {
 
@@ -486,13 +495,7 @@ pair<vector<uint>, vector<uint> > VariantFileParser::parseVariants(FileType * vc
             is_excluded = true;
         }
 
-        if (var_ref_seq.find_first_not_of("ACGTN") != string::npos) {
-
-            allele_counter.at(uchar(AlleleCount::Excluded_canon)) += alt_alleles.size();
-            is_excluded = true;
-        }
-
-        if (cur_position < (kmer_size - 1)) {
+        if (cur_position < (static_cast<int>(kmer_size) - 1)) {
 
             allele_counter.at(uchar(AlleleCount::Excluded_end)) += alt_alleles.size();
             is_excluded = true;
@@ -504,12 +507,7 @@ pair<vector<uint>, vector<uint> > VariantFileParser::parseVariants(FileType * vc
 
             for (ushort i = 0; i < alt_alleles.size(); i++) {
 
-                if (alt_alleles.at(i).find_first_not_of("ACGTN") != string::npos) {
-
-                    allele_counter.at(uchar(AlleleCount::Excluded_canon))++;
-                    assert(excluded_alleles.insert(i).second);
-
-                } else if ((cur_position + static_cast<long>(ref_alleles.at(i).size()) - 1 + kmer_size) > static_cast<long>(chromosome_seq_it->second->size())) {
+                if ((cur_position + ref_alleles.at(i).size() - 1 + static_cast<uint>(kmer_size)) > chromosome_seq_it->second->size()) {
 
                     allele_counter.at(uchar(AlleleCount::Excluded_end))++;
                     assert(excluded_alleles.insert(i).second);
@@ -537,15 +535,15 @@ pair<vector<uint>, vector<uint> > VariantFileParser::parseVariants(FileType * vc
         assert(!(variant_depedencies.empty()));
         assert(prev_var_end_position <= cur_group_end_position);
 
-        if ((cur_position - cur_group_end_position) >= kmer_size) {
+        if ((cur_position - cur_group_end_position) >= static_cast<int>(kmer_size)) {
 
             processVariantClusters(variant_cluster_group_queue, &variant_cluster_group_batch, &variant_cluster_group_batch_complexity, &variant_cluster_group, &variant_cluster_group_merge_sets, &variant_cluster_group_flanks);
             variant_cluster_group_counter = 0;
         } 
 
-        if ((cur_position - (prev_var_end_position + 1)) >= kmer_size) {
+        if (cur_position > (prev_var_end_position + 1)) {
 
-            intercluster_regions.emplace_back(chromosome_seq_it->second->cbegin() + prev_var_end_position + 1, chromosome_seq_it->second->cbegin() + cur_position, classifyChromosome(cur_chromosome_id));
+            addSequenceToInterclusterRegions(cur_chromosome_id, chromosome_seq_it->second->cbegin() + prev_var_end_position + 1, chromosome_seq_it->second->cbegin() + cur_position, kmer_size);
         }
 
         set<uint> cur_end_positions;
@@ -561,7 +559,7 @@ pair<vector<uint>, vector<uint> > VariantFileParser::parseVariants(FileType * vc
             
             } else {
 
-                parseAllele(ref_alleles.at(i), alt_alleles.at(i), cur_position, i + 1, &cur_variant, *(chromosome_seq_it->second));
+                parseAllele(ref_alleles.at(i), alt_alleles.at(i), i + 1, &cur_variant);
                 
                 uint allele_start_position = 0;
                 uint chromosome_start_position = cur_position + ref_alleles.at(i).size();
@@ -575,7 +573,7 @@ pair<vector<uint>, vector<uint> > VariantFileParser::parseVariants(FileType * vc
                 uint alt_copy_number_variant_length = copyNumberVariantLength<kmer_size>(alt_alleles.at(i), allele_start_position, *chromosome_seq_it->second, chromosome_start_position);
 
                 cur_end_positions.insert(cur_position + ref_alleles.at(i).size() - 1);
-                cur_group_end_position = max(cur_group_end_position, static_cast<long>(cur_position + ref_alleles.at(i).size() - 1 + max(ref_copy_number_variant_length, alt_copy_number_variant_length)));
+                cur_group_end_position = max(cur_group_end_position, static_cast<int>(cur_position + ref_alleles.at(i).size() - 1 + max(ref_copy_number_variant_length, alt_copy_number_variant_length)));
             }
         }
 
@@ -584,10 +582,10 @@ pair<vector<uint>, vector<uint> > VariantFileParser::parseVariants(FileType * vc
         assert((cur_variant.alternative_alleles.size() + cur_variant.excluded_alt_alleles.size()) == alt_alleles.size());
         assert(cur_variant.excluded_alt_alleles.size() == excluded_alleles.size());
 
-        prev_var_end_position = max(prev_var_end_position, static_cast<long>(*cur_end_positions.rbegin()));
+        prev_var_end_position = max(prev_var_end_position, static_cast<int>(*cur_end_positions.rbegin()));
         assert(cur_group_end_position >= prev_var_end_position);
 
-        max_alternative_alleles = max(max_alternative_alleles, ushort(alt_alleles.size()));
+        max_alternative_alleles = max(max_alternative_alleles, static_cast<ushort>(alt_alleles.size()));
 
         clusterVariants<kmer_size>(cur_variant, cur_position, cur_end_positions, cur_chromosome_id, cur_chromosome_name, &variant_cluster_group_counter, &variant_cluster_group_flanks, variant_cluster_group, &variant_cluster_group_merge_sets);
 
@@ -606,15 +604,25 @@ pair<vector<uint>, vector<uint> > VariantFileParser::parseVariants(FileType * vc
     delete variant_cluster_group;
     
     if (chromosome_seq_it != genome_sequences.end()) {
-        
-        intercluster_regions.emplace_back(chromosome_seq_it->second->cbegin() + prev_var_end_position + 1, chromosome_seq_it->second->cend(), classifyChromosome(cur_chromosome_id));                                 
+       
+        addSequenceToInterclusterRegions(cur_chromosome_id, chromosome_seq_it->second->cbegin() + prev_var_end_position + 1, chromosome_seq_it->second->cend(), kmer_size);
+ 
         assert(counted_chromosomes.insert(cur_chromosome_id).second);
         assert(cur_chromosome_id == prev_chromosome_id);
     }
 
     cout << "[" << Utils::getLocalTime() << "] Parsed " << chromosome_variant_counter << " variants on chromosome " << cur_chromosome_name << endl; 
 
-    addSequencesToInterclusterRegions<kmer_size>(genome_sequences, &counted_chromosomes);
+    for (auto & genome_sequence: genome_sequences) {
+
+        auto counted_chromosomes_it = counted_chromosomes.insert(genome_sequence.first);
+
+        if (counted_chromosomes_it.second) {
+
+            addSequenceToInterclusterRegions(genome_sequence.first, genome_sequence.second->begin(), genome_sequence.second->end(), kmer_size);
+        }                        
+    }
+
     assert(counted_chromosomes.size() == genome_sequences.size());
 
     uint variant_counter_sanity_check = 0;
@@ -650,7 +658,7 @@ void VariantFileParser::rightTrimAllele(string * ref_allele, string * alt_allele
 }
 
 
-void VariantFileParser::parseAllele(const string & ref_allele, const string & alt_allele, const uint cur_position, const ushort alternative_allele_counter, VariantCluster::Variant * cur_variant, const string & chromosome_sequence) {
+void VariantFileParser::parseAllele(const string & ref_allele, const string & alt_allele, const ushort alternative_allele_counter, VariantCluster::Variant * cur_variant) {
 
     auto ref_allele_it = ref_allele.begin();
     auto alt_allele_it = alt_allele.begin();
@@ -673,6 +681,7 @@ void VariantFileParser::parseAllele(const string & ref_allele, const string & al
     }
 
     assert((ref_allele.size() > identical_left_nucleotides) or (alt_allele.size() > identical_left_nucleotides));
+    cur_variant->num_redundant_nucleotides = min(cur_variant->num_redundant_nucleotides, identical_left_nucleotides);
 
     cur_variant->alternative_alleles.emplace_back(alternative_allele_counter, pair<uint, const string>(ref_allele.size(), alt_allele));
     cur_variant->max_reference_length = max(cur_variant->max_reference_length, static_cast<uint>(ref_allele.size()));
@@ -719,7 +728,7 @@ Utils::VariantType VariantFileParser::classifyAllele(const int reference_size, c
 }
 
 
-template <int kmer_size>
+template <uchar kmer_size>
 uint VariantFileParser::copyNumberVariantLength(const string & allele_sequence, const uint allele_start_position, const string & chromosome_sequence, const uint chromosome_start_position) {
 
     assert(allele_start_position <= allele_sequence.size());
@@ -804,7 +813,7 @@ uint VariantFileParser::copyNumberVariantLength(const string & allele_sequence, 
 
                 if (num_identical_kmers > 0) {
 
-                    assert(num_bases >= kmer_size);
+                    assert(num_bases >= static_cast<uint>(kmer_size));
                     double identical_kmer_fraction = num_identical_kmers/static_cast<double>(num_bases - kmer_size + 1);
 
                     if (Utils::doubleCompare(identical_kmer_fraction, highest_scoring_window.first) or (identical_kmer_fraction > highest_scoring_window.first)) {
@@ -835,7 +844,7 @@ uint VariantFileParser::copyNumberVariantLength(const string & allele_sequence, 
 }
 
 
-template <int kmer_size>
+template <uchar kmer_size>
 void VariantFileParser::clusterVariants(VariantCluster::Variant & cur_variant, const uint cur_position, const set<uint> cur_end_positions, const string & cur_chromosome_id, const string & cur_chromosome_name, uint * variant_cluster_group_counter, map<uint, VariantCluster*> * variant_cluster_group_flanks, unordered_map<uint, VariantCluster*> * variant_cluster_group, list<unordered_set<uint> > * variant_cluster_group_merge_sets) {
 
     if (!variant_cluster_group_flanks->empty()) {
@@ -843,7 +852,7 @@ void VariantFileParser::clusterVariants(VariantCluster::Variant & cur_variant, c
         auto lit = variant_cluster_group_flanks->begin();            
         assert(!variant_cluster_group->empty());
 
-        while (static_cast<int>(cur_position - lit->first) >= kmer_size) {
+        while (static_cast<int>(cur_position - lit->first) >= static_cast<int>(kmer_size)) {
 
             lit = variant_cluster_group_flanks->erase(lit);
 
@@ -866,7 +875,7 @@ void VariantFileParser::clusterVariants(VariantCluster::Variant & cur_variant, c
 
     while (vit != variant_cluster_group_flanks->end()) {
 
-        if ((abs(static_cast<int>(cur_position - vit->first)) + 1) <= kmer_size) {
+        if ((abs(static_cast<int>(cur_position - vit->first)) + 1) <= static_cast<int>(kmer_size)) {
 
             if (variant_cluster_group_first == nullptr) {
 
@@ -886,7 +895,7 @@ void VariantFileParser::clusterVariants(VariantCluster::Variant & cur_variant, c
 
         for (auto &cit: cur_end_positions) {
 
-            if ((abs(static_cast<int>(cit - vit->first)) + 1) <= kmer_size) {
+            if ((abs(static_cast<int>(cit - vit->first)) + 1) <= static_cast<int>(kmer_size)) {
 
                 if (variant_cluster_group_first == nullptr) {
 
@@ -940,7 +949,7 @@ void VariantFileParser::clusterVariants(VariantCluster::Variant & cur_variant, c
             assert(variant_cluster_group_flanks->insert(pair<uint, VariantCluster *>(cit, variant_cluster)).second);
         }
 
-        if (*cur_end_positions.rbegin() - cur_position >= kmer_size) {
+        if (*cur_end_positions.rbegin() - cur_position >= static_cast<uint>(kmer_size)) {
 
             if (!(variant_cluster_group_flanks->insert(pair<uint, VariantCluster *>(cur_position, variant_cluster)).second)) {
 
@@ -984,7 +993,7 @@ void VariantFileParser::clusterVariants(VariantCluster::Variant & cur_variant, c
             }
         }
       
-        if (*cur_end_positions.rbegin() - cur_position >= kmer_size) {
+        if (*cur_end_positions.rbegin() - cur_position >= static_cast<uint>(kmer_size)) {
 
             if (!(variant_cluster_group_flanks->insert(pair<uint, VariantCluster *>(cur_position, variant_cluster_group_first)).second)) {
 
@@ -1140,11 +1149,13 @@ void VariantFileParser::mergeVariantClusters(unordered_map<uint, VariantCluster*
 }
 
 
-template <int kmer_size>
-void VariantFileParser::processVariantClusterGroupsCallback(ProducerConsumerQueue<vector<unordered_map<uint, VariantCluster*> * > * > * variant_cluster_group_queue, mutex * process_mutex, vector<VariantClusterGraph*> * variant_cluster_graphs, vector<VariantClusterGroup*> * variant_cluster_groups) {
+template <uchar kmer_size>
+void VariantFileParser::processVariantClusterGroupsCallback(vector<VariantClusterGraph*> * variant_cluster_graphs, vector<VariantClusterGroup*> * variant_cluster_groups, ProducerConsumerQueue<vector<unordered_map<uint, VariantCluster*> * > * > * variant_cluster_group_queue, mutex * process_mutex) {
 
     vector<VariantClusterGraph*> variant_cluster_graphs_local;
     vector<VariantClusterGroup*> variant_cluster_groups_local;
+
+    uint variable_region_length_local = 0;
 
     vector<unordered_map<uint, VariantCluster *> * > * variant_cluster_group_batch = nullptr;
 
@@ -1163,6 +1174,9 @@ void VariantFileParser::processVariantClusterGroupsCallback(ProducerConsumerQueu
             cur_variant_clusters.reserve(cur_variant_cluster_group->size());
             cur_variant_cluster_graphs.reserve(cur_variant_cluster_group->size());
 
+            uint min_left_flank = cur_variant_cluster_group->begin()->second->left_flank;
+            uint max_right_flank = cur_variant_cluster_group->begin()->second->right_flank;
+
             for (auto & variant_cluster: *cur_variant_cluster_group) {
 
                 assert(variant_cluster.first == variant_cluster.second->cluster_idx);
@@ -1173,13 +1187,21 @@ void VariantFileParser::processVariantClusterGroupsCallback(ProducerConsumerQueu
 
                 assert(!(variant_cluster.second->variants.empty()));
                 assert(variant_cluster.second->variants.size() < Utils::ushort_overflow);
+
                 assert(variant_cluster.second->left_flank == variant_cluster.second->variants.begin()->first);
+                assert(variant_cluster.second->right_flank >= variant_cluster.second->variants.rbegin()->first);
+
+                min_left_flank = min(min_left_flank, variant_cluster.second->left_flank);
+                max_right_flank = max(max_right_flank, variant_cluster.second->right_flank);
 
                 cur_variant_clusters.push_back(variant_cluster.second);
-                cur_variant_cluster_graphs.emplace_back(new VariantClusterKmerGraph<kmer_size>(variant_cluster.second, *genome_sequences.at(variant_cluster.second->chromosome_id)));       
+                cur_variant_cluster_graphs.emplace_back(new VariantClusterKmerGraph<kmer_size>(variant_cluster.second, *genome_sequences.at(variant_cluster.second->chromosome_id)));
 
-                variant_cluster_graphs_local.push_back(cur_variant_cluster_graphs.back());
+                variant_cluster_graphs_local.push_back(cur_variant_cluster_graphs.back());       
             }
+
+            assert(min_left_flank <= max_right_flank);
+            variable_region_length_local += (max_right_flank - min_left_flank + kmer_size);
 
             variant_cluster_groups_local.emplace_back(new VariantClusterGroup(cur_variant_clusters, cur_variant_cluster_graphs, cur_variant_cluster_group_dependencies, cur_variant_cluster_group->begin()->second->chromosome_class, cur_variant_cluster_group->begin()->second->chromosome_name));
 
@@ -1199,7 +1221,7 @@ void VariantFileParser::processVariantClusterGroupsCallback(ProducerConsumerQueu
     for (auto & variant_cluster_graph: variant_cluster_graphs_local) {
 
         assert(variant_cluster_graph->getInfo().size() > 0);
-        
+
         variant_cluster_graphs->push_back(variant_cluster_graph);
     }
 
@@ -1210,7 +1232,9 @@ void VariantFileParser::processVariantClusterGroupsCallback(ProducerConsumerQueu
         assert(variant_cluster_group->numberOfVariantClusterGroupTrees() > 0);
 
         variant_cluster_groups->push_back(variant_cluster_group);
-    }
+    }    
+
+    variable_region_length += variable_region_length_local;
 }
 
 
@@ -1268,31 +1292,6 @@ unordered_map<uint, uint> VariantFileParser::getVariantClusterGroupDependencies(
     return variant_cluster_depedencies;
 }
 
-
-template <int kmer_size>
-void VariantFileParser::addSequencesToInterclusterRegions(unordered_map<string, string *> & sequences, unordered_set<string> * counted_sequences) {
-
-    for (auto &cit: sequences) {
-
-        auto counted_sequences_insert = counted_sequences->insert(cit.first);
-
-        if (counted_sequences_insert.second) {
-
-            auto sit = cit.second->begin();
-
-            while (sit <= (cit.second->end() - max_chromosome_substring_size)) {
-
-                intercluster_regions.emplace_back(sit, sit + max_chromosome_substring_size, classifyChromosome(cit.first));              
-                
-                sit += max_chromosome_substring_size - (kmer_size - 1);
-            }
-
-            intercluster_regions.emplace_back(sit, cit.second->end(), classifyChromosome(cit.first));              
-        }
-    }
-}
-
-
 const vector<VariantFileParser::InterClusterRegion> & VariantFileParser::getInterclusterRegions() {
 
     return intercluster_regions;
@@ -1308,6 +1307,12 @@ ulong VariantFileParser::getNumberOfVariants() {
 ushort VariantFileParser::getMaxAlternativeAlleles() {
 
     return max_alternative_alleles;
+}
+
+
+ulong VariantFileParser::getVariableRegionLength() {
+
+    return variable_region_length;
 }
 
 
@@ -1354,15 +1359,18 @@ Utils::ChromosomeClass VariantFileParser::classifyGenomeChromosome(const string 
 }
 
 
-template void VariantFileParser::addDecoys<31>(const string);
-template void VariantFileParser::addDecoys<39>(const string);
-template void VariantFileParser::addDecoys<47>(const string);
-template void VariantFileParser::addDecoys<55>(const string);
-template void VariantFileParser::addDecoys<63>(const string);
+bool InterclusterRegionsCompare(const VariantFileParser::InterClusterRegion & first_intercluster_region, const VariantFileParser::InterClusterRegion & second_intercluster_region) {
+    
+    assert(first_intercluster_region.start <= first_intercluster_region.end);
+    assert(second_intercluster_region.start <= second_intercluster_region.end);
 
-template void VariantFileParser::readVariantFile<31>(const string, vector<VariantClusterGraph*> *, vector<VariantClusterGroup*> *);
-template void VariantFileParser::readVariantFile<39>(const string, vector<VariantClusterGraph*> *, vector<VariantClusterGroup*> *);
-template void VariantFileParser::readVariantFile<47>(const string, vector<VariantClusterGraph*> *, vector<VariantClusterGroup*> *);
-template void VariantFileParser::readVariantFile<55>(const string, vector<VariantClusterGraph*> *, vector<VariantClusterGroup*> *);
-template void VariantFileParser::readVariantFile<63>(const string, vector<VariantClusterGraph*> *, vector<VariantClusterGroup*> *);
+    return ((first_intercluster_region.end - first_intercluster_region.start) > (second_intercluster_region.end - second_intercluster_region.start));
+}
+
+
+template void VariantFileParser::readVariantFile<31>(const string, vector<VariantClusterGraph*> *, vector<VariantClusterGroup*> *, const uint);
+template void VariantFileParser::readVariantFile<39>(const string, vector<VariantClusterGraph*> *, vector<VariantClusterGroup*> *, const uint);
+template void VariantFileParser::readVariantFile<47>(const string, vector<VariantClusterGraph*> *, vector<VariantClusterGroup*> *, const uint);
+template void VariantFileParser::readVariantFile<55>(const string, vector<VariantClusterGraph*> *, vector<VariantClusterGroup*> *, const uint);
+template void VariantFileParser::readVariantFile<63>(const string, vector<VariantClusterGraph*> *, vector<VariantClusterGroup*> *, const uint);
 

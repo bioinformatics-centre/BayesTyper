@@ -1,6 +1,6 @@
 
 /*
-filterStructuralVariants.cpp - This file is part of BayesTyper (v1.1)
+filterStructuralVariants.cpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -41,7 +41,7 @@ int main(int argc, char const *argv[]) {
 
 	if (argc != 6) {
 
-		std::cout << "USAGE: filterStructuralVariants <variants> <output_prefix> <max_allele_length (reference | alternative)> <min_sv_length (alternative_length - reference_length)> <max_sv_length (alternative_length - reference_length)>" << std::endl;
+		std::cout << "USAGE: filterStructuralVariants <input> <output_prefix> <max_allele_length (reference | alternative)> <min_sv_length (alternative_length - reference_length)> <max_sv_length (alternative_length - reference_length)>" << std::endl;
 		return 1;
 	}
 

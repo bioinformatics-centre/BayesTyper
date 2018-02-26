@@ -1,6 +1,6 @@
 
 /*
-GenotypeWriter.cpp - This file is part of BayesTyper (v1.1)
+GenotypeWriter.cpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -62,16 +62,11 @@ using namespace std;
 static const string format_column = "GT:GPP:APP:NAK:FAK:MAC";
 static const string empty_variant_sample = ".:.:.:.:.";
 
-static const pair<uint, uint> sample_fak_estimates_scaling_factors(1000 + 1, 1000);
-static const pair<uint, uint> sample_mac_estimates_scaling_factors(Utils::uchar_overflow * 10 + 1, 10);
 
 GenotypeWriter::GenotypeWriter(const vector<Sample> & samples, const string & output_prefix_in, const ushort num_threads) : samples(samples), output_prefix(output_prefix_in) {
 
     genotypes_queue = new ProducerConsumerQueue<vector<Genotypes *> *>(Utils::queue_size_thread_scaling * num_threads);
     writer_threads.push_back(thread(&GenotypeWriter::writeTemporaryFile, this));
-
-    sample_fak_estimates = vector<vector<ulong> >(samples.size(), vector<ulong>(sample_fak_estimates_scaling_factors.first, 0));
-    sample_mac_estimates = vector<vector<ulong> >(samples.size(), vector<ulong>(sample_mac_estimates_scaling_factors.first, 0));
 }
 
 void GenotypeWriter::writeTemporaryFile() {
@@ -95,18 +90,12 @@ void GenotypeWriter::writeTemporaryFile() {
             writeVariantStats(&output_file, genotypes->variant_stats, genotypes->variant_info);
 
             output_file << ";VCS=" << genotypes->variant_cluster_size << ";VCI=" << genotypes->variant_cluster_id << ";VCGS=" << genotypes->variant_cluster_group_size << ";VCGI=" << genotypes->variant_cluster_group_id << ";HC=" << genotypes->num_candidates;
-
-            if (genotypes->has_redundant_sequence) {
-
-                output_file << ";HRS";
-            }
             
             writeAlleleCover(&output_file, &(genotypes->non_covered_alleles), &(genotypes->variant_info));
 
             output_file << "\t" << format_column;
 
             writeSamples(&output_file, genotypes->sample_stats, genotypes->variant_info);
-            addAlleleKmerEstimates(genotypes->sample_stats);
 
             output_file << "\n";
 
@@ -285,32 +274,6 @@ void GenotypeWriter::writeAlleleKmerStats(ofstream * output_file, const AlleleKm
     *output_file << allele_kmer_counts.str() << ":" << allele_kmer_fractions.str() << ":" << allele_kmer_means.str();
 }
 
-void GenotypeWriter::addAlleleKmerEstimates(const vector<Genotypes::SampleStats> & sample_stats) {
-
-    assert(samples.size() == sample_stats.size());
-
-    assert(samples.size() == sample_fak_estimates.size());
-    assert(samples.size() == sample_mac_estimates.size());
-
-    for (ushort sample_idx = 0; sample_idx < samples.size(); sample_idx++) {
-
-        if (sample_stats.at(sample_idx).is_allele_kmer_estimate_variant) {
-
-            for (ushort i = 0; i < sample_stats.at(sample_idx).genotype_estimate.size(); i++) {
-
-                auto allele_idx = sample_stats.at(sample_idx).genotype_estimate.at(i);
-                assert(allele_idx != Utils::ushort_overflow);
-
-                assert(sample_stats.at(sample_idx).allele_posteriors.at(allele_idx) >= Utils::min_posterior_allele_kmer_estimate);
-                assert(sample_stats.at(sample_idx).allele_kmer_stats.count_stats.at(allele_idx).getMean().first > 0);
-
-                sample_fak_estimates.at(sample_idx).at(round(sample_stats.at(sample_idx).allele_kmer_stats.fraction_stats.at(allele_idx).getMean().first * sample_fak_estimates_scaling_factors.second))++;
-                sample_mac_estimates.at(sample_idx).at(round(sample_stats.at(sample_idx).allele_kmer_stats.mean_stats.at(allele_idx).getMean().first * sample_mac_estimates_scaling_factors.second))++;
-            }
-        }
-    } 
-}
-
 void GenotypeWriter::addGenotypes(vector<Genotypes *> * variant_genotypes) {
 
     genotypes_queue->push(variant_genotypes);
@@ -326,16 +289,6 @@ void GenotypeWriter::completedGenotyping() {
     }
 
     delete genotypes_queue;
-}
-
-void GenotypeWriter::writeSampleAlleleKmerFractionCumDistFunc() {
-
-    writeSampleAttributeCumDistFunc("FAK", sample_fak_estimates, sample_fak_estimates_scaling_factors);
-}
-
-void GenotypeWriter::writeSampleAlleleKmerCoverageCumDistFunc() {
-
-    writeSampleAttributeCumDistFunc("MAC", sample_mac_estimates, sample_mac_estimates_scaling_factors);
 }
 
 void GenotypeWriter::writeSampleAttributeCumDistFunc(const string & attribute, const vector<vector<ulong> > & allele_kmer_estimates, const pair<uint, uint> & allele_kmer_estimates_scaling_factors) {
@@ -598,7 +551,6 @@ string GenotypeWriter::writeHeader(const vector<Sample> & samples, const string 
     header_stream << "##INFO=<ID=VCGI,Number=1,Type=String,Description=\"Variant cluster group id (<chromosome>:<start>-<end>)\">" << "\n";
 
     header_stream << "##INFO=<ID=HC,Number=1,Type=Integer,Description=\"Number of haplotype candidates used for inference in variant cluster\">" << "\n";
-    header_stream << "##INFO=<ID=HRS,Number=0,Type=Flag,Description=\"Variant cluster has redundant haplotype sequences\">" << "\n";
     header_stream << "##INFO=<ID=AE,Number=.,Type=String,Description=\"Allele(s) excluded (mutually exclusive with <ANC>). 0: Reference allele\">" << "\n";
     header_stream << "##INFO=<ID=ANC,Number=.,Type=String,Description=\"Allele(s) not covered by a haplotype candidate (mutually exclusive with <AE>). 0: Reference allele\">" << "\n";
 
@@ -606,8 +558,8 @@ string GenotypeWriter::writeHeader(const vector<Sample> & samples, const string 
     header_stream << "##FORMAT=<ID=GPP,Number=G,Type=Float,Description=\"Genotype posterior probabilities\">" << "\n";
     header_stream << "##FORMAT=<ID=APP,Number=R,Type=Float,Description=\"Allele posterior probabilities\">" << "\n";
     header_stream << "##FORMAT=<ID=NAK,Number=R,Type=Float,Description=\"Mean number of allele kmers across gibbs samples. -1: Not sampled\">" << "\n";
-    header_stream << "##FORMAT=<ID=FAK,Number=R,Type=Float,Description=\"Mean fraction of observed allele kmers across gibbs samples. -1: Not sampled\">" << "\n";
-    header_stream << "##FORMAT=<ID=MAC,Number=R,Type=Float,Description=\"Mean mean allele kmer coverage across gibbs samples. -1: Not sampled\">" << "\n";
+    header_stream << "##FORMAT=<ID=FAK,Number=R,Type=Float,Description=\"Mean fraction of observed allele kmers across gibbs samples. -1: Not sampled or NAK = 0\">" << "\n";
+    header_stream << "##FORMAT=<ID=MAC,Number=R,Type=Float,Description=\"Mean mean allele kmer coverage across gibbs samples. -1: Not sampled or NAK = 0\">" << "\n";
         
     header_stream << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT";
 

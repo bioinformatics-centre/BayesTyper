@@ -1,6 +1,6 @@
 
 /*
-KmerCounter.cpp - This file is part of BayesTyper (v1.1)
+KmerCounter.cpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -51,149 +51,213 @@ THE SOFTWARE.
 #include "Sample.hpp"
 #include "VariantFileParser.hpp"
 
-
+static const uint max_intercluster_kmers_per_bias_bin = 10000000;
 static const uint kmer_batch_size = 500000;
 
 template <uchar kmer_size>
-KmerCounter<kmer_size>::KmerCounter(KmerHash * const kmer_hash_in, Utils::SmallmerSet * const smallmer_set_in, const ushort num_threads_in) : kmer_hash(kmer_hash_in), smallmer_set(smallmer_set_in), num_threads(num_threads_in) {
+KmerCounter<kmer_size>::KmerCounter(const ushort num_threads_in, const ulong expected_num_path_kmers, const uchar num_genomic_rate_gc_bias_bins) : num_threads(num_threads_in), max_intercluster_kmers(max_intercluster_kmers_per_bias_bin * num_genomic_rate_gc_bias_bins) {
 
-	min_sample_kmer_count = 0;
+	path_bloom = new ThreadedBasicKmerBloom<kmer_size>(1024, expected_num_path_kmers + max_intercluster_kmers, 0.001);
 }
 
 template <uchar kmer_size>
-void KmerCounter<kmer_size>::countVariantClusterSmallmersCallback(vector<VariantClusterGraph *> * variant_cluster_graphs, const ushort thread_index, mutex * counting_mutex, ulong * num_unique_smallmers) {
+KmerCounter<kmer_size>::~KmerCounter() {
 
-    ulong local_num_unique_smallmers = 0;
-    uint variant_cluster_graph_index = thread_index;
-
-	while (variant_cluster_graph_index < variant_cluster_graphs->size()) {
-
-		local_num_unique_smallmers += variant_cluster_graphs->at(variant_cluster_graph_index)->countSmallmers(smallmer_set);
-        variant_cluster_graph_index += num_threads;
-	} 
-
-    unique_lock<mutex> counting_lock(*counting_mutex);
-    *num_unique_smallmers += local_num_unique_smallmers;
+	delete path_bloom;
 }
 
 template <uchar kmer_size>
-ulong KmerCounter<kmer_size>::countVariantClusterSmallmers(vector<VariantClusterGraph *> * variant_cluster_graphs) {
+void KmerCounter<kmer_size>::findVariantClusterPathsCallback(vector<VariantClusterGraph *> * variant_cluster_graphs, KmerBloom * kmer_bloom, const ushort sample_idx, const uint prng_seed, const ushort max_sample_haplotype_candidates, const ushort thread_idx) {
 
-    mutex counting_mutex;
-    ulong num_unique_smallmers = 0;
+    uint variant_cluster_graph_idx = thread_idx;
 
-	vector<thread> counting_threads;
-	counting_threads.reserve(num_threads);
+	while (variant_cluster_graph_idx < variant_cluster_graphs->size()) {
 
-	for (uint i = 0; i < num_threads; i++) {
-
-   	    counting_threads.push_back(thread(&KmerCounter<kmer_size>::countVariantClusterSmallmersCallback, this, variant_cluster_graphs, i, &counting_mutex, &num_unique_smallmers));
-    }
-
-    for (auto & counting_thread: counting_threads) {
-        	
-       	counting_thread.join();
+		variant_cluster_graphs->at(variant_cluster_graph_idx)->findSamplePaths(path_bloom, kmer_bloom, prng_seed + variant_cluster_graph_idx + sample_idx, max_sample_haplotype_candidates);
+        variant_cluster_graph_idx += num_threads;
 	}
-
-    return num_unique_smallmers;
 }
 
 template <uchar kmer_size>
-void KmerCounter<kmer_size>::countInterclusterKmersCallback(const vector<VariantFileParser::InterClusterRegion> & intercluster_regions, const ushort thread_index, mutex * counting_mutex, ulong * num_intercluster_kmers) {
+void KmerCounter<kmer_size>::findVariantClusterPaths(vector<VariantClusterGraph *> * variant_cluster_graphs, const vector<Sample> & samples, const uint prng_seed, const ushort max_sample_haplotype_candidates) {
 
-    ulong local_num_intercluster_kmers = 0;
-    uint intercluster_regions_index = thread_index;
+	KmerBloom * cur_kmer_bloom = nullptr;
+	KmerBloom * next_kmer_bloom = nullptr;
+
+	cout << endl;
+
+	for (ushort sample_idx = 0; sample_idx < samples.size(); sample_idx++) {
+
+		cout << "[" << Utils::getLocalTime() << "] Finding variant cluster paths for sample " << samples.at(sample_idx).name << " ..." << endl;
+
+		if (sample_idx == 0) {
+
+			cur_kmer_bloom = new BasicKmerBloom<kmer_size>(samples.at(sample_idx).file + ".bloom");
+
+		} else {
+
+			cur_kmer_bloom = next_kmer_bloom;
+		}
+
+		vector<thread> finding_threads;
+
+		for (ushort thread_idx = 0; thread_idx < num_threads; thread_idx++) {
+
+	   	    finding_threads.push_back(thread(&KmerCounter<kmer_size>::findVariantClusterPathsCallback, this, variant_cluster_graphs, cur_kmer_bloom, sample_idx, prng_seed, max_sample_haplotype_candidates, thread_idx));
+	    }
+
+	    if (static_cast<uint>(sample_idx + 1) < samples.size()) {
+
+	    	next_kmer_bloom = new BasicKmerBloom<kmer_size>(samples.at(sample_idx + 1).file + ".bloom");
+	    }
+
+	    for (auto & finding_thread: finding_threads) {
+
+	       	finding_thread.join();
+		}
+
+		delete cur_kmer_bloom;
+	}
+}
+
+template <uchar kmer_size>
+void KmerCounter<kmer_size>::selectParameterInterclusterKmersCallback(const vector<VariantFileParser::InterClusterRegion> & intercluster_regions, const ushort thread_idx, const uint max_thread_intercluster_kmers) {
+
+    uint intercluster_regions_idx = thread_idx;
+    uint num_thread_intercluster_kmers = 0;
 
     KmerPair<kmer_size> kmer_pair = KmerPair<kmer_size>();
-    KmerForward<Utils::small_kmer_size> small_mer = KmerForward<Utils::small_kmer_size>();
 
-	while (intercluster_regions_index < intercluster_regions.size()) {
+	while (intercluster_regions_idx < intercluster_regions.size()) {
 
-    	auto sit = intercluster_regions.at(intercluster_regions_index).start;
+		assert((intercluster_regions.at(intercluster_regions_idx).end - intercluster_regions.at(intercluster_regions_idx).start) >= kmer_size);
+    	auto sit = intercluster_regions.at(intercluster_regions_idx).start;
 
     	kmer_pair.reset();
-    	small_mer.reset();
 
-		while (sit != intercluster_regions.at(intercluster_regions_index).end) {
+		while (sit != intercluster_regions.at(intercluster_regions_idx).end) {
 
 			auto nt_bits = Sequence::ntToBit<1>(*sit);
 
 			if (nt_bits.second) {
 
-				auto kmer_pair_move = kmer_pair.move(nt_bits.first);
+				if (kmer_pair.move(nt_bits.first)) {
 
-				if (small_mer.move(nt_bits.first)) {
+					auto lowest_kmer = kmer_pair.getLexicographicalLowestKmer();
+                    auto bloom_lock = path_bloom->lockBloom(lowest_kmer);
 
-					if (smallmer_set->count(small_mer.getKmer())) {
+					if (!(path_bloom->lookup(lowest_kmer))) {
 
-						if (kmer_pair_move) {
+						num_thread_intercluster_kmers++;
+						path_bloom->addKmer(lowest_kmer);
+					}
 
-							auto kmer_lock = static_cast<BasicKmerHash<kmer_size> *>(kmer_hash)->getKmerLock(kmer_pair.getLexicographicalLowestKmer());
-							auto added_kmer = static_cast<BasicKmerHash<kmer_size> *>(kmer_hash)->addKmer(kmer_pair.getLexicographicalLowestKmer(), true);
+					if (num_thread_intercluster_kmers == max_thread_intercluster_kmers) {
 
-							if (added_kmer.second) {
-
-								local_num_intercluster_kmers++;
-							}
-
-							assert(added_kmer.first);
-							added_kmer.first->addInterclusterMultiplicity(intercluster_regions.at(intercluster_regions_index).chromosome_class);
-						}
-
-					} else {
-						
-						kmer_pair.shrink(Utils::small_kmer_size);
+						break;
 					}
 				}
 
 			} else {
 
 				kmer_pair.reset();
-    			small_mer.reset();
 			}
 
 			sit++;
-		} 
+		}
 
-        intercluster_regions_index += num_threads;
-	} 
+		if (num_thread_intercluster_kmers == max_thread_intercluster_kmers) {
 
-	lock_guard<mutex> counting_lock(*counting_mutex);
-    *num_intercluster_kmers += local_num_intercluster_kmers;
+			break;
+		}
+
+        intercluster_regions_idx += num_threads;
+	}
 }
 
 template <uchar kmer_size>
-ulong KmerCounter<kmer_size>::countInterclusterKmers(const vector<VariantFileParser::InterClusterRegion> & intercluster_regions) {
+void KmerCounter<kmer_size>::countInterclusterKmersCallback(KmerHash * kmer_hash, const vector<VariantFileParser::InterClusterRegion> & intercluster_regions, const ushort thread_idx) {
 
-	mutex counting_mutex;
-    ulong num_intercluster_kmers = 0;
+    uint intercluster_regions_idx = thread_idx;
+
+    KmerPair<kmer_size> kmer_pair = KmerPair<kmer_size>();
+
+	while (intercluster_regions_idx < intercluster_regions.size()) {
+
+		assert((intercluster_regions.at(intercluster_regions_idx).end - intercluster_regions.at(intercluster_regions_idx).start) >= kmer_size);
+    	auto sit = intercluster_regions.at(intercluster_regions_idx).start;
+
+    	kmer_pair.reset();
+
+		while (sit != intercluster_regions.at(intercluster_regions_idx).end) {
+
+			auto nt_bits = Sequence::ntToBit<1>(*sit);
+
+			if (nt_bits.second) {
+
+				if (kmer_pair.move(nt_bits.first)) {
+
+					auto lowest_kmer = kmer_pair.getLexicographicalLowestKmer();
+
+					if (path_bloom->lookup(lowest_kmer)) {
+
+						auto kmer_lock = static_cast<BasicKmerHash<kmer_size> *>(kmer_hash)->getKmerLock(lowest_kmer);
+
+						auto kmer_counts = static_cast<BasicKmerHash<kmer_size> *>(kmer_hash)->addKmer(lowest_kmer, true);
+						assert(kmer_counts.first);
+
+						kmer_counts.first->addInterclusterMultiplicity(intercluster_regions.at(intercluster_regions_idx).chromosome_class);
+					} 
+				}
+
+			} else {
+
+				kmer_pair.reset();
+			}
+
+			sit++;
+		}
+
+        intercluster_regions_idx += num_threads;
+	}
+}
+
+template <uchar kmer_size>
+void KmerCounter<kmer_size>::countInterclusterKmers(KmerHash * kmer_hash, const vector<VariantFileParser::InterClusterRegion> & intercluster_regions, const uchar num_genomic_rate_gc_bias_bins) {
+
+    cout << "\n[" << Utils::getLocalTime() << "] Counting kmers in genomic regions between variant clusters and decoy sequence(s) ..." << endl;
+
+	vector<thread> selection_threads;
+	selection_threads.reserve(num_threads);
+
+	for (uint i = 0; i < num_threads; i++) {
+
+   	    selection_threads.push_back(thread(&KmerCounter<kmer_size>::selectParameterInterclusterKmersCallback, this, intercluster_regions, i, ceil((max_intercluster_kmers)/static_cast<float>(num_threads))));
+    }
+
+    for (auto & selection_thread: selection_threads) {
+
+       	selection_thread.join();
+	}
 
 	vector<thread> counting_threads;
 	counting_threads.reserve(num_threads);
 
 	for (uint i = 0; i < num_threads; i++) {
 
-   	    counting_threads.push_back(thread(&KmerCounter<kmer_size>::countInterclusterKmersCallback, this, intercluster_regions, i, &counting_mutex, &num_intercluster_kmers));
+   	    counting_threads.push_back(thread(&KmerCounter<kmer_size>::countInterclusterKmersCallback, this, kmer_hash, intercluster_regions, i));
     }
 
     for (auto & counting_thread: counting_threads) {
-        	
+
        	counting_thread.join();
 	}
-
-    static_cast<BasicKmerHash<kmer_size> *>(kmer_hash)->sortKmers();
-
-	return num_intercluster_kmers;
 }
 
 template <uchar kmer_size>
-void KmerCounter<kmer_size>::countSampleKmersCallBack(ProducerConsumerQueue<KmerBatchInfo *> * kmer_batch_queue_forward, ProducerConsumerQueue<KmerBatchInfo *> * kmer_batch_queue_backward, mutex * counting_mutex, ulong * total_included_kmers) {
-
-	ulong thread_included_kmers = 0;
+void KmerCounter<kmer_size>::parseSampleKmersCallBack(KmerHash * kmer_hash, ProducerConsumerQueue<KmerBatchInfo *> * kmer_batch_queue_forward, ProducerConsumerQueue<KmerBatchInfo *> * kmer_batch_queue_backward) {
 
 	KmerForward<kmer_size> kmer;
-    KmerForward<Utils::small_kmer_size> small_mer;
-
 	KmerBatchInfo * kmer_batch_info;
 
 	while (kmer_batch_queue_forward->pop(&kmer_batch_info)) {
@@ -205,61 +269,36 @@ void KmerCounter<kmer_size>::countSampleKmersCallBack(ProducerConsumerQueue<Kmer
 			assert(kmer_it->second <= Utils::uchar_overflow);
 
 	    	kmer.reset();
-			small_mer.reset();
-
-			bool found_all_small_mers = true;
 
 			for (uchar kmer_idx = 0; kmer_idx < kmer_size; kmer_idx++) {
 
-				auto nt_bits = Sequence::ntToBit<1>(kmer_it->first.get_asci_symbol(kmer_idx));
-				assert(nt_bits.second);
-
-   				if (small_mer.move(nt_bits.first)) {
-
-					if (!smallmer_set->count(small_mer.getKmer())) {
-
-						found_all_small_mers = false;
-						break;
-					}
-				}
-
-	    	    kmer.move(nt_bits.first);
+				bitset<2> nt_bits(kmer_it->first.get_num_symbol(kmer_idx));
+	    	    kmer.move(nt_bits);
 	    	}
 
-	    	if (found_all_small_mers) {
+			if (path_bloom->lookup(kmer.getKmer())) {
 
 				auto kmer_lock = static_cast<BasicKmerHash<kmer_size> *>(kmer_hash)->getKmerLock(kmer.getKmer());
-				auto added_kmer = static_cast<BasicKmerHash<kmer_size> *>(kmer_hash)->addKmer(kmer.getKmer(), false);
 
-				if (added_kmer.second) {
-
-					thread_included_kmers++;
-				}
-
-				assert(added_kmer.first);
-				added_kmer.first->addSampleCount(kmer_batch_info->sample_idx, kmer_it->second);
-	    	}
+				auto kmer_added = static_cast<BasicKmerHash<kmer_size> *>(kmer_hash)->addKmer(kmer.getKmer(), false);
+				assert(kmer_added.first);
+					
+				kmer_added.first->addSampleCount(kmer_batch_info->sample_idx, kmer_it->second);
+			}
 
 	    	kmer_it++;
 		}
 
 		kmer_batch_queue_backward->push(kmer_batch_info);
 	}
-
-	lock_guard<mutex> counting_lock(*counting_mutex);
-	(*total_included_kmers) += thread_included_kmers;
 }
 
 template <uchar kmer_size>
-ulong KmerCounter<kmer_size>::countSampleKmers(const vector<Sample> & samples) {
-	
-    uint min_kmer_count_all = 0;
-    ulong max_kmer_count_all = 0;
+void KmerCounter<kmer_size>::parseSampleKmers(KmerHash * kmer_hash, const vector<Sample> & samples) {
 
-	mutex counting_mutex;
-	ulong total_included_kmers = 0;
-    
 	vector<KmerBatch> kmer_batches(Utils::queue_size_thread_scaling * num_threads, KmerBatch(kmer_batch_size, make_pair(CKmerAPI(kmer_size), 0)));
+
+	cout << endl;
 
 	for (ushort sample_idx = 0; sample_idx < samples.size(); sample_idx++) {
 
@@ -276,26 +315,10 @@ ulong KmerCounter<kmer_size>::countSampleKmers(const vector<Sample> & samples) {
 
 		assert(kmer_database.Info(db_kmer_size, mode, counter_size, lut_prefix_length, signature_len, min_kmer_count, max_kmer_count, total_kmers));
 
-		cout << "[" << Utils::getLocalTime() << "] Parsing kmer table with " << total_kmers << " kmers for sample " << samples.at(sample_idx).name << " (only kmers observed at least " << min_kmer_count << " time(s) were included by KMC) ..." << endl;
-
-		if (mode) {
-
-			cout << "\nERROR: Does not support Quake's compatible counting mode (-q) in KMC\n" << endl;
-			exit(1);
-		}
+		cout << "[" << Utils::getLocalTime() << "] Parsing KMC table containing " << total_kmers << " kmers for sample " << samples.at(sample_idx).name << " (kmers observed less than " << min_kmer_count << " time(s) were excluded by KMC) ..." << endl;
 
 		assert(db_kmer_size == kmer_size);
-
-		if (sample_idx == 0) {
-
-			min_kmer_count_all = min_kmer_count;
-			max_kmer_count_all = max_kmer_count;
-		
-		} else {
-
-			assert(min_kmer_count_all == min_kmer_count);
-			assert(max_kmer_count_all == max_kmer_count);
-		}
+		assert(!mode);
 
 		ProducerConsumerQueue<KmerBatchInfo *> kmer_batch_queue_forward(Utils::queue_size_thread_scaling * num_threads);
 		ProducerConsumerQueue<KmerBatchInfo *> kmer_batch_queue_backward(Utils::queue_size_thread_scaling * num_threads);
@@ -305,13 +328,13 @@ ulong KmerCounter<kmer_size>::countSampleKmers(const vector<Sample> & samples) {
 			kmer_batch_queue_backward.push(new KmerBatchInfo(sample_idx, kmer_batches.at(kmer_batch_idx).begin(), kmer_batches.at(kmer_batch_idx).end()));
 		}
 
-		vector<thread> counting_threads;
-		counting_threads.reserve(num_threads);
+		vector<thread> parsing_threads;
+		parsing_threads.reserve(num_threads);
 
 		for (uint i = 0; i < num_threads; i++) {
 
-	        counting_threads.push_back(thread(&KmerCounter::countSampleKmersCallBack, this, &kmer_batch_queue_forward, &kmer_batch_queue_backward, &counting_mutex, &total_included_kmers));
-	    }  
+	        parsing_threads.push_back(thread(&KmerCounter::parseSampleKmersCallBack, this, kmer_hash, &kmer_batch_queue_forward, &kmer_batch_queue_backward));
+	    }
 
 	    KmerBatchInfo * kmer_batch_info;
 
@@ -343,7 +366,7 @@ ulong KmerCounter<kmer_size>::countSampleKmers(const vector<Sample> & samples) {
 				kmer_batch_info->end_it = kmer_batch_it;
 				kmer_batch_queue_forward.push(kmer_batch_info);
 				break;
-			}		
+			}
 
 		    assert(kmer_batch_queue_backward.pop(&kmer_batch_info));
 			assert(kmer_batch_info->begin_it != kmer_batch_info->end_it);
@@ -351,12 +374,13 @@ ulong KmerCounter<kmer_size>::countSampleKmers(const vector<Sample> & samples) {
 			kmer_batch_it = kmer_batch_info->begin_it;
 		}
 
+
 		kmer_batch_queue_forward.pushedLast();
 
-		for (auto & counting_thread: counting_threads) {
+		for (auto & parsing_thread: parsing_threads) {
 
-    		counting_thread.join();
-    	} 
+    		parsing_thread.join();
+    	}
 
 		kmer_batch_queue_backward.pushedLast();
 
@@ -365,55 +389,42 @@ ulong KmerCounter<kmer_size>::countSampleKmers(const vector<Sample> & samples) {
 			delete kmer_batch_info;
 		}
 
-    	static_cast<BasicKmerHash<kmer_size> *>(kmer_hash)->sortKmers();
+		static_cast<BasicKmerHash<kmer_size> *>(kmer_hash)->sortKmers();
 	}
-
-	assert(min_kmer_count_all <= Utils::uchar_overflow);
-	min_sample_kmer_count = min_kmer_count_all;
-
-	return total_included_kmers;
 }
 
 template <uchar kmer_size>
-void KmerCounter<kmer_size>::countVariantClusterKmersCallback(vector<VariantClusterGroup *> * variant_cluster_groups, const uint prng_seed, const ushort num_samples, const ushort max_sample_haplotype_candidates, const ushort thread_index) {
+void KmerCounter<kmer_size>::countVariantClusterKmersCallback(KmerHash * kmer_hash, vector<VariantClusterGroup *> * variant_cluster_groups, const ushort thread_idx) {
 
-    uint variant_cluster_group_index = thread_index;
+    uint variant_cluster_group_idx = thread_idx;
 
-	while (variant_cluster_group_index < variant_cluster_groups->size()) {
+	while (variant_cluster_group_idx < variant_cluster_groups->size()) {
 
-		variant_cluster_groups->at(variant_cluster_group_index)->countKmers(kmer_hash, variant_cluster_group_index, prng_seed, num_samples, max_sample_haplotype_candidates);
-        variant_cluster_group_index += num_threads;
-	} 
+		variant_cluster_groups->at(variant_cluster_group_idx)->countKmers(kmer_hash, variant_cluster_group_idx);
+        variant_cluster_group_idx += num_threads;
+	}
 }
 
 template <uchar kmer_size>
-void KmerCounter<kmer_size>::countVariantClusterKmers(vector<VariantClusterGroup *> * variant_cluster_groups, const uint prng_seed, const ushort num_samples, const ushort max_sample_haplotype_candidates) {
+void KmerCounter<kmer_size>::countVariantClusterKmers(KmerHash * kmer_hash, vector<VariantClusterGroup *> * variant_cluster_groups) {
+
+    cout << "\n[" << Utils::getLocalTime() << "] Counting kmers in variant cluster paths ..." << endl;
 
 	vector<thread> counting_threads;
 
-	for (uint i = 0; i < num_threads; i++) {
+	for (ushort thread_idx = 0; thread_idx < num_threads; thread_idx++) {
 
-   	    counting_threads.push_back(thread(&KmerCounter<kmer_size>::countVariantClusterKmersCallback, this, variant_cluster_groups, prng_seed, num_samples, max_sample_haplotype_candidates, i));
+   	    counting_threads.push_back(thread(&KmerCounter<kmer_size>::countVariantClusterKmersCallback, this, kmer_hash, variant_cluster_groups, thread_idx));
     }
 
     for (auto & counting_thread: counting_threads) {
-        	
+
        	counting_thread.join();
 	}
 }
-
-template <uchar kmer_size>
-uchar KmerCounter<kmer_size>::minSampleKmerCount() {
-
-	return min_sample_kmer_count;
-}
-
 
 template class KmerCounter<31>;
 template class KmerCounter<39>;
 template class KmerCounter<47>;
 template class KmerCounter<55>;
 template class KmerCounter<63>;
-
-
-

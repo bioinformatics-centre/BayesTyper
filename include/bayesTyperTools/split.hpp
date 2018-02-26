@@ -1,6 +1,6 @@
 
 /*
-split.hpp - This file is part of BayesTyper (v1.1)
+split.hpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -36,7 +36,7 @@ THE SOFTWARE.
 
 namespace Split {
 
-	void split(const vector<string> &, const uint, const bool, const bool);
+	void split(const vector<string> &, const uint);
 }
 
 #endif

@@ -1,6 +1,6 @@
 
 /*
-GenotypeWriter.hpp - This file is part of BayesTyper (v1.1)
+GenotypeWriter.hpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -62,9 +62,6 @@ class GenotypeWriter {
     	ProducerConsumerQueue<vector<Genotypes *> * > * genotypes_queue;
 		vector<thread> writer_threads; 
 
-		vector<vector<ulong> > sample_fak_estimates;
-		vector<vector<ulong> > sample_mac_estimates;
-
 		void writeTemporaryFile();
 
 		template <typename ValueType>
@@ -75,8 +72,6 @@ class GenotypeWriter {
 		void writeAlleleCover(ofstream *, vector<ushort> *, VariantInfo *);
 		void writeSamples(ofstream *, const vector<Genotypes::SampleStats> &, const VariantInfo &);
 		void writeAlleleKmerStats(ofstream *, const AlleleKmerStats &);
-
-		void addAlleleKmerEstimates(const vector<Genotypes::SampleStats> &);
 
 		void writeSampleAttributeCumDistFunc(const string &, const vector<vector<ulong> > &, const pair<uint, uint> &);
 	
@@ -92,9 +87,6 @@ class GenotypeWriter {
 
 		void addGenotypes(vector<Genotypes *> *);
 		void completedGenotyping();
-
-		void writeSampleAlleleKmerFractionCumDistFunc();
-		void writeSampleAlleleKmerCoverageCumDistFunc();
 
 		uint writeGenotypesToVariantCallFormat(const string &, const Regions &, const string &, const string &, const uint);	
 };

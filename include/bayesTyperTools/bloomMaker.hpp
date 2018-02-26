@@ -1,6 +1,6 @@
 
 /*
-writeIndels.hpp - This file is part of BayesTyper (v1.1)
+bloomMaker.hpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -27,18 +27,37 @@ THE SOFTWARE.
 */
 
 
-#ifndef WRITEINDELS
-#define WRITEINDELS
+#ifndef BLOOM_MAKER
+#define BLOOM_MAKER
 
+#include <iostream>
 #include <string>
-#include <vector>
+#include <assert.h>
+#include <bitset>
+#include <random>
+#include <unordered_set>
 
-#include "VcfFile.hpp"
-#include "Variant.hpp"
+#include "kmc_api/kmc_file.h"
 
-namespace WriteIndels {
+#include "KmerBloom.hpp"
 
-    void writeIndels(const string &, const string &, uint);
-}
+#include "Utils.hpp"
+
+template <uchar kmer_size>
+class BloomMaker {
+
+public:
+
+	static void kmc2bloomFile(const string &, float, bool test = false);
+	static BasicKmerBloom<kmer_size> kmc2bloom(const string &, float);
+	static std::bitset<kmer_size*2> kmc2bits(CKmerAPI &);
+	static std::bitset<kmer_size*2> random_kmer();
+
+
+
+private:
+
+	static void testbloom(BasicKmerBloom<kmer_size> &, const unordered_set<bitset<kmer_size * 2> > &);
+};
 
 #endif

@@ -1,6 +1,6 @@
 
 /*
-addAttributes.hpp - This file is part of BayesTyper (v1.1)
+addAttributes.hpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -38,7 +38,7 @@ THE SOFTWARE.
 
 namespace AddAttributes {
 
-	void addAttributes(const string &, const string &, const string &, const string &, const string &, const string &, const string &, const string &);
+	void addAttributes(const string &, const string &, const string &, const string &, const string &, const string &);
 }
 
 #endif

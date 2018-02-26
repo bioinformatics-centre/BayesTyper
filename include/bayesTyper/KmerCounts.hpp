@@ -1,6 +1,6 @@
 
 /*
-KmerCounts.hpp - This file is part of BayesTyper (v1.1)
+KmerCounts.hpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -45,14 +45,13 @@ class KmerCounts {
         bool hasDecoyOccurrence();
         bool hasMaxMultiplicity();
         bool hasMulticlusterGroupOccurrence();
-        bool hasConstantMultiplicity();
 
         bool isExcluded();
 
         void addInterclusterMultiplicity(const Utils::ChromosomeClass);
         uchar getInterclusterMultiplicity(const Utils::Gender);
 
-        void addClusterMultiplicity(const uchar, const bool, const uint);
+        void addClusterMultiplicity(const uchar, const uint);
 
         virtual void addSampleCount(const ushort, const uchar) = 0;
         virtual uchar getSampleCount(const ushort) = 0;
@@ -64,7 +63,7 @@ class KmerCounts {
         
     protected:
 
-        uchar has_cluster_occ : 1, has_multicluster_occ : 1, has_decoy_occ : 1, has_max_multiplicity : 1, has_multicluster_group_occ : 1, has_constant_multiplicity : 1;
+        uchar has_cluster_occ : 1, has_multicluster_occ : 1, has_decoy_occ : 1, has_max_multiplicity : 1, has_multicluster_group_occ : 1;
 
         uchar max_multiplicity;
 

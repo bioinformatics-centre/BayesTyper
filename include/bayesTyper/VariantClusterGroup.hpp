@@ -1,6 +1,6 @@
 
 /*
-VariantClusterGroup.hpp - This file is part of BayesTyper (v1.1)
+VariantClusterGroup.hpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -32,6 +32,8 @@ THE SOFTWARE.
 
 #include <unordered_map>
 #include <random>
+
+#include "KmerBloom.hpp"
 
 #include "Utils.hpp"
 #include "VariantClusterGenotyper.hpp"
@@ -69,7 +71,7 @@ class VariantClusterGroup {
 		uint end_position;
 
 		uint number_of_variants;
-		bool is_single_nucleotide_polymorphism;
+		bool is_snv;
 
 		vector<VariantClusterVertex> vertices;
 		vector<vector<uint> > out_edges; 
@@ -89,23 +91,13 @@ class VariantClusterGroup {
 		uint numberOfVariantClusters() const;
 		uint numberOfVariantClusterGroupTrees() const;
 
-		bool isAutosomal() const;
-		bool isSingleNucleotidePolymorphism() const;
-		
-		bool hasAmbiguousNucleotide() const;
-		bool hasRedundantSequence() const;	
-		bool hasComplexKmer() const;
-		bool hasInterclusterKmer() const;
-
-		bool hasMulticlusterKmer() const;
-		bool hasExcludedKmer() const;
-
-		uint uniqueSeed(const uint, const VariantClusterVertex &);
 		bool isInChromosomeRegions(const Regions &);
 
-		void countKmers(KmerHash *, const uint, const uint, const ushort, const ushort);
+		void countKmers(KmerHash *, const uint);
 
-		void initialise(KmerHash *, const vector<Sample> &, const uint, const ushort, const uchar, const float, const uint);
+		bool isAutosomalSimpleSNV(KmerHash *) const;
+
+		void initialise(KmerHash *, const vector<Sample> &, const uint, const uchar, const float, const uint);
 		void shuffleBranchOrder(mt19937 *);
 
 		void estimateGenotypes(const CountDistribution &, const ChromosomePloidy &, const bool);

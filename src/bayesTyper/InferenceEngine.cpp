@@ -1,6 +1,6 @@
 
 /*
-InferenceEngine.cpp - This file is part of BayesTyper (v1.1)
+InferenceEngine.cpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -50,12 +50,10 @@ THE SOFTWARE.
 static const uint parameter_estimation_stdout_frequency = 10;
 static const double genotyping_stdout_frequency = 100000;
 
-static const uint variant_cluster_groups_batch_size = 10000;
+static const uint variant_cluster_groups_batch_size = 1000;
 
 
-InferenceEngine::InferenceEngine(const vector<Sample> & samples, const OptionsContainer & options_container) : num_samples(samples.size()), chromosome_ploidy(samples), chromosome_regions(options_container.getValue<Regions>("chromosome-regions")), prng_seed(options_container.getValue<uint>("random-seed")), num_threads(options_container.getValue<ushort>("threads")), max_sample_haplotype_candidates(options_container.getValue<ushort>("max-number-of-sample-haplotype-candidates")), num_genomic_rate_gc_bias_bins(options_container.getValue<uchar>("number-of-genomic-rate-gc-bias-bins")), gibbs_burn(options_container.getValue<ushort>("gibbs-burn-in")), gibbs_samples(options_container.getValue<ushort>("gibbs-samples")), num_gibbs_chains(options_container.getValue<ushort>("number-of-gibbs-chains")), kmer_subsampling_rate(options_container.getValue<float>("kmer-subsampling-rate")), max_haplotype_variant_kmers(options_container.getValue<uint>("max-haplotype-variant-kmers")), num_parameter_estimation_samples(options_container.getValue<ushort>("number-of-parameter-estimation-samples")), num_parameter_estimation_snvs(options_container.getValue<uint>("number-of-parameter-estimation-SNVs")) {}
-
-
+InferenceEngine::InferenceEngine(const vector<Sample> & samples, const OptionsContainer & options_container) : num_samples(samples.size()), chromosome_ploidy(samples), chromosome_regions(options_container.getValue<Regions>("chromosome-regions")), prng_seed(options_container.getValue<uint>("random-seed")), num_threads(options_container.getValue<ushort>("threads")), gibbs_burn(options_container.getValue<ushort>("gibbs-burn-in")), gibbs_samples(options_container.getValue<ushort>("gibbs-samples")), num_gibbs_chains(options_container.getValue<ushort>("number-of-gibbs-chains")), kmer_subsampling_rate(options_container.getValue<float>("kmer-subsampling-rate")), max_haplotype_variant_kmers(options_container.getValue<uint>("max-haplotype-variant-kmers")), num_genomic_rate_gc_bias_bins(options_container.getValue<uchar>("number-of-genomic-rate-gc-bias-bins")), num_parameter_estimation_samples(options_container.getValue<ushort>("number-of-parameter-estimation-samples")), num_parameter_estimation_snvs(options_container.getValue<uint>("number-of-parameter-estimation-SNVs")) {}
 
 
 void InferenceEngine::allocateShuffledIndicesToThreads(vector<vector<uint> > * thread_index_allocation, const uint num_indices) {
@@ -94,24 +92,15 @@ void InferenceEngine::selectVariantsClusterGroupsForParameterEstimationCallback(
 
 		VariantClusterGroup * variant_cluster_group = variant_cluster_groups->at(variant_cluster_groups_idx);
 
-		if (variant_cluster_group->isAutosomal() and variant_cluster_group->isSingleNucleotidePolymorphism() and !(variant_cluster_group->hasAmbiguousNucleotide()) and !(variant_cluster_group->hasInterclusterKmer())) {
-			
-			assert(!(variant_cluster_group->hasRedundantSequence()));
-			
-			assert(variant_cluster_group->numberOfVariants() == 1);
-			assert(variant_cluster_group->numberOfVariantClusters() == 1);
-			assert(variant_cluster_group->numberOfVariantClusterGroupTrees() == 1);
+		if (variant_cluster_group->isAutosomalSimpleSNV(kmer_hash)) {
 
-			variant_cluster_group->initialise(kmer_hash, samples, prng_seed, max_sample_haplotype_candidates, num_genomic_rate_gc_bias_bins, kmer_subsampling_rate, max_haplotype_variant_kmers);
+			variant_cluster_group->initialise(kmer_hash, samples, prng_seed + variant_cluster_groups_idx, num_genomic_rate_gc_bias_bins, kmer_subsampling_rate, max_haplotype_variant_kmers);
 
-			if (!(variant_cluster_group->hasMulticlusterKmer()) and !(variant_cluster_group->hasExcludedKmer())) {
+			selected_variant_cluster_groups->push_back(variant_cluster_group);
 
-				selected_variant_cluster_groups->push_back(variant_cluster_group);
+			if (selected_variant_cluster_groups->size() == num_parameter_estimation) {
 
-				if (selected_variant_cluster_groups->size() == num_parameter_estimation) {
-
-					break;
-				}
+				break;
 			}
 		}
 	}
@@ -213,7 +202,7 @@ void InferenceEngine::estimateNoiseParameters(CountDistribution * count_distribu
 		num_selected_parameter_estimation_variants += thread_selected_variant_cluster_groups.at(i)->size();
 	}
 
-	cout << "[" << Utils::getLocalTime() << "] Running a " << gibbs_burn << " burn-in iterations and " << num_parameter_estimation_samples << " parameter estimation iterations on " << num_selected_parameter_estimation_variants << " randomly selected single nucleotide polymorphism clusters ...\n" << endl;
+	cout << "[" << Utils::getLocalTime() << "] Running a " << gibbs_burn << " burn-in iterations and " << num_parameter_estimation_samples << " parameter estimation iterations on " << num_selected_parameter_estimation_variants << " randomly selected simple single nucleotide variant clusters ...\n" << endl;
 
 	mutex count_allocation_lock;
 
@@ -280,6 +269,8 @@ void InferenceEngine::genotypeVariantClusterGroupsCallback(ProducerConsumerQueue
 		vector<Genotypes*> * variant_genotypes = new vector<Genotypes*>();
 		variant_genotypes->reserve(variant_cluster_group_batch.number_of_variants);
 
+		uint variant_cluster_groups_idx = variant_cluster_group_batch.first_variant_cluster_groups_idx;
+
 		auto variant_cluster_group_it = variant_cluster_group_batch.start_it;
 
 		while (variant_cluster_group_it != variant_cluster_group_batch.end_it) {
@@ -288,7 +279,7 @@ void InferenceEngine::genotypeVariantClusterGroupsCallback(ProducerConsumerQueue
 				
 				for (ushort chain_idx = 0; chain_idx < num_gibbs_chains; chain_idx++) {
 
-					(*variant_cluster_group_it)->initialise(kmer_hash, samples, prng_seed, max_sample_haplotype_candidates, num_genomic_rate_gc_bias_bins, kmer_subsampling_rate, max_haplotype_variant_kmers);
+					(*variant_cluster_group_it)->initialise(kmer_hash, samples, prng_seed + variant_cluster_groups_idx, num_genomic_rate_gc_bias_bins, kmer_subsampling_rate, max_haplotype_variant_kmers);
 					(*variant_cluster_group_it)->shuffleBranchOrder(&prng);
 
 					for (ushort i = 0; i < gibbs_burn; i++) {
@@ -304,6 +295,8 @@ void InferenceEngine::genotypeVariantClusterGroupsCallback(ProducerConsumerQueue
 
 				(*variant_cluster_group_it)->collectGenotypes(variant_genotypes, chromosome_ploidy);
 			} 
+
+			variant_cluster_groups_idx++;
 	
 			delete *variant_cluster_group_it;			
 			variant_cluster_group_it++;
@@ -361,14 +354,14 @@ void InferenceEngine::genotypeVariantClusterGroups(vector<VariantClusterGroup*> 
 
 		if (number_of_batch_variants >= variant_cluster_groups_batch_size) {
 
-			variant_cluster_group_batch_queue.push(VariantClusterGroupBatch(number_of_batch_variants, first_variant_cluster_group_it, variant_cluster_group_it));	
+			variant_cluster_group_batch_queue.push(VariantClusterGroupBatch(first_variant_cluster_group_it - variant_cluster_groups->begin(), number_of_batch_variants, first_variant_cluster_group_it, variant_cluster_group_it));	
 			
 			first_variant_cluster_group_it = variant_cluster_group_it;
 			number_of_batch_variants = 0;
 		}
  	}
 
- 	variant_cluster_group_batch_queue.push(VariantClusterGroupBatch(number_of_batch_variants, first_variant_cluster_group_it, variant_cluster_group_it));
+ 	variant_cluster_group_batch_queue.push(VariantClusterGroupBatch(first_variant_cluster_group_it - variant_cluster_groups->begin(), number_of_batch_variants, first_variant_cluster_group_it, variant_cluster_group_it));
 	variant_cluster_group_batch_queue.pushedLast();
 
 	for(auto & thread : genotype_threads) {

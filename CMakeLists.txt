@@ -14,11 +14,15 @@ execute_process(
   OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 
-SET(CMAKE_CXX_FLAGS "--std=c++11 -g -Wall -O3 -DBT_VERSION='\"v1.1 ${GIT_LAST_COMMIT_HASH}\"' -lpthread")
+SET(CMAKE_CXX_FLAGS "--std=c++11 -g -Wall -O3 -DBT_VERSION='\"v1.2 ${GIT_LAST_COMMIT_HASH}\"' -lpthread")
 
 FIND_PACKAGE(Boost COMPONENTS program_options system filesystem iostreams REQUIRED)
 message(STATUS ${Boost_LIBRARIES})
+
+add_subdirectory(${CMAKE_SOURCE_DIR}/external/kmc_api)
+add_subdirectory(${CMAKE_SOURCE_DIR}/external/libbf)
 add_subdirectory(${CMAKE_SOURCE_DIR}/src/vcf++)
+add_subdirectory(${CMAKE_SOURCE_DIR}/src/kmerBloom)
 add_subdirectory(${CMAKE_SOURCE_DIR}/src/bayesTyper)
 add_subdirectory(${CMAKE_SOURCE_DIR}/src/bayesTyperTools)
 add_subdirectory(${CMAKE_SOURCE_DIR}/src/bayesTyperTools/scripts)

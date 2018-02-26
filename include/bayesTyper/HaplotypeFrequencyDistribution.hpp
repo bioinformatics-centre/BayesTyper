@@ -1,6 +1,6 @@
 
 /*
-HaplotypeFrequencyDistribution.hpp - This file is part of BayesTyper (v1.1)
+HaplotypeFrequencyDistribution.hpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -37,25 +37,61 @@ class HaplotypeFrequencyDistribution {
 
 	public:
 
-		HaplotypeFrequencyDistribution(FrequencyDistribution *);
-		~HaplotypeFrequencyDistribution();
+		HaplotypeFrequencyDistribution();
+		virtual ~HaplotypeFrequencyDistribution() {};
+
+		uint numHaplotypeCount();
+		uint numMissingCount();
+
+		virtual void reset() = 0;
+
+		virtual pair<bool, double> getElementFrequency(const ushort) = 0;
+		virtual void incrementObservationCount(const ushort) = 0;
+
+		virtual void sampleFrequencies() = 0;
+
+	protected:
+
+		uint num_haplotype_count;
+		uint num_missing_count;
+};
+
+class UniformHaplotypeFrequencyDistribution : public HaplotypeFrequencyDistribution {
+
+	public:
+
+		UniformHaplotypeFrequencyDistribution(const ushort);
+		~UniformHaplotypeFrequencyDistribution() {};
 
 		void reset();
 
 		pair<bool, double> getElementFrequency(const ushort);
 		void incrementObservationCount(const ushort);
 
-		uint sumHaplotypeCount();
-		uint sumMissingCount();
+		void sampleFrequencies();
+
+	private:
+
+		const double frequency;
+};
+
+class SparseHaplotypeFrequencyDistribution : public HaplotypeFrequencyDistribution {
+
+	public:
+
+		SparseHaplotypeFrequencyDistribution(FrequencyDistribution *);
+		~SparseHaplotypeFrequencyDistribution();
+
+		void reset();
+
+		pair<bool, double> getElementFrequency(const ushort);
+		void incrementObservationCount(const ushort);
 
 		void sampleFrequencies();
 
 	private:
 
 		FrequencyDistribution * frequency_distribution;
-
-		uint sum_haplotype_count;
-		uint sum_missing_count;
 };
 
 #endif	

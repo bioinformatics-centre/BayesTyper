@@ -1,6 +1,6 @@
 
 /*
-KmerFactory.hpp - This file is part of BayesTyper (v1.1)
+KmerFactory.hpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -65,7 +65,6 @@ class KmerFactory {
 
 		ulong number_of_variants;
 		ushort max_alternative_alleles;
-		uchar min_sample_kmer_count;
 
 		vector<vector<NegativeBinomialDistribution> > genomic_count_distributions;
 
@@ -80,7 +79,6 @@ class KmerFactory {
 
 		ulong numberOfVariants();
 		ushort maxAlternativeAlleles();
-		uchar minSampleKmerCount();
 
 		const vector<vector<NegativeBinomialDistribution> > & genomicCountDistributions();
 };

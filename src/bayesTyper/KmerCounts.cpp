@@ -1,6 +1,6 @@
 
 /*
-KmerCounts.cpp - This file is part of BayesTyper (v1.1)
+KmerCounts.cpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -45,7 +45,6 @@ KmerCounts::KmerCounts() {
     has_decoy_occ = false;
     has_max_multiplicity = false;
     has_multicluster_group_occ = false;
-    has_constant_multiplicity = true;
 
     max_multiplicity = 0;
 
@@ -81,15 +80,10 @@ bool KmerCounts::hasMulticlusterGroupOccurrence() {
     return has_multicluster_group_occ;
 }
 
-bool KmerCounts::hasConstantMultiplicity() {
-
-    return has_constant_multiplicity;
-}
-
 bool KmerCounts::isExcluded() {
 
     assert(has_cluster_occ);
-    return (has_decoy_occ or has_max_multiplicity or has_multicluster_group_occ or has_constant_multiplicity);
+    return (has_decoy_occ or has_max_multiplicity or has_multicluster_group_occ);
 }
 
 void KmerCounts::addInterclusterMultiplicity(const Utils::ChromosomeClass chromosome_class) {
@@ -129,7 +123,7 @@ uchar KmerCounts::getInterclusterMultiplicity(const Utils::Gender gender) {
     }
 }
 
-void KmerCounts::addClusterMultiplicity(const uchar multiplicity, const bool has_constant_multiplicity_in, const uint variant_cluster_group_index_in) {
+void KmerCounts::addClusterMultiplicity(const uchar multiplicity, const uint variant_cluster_group_index_in) {
 
     if (has_cluster_occ) {
 
@@ -137,11 +131,6 @@ void KmerCounts::addClusterMultiplicity(const uchar multiplicity, const bool has
     }
 
     has_cluster_occ = true;
-
-    if (!has_constant_multiplicity_in) {
-
-        has_constant_multiplicity = false;
-    }
 
     max_multiplicity = updateMultiplicity(max_multiplicity, multiplicity);     
 

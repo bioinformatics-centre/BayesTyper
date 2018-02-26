@@ -1,6 +1,6 @@
 
 /*
-KmerStats.cpp - This file is part of BayesTyper (v1.1)
+KmerStats.cpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -51,7 +51,7 @@ void KmerStats::addValue(const pair<float, bool> & value) {
     if (value.second) {
 
         count++;
-        fraction += (static_cast<float>(value.first != 0) - fraction) / count;
+        fraction += (static_cast<float>(!(Utils::floatCompare(value.first, 0))) - fraction) / count;
         mean += (value.first - mean) / count;
     }
 }
