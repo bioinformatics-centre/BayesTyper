@@ -39,7 +39,7 @@ The BayesTyper package contains `bayesTyper`, which does the genotyping, and `ba
 
 1. Count k-mers
 
-   1. Run [KMC3](https://github.com/refresh-bio/KMC) on each sample: `kmc -k55 -ci1 sample_1.fq sample_1` 
+   1. Run [KMC3](https://github.com/refresh-bio/KMC) on each sample: `kmc -k55 -ci1 sample_1.fq sample_1 <tmp_dir>` 
    
       * This will output k-mer counts to `sample_1.kmc_pre` and `sample_1.kmc_suf`.
       
