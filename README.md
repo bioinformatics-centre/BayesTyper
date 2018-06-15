@@ -1,6 +1,16 @@
 # BayesTyper #
 BayesTyper performs genotyping of all types of variation (including SNPs, indels and complex structural variants) based on an input set of variants and read k-mer counts. Internally, BayesTyper uses exact alignment of k-mers to a graph representation of the input variants and reference sequence in combination with a probabilistic model of k-mer counts to do genotyping.
 
+## News ##
+* 15 June 2018: New release out ([v1.3](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.3)) featuring:
+    * **New interface:** bayesTyper has been refactored into `BayesTyper cluster` and `BayesTyper genotype`. The *cluster* part partitions the variants into *units* that can then be *genotyped*.
+    * **Much reduced memory:** Only graphs and k-mers for a single unit need to reside in memory at the same time; the rest remains on disk. A bloom filter stores information about k-mers shared across units.  This construct ensures that *memory usage is (almost) independent of the number of candidate variants*.
+    * **Cluster support:** Each unit can be genotyped independently and hence distributed across nodes on a cluster followed by simple concatenation of the unit vcf files (e.g. using `bcftools concat`).
+    * **Simultaneous genotyping and filtering:** No need to run `bayesTyperTools filter`. Hard filters are now applied up front by `bayesTyper genotype`. Genotypes can still be refiltered using `bayesTyperTools filter` after genotyping if necessary.
+    * **Parallel read bloom generation:** `bayesTyperTools makeBloom` can now use multiple threads (and  scales very well with the number of threads).
+    * **snakemake workflow:** We have added an example *snakemake* workflow to the repo - this can orchestrate the entire pipeline straight from BAM(s) over variant candidates to final genotypes.  
+* 26 February 2018: New release out ([v1.2](https://github.com/bioinformatics-centre/BayesTyper/releases))
+
 ## Installation ##
 1. Download the latest static Linux x86_64 build (k=55) found under [releases](https://github.com/bioinformatics-centre/BayesTyper/releases/latest).
     * To build from source, please refer to the [build wiki](https://github.com/bioinformatics-centre/BayesTyper/wiki/Building-BayesTyper-from-source) for detailed build instructions. Note that the k-mer size is determined compile time. Hence, if you want k ≠ 55 you need to compile it yourself (or post a [feature request](https://github.com/bioinformatics-centre/BayesTyper/issues) and we will see what we can do).
