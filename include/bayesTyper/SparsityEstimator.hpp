@@ -42,7 +42,7 @@ class SparsityEstimator {
 	public:
 		
 		SparsityEstimator(const uint);
-		uint estimateMinimumSetCover(Eigen::MatrixXuchar const &, Eigen::RowVectorXbool *);
+		uint estimateMinimumSetCover(Utils::MatrixXuchar const &, Utils::RowVectorXbool *);
 		vector<bool> & getMinimumSet();
 
 	private: 

@@ -45,17 +45,19 @@ class KmerStats {
 		KmerStats();
 
 		void reset();
-		void addValue(const pair<float, bool> &);
+		void addValue(const pair<double, bool> &);
 
 		uint getCount() const;		
-		pair<float, bool> getFraction() const;
-		pair<float, bool> getMean() const;
+		pair<double, bool> getFraction() const;
+		pair<double, bool> getMean() const;
+		pair<double, bool> getVariance() const;
 
 	private:
 
 		uint count;
-		float fraction;
-		float mean;
+		double fraction;
+		double mean;
+		double M2;
 };
 
 class AlleleKmerStats {

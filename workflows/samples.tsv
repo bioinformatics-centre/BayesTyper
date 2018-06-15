@@ -1,0 +1,3 @@
+sample_id	sex	read_map
+NA18499	F	<path_to_maps_dir>/NA18499.bam
+...

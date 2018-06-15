@@ -38,8 +38,8 @@ THE SOFTWARE.
 #include <iostream>
 #include <fstream>
 
-#include "boost/functional/hash.hpp"
-#include "ProducerConsumerQueue.hpp"
+#include "boost/iostreams/filtering_stream.hpp"
+#include "boost/iostreams/filter/gzip.hpp"
 
 #include "Utils.hpp"
 #include "Genotypes.hpp"
@@ -48,47 +48,59 @@ THE SOFTWARE.
 #include "ChromosomePloidy.hpp"
 #include "Regions.hpp"
 #include "KmerStats.hpp"
+#include "Chromosomes.hpp"
+#include "ProducerConsumerQueue.hpp"
+#include "Filters.hpp"
 
 
 using namespace std;
 
 class GenotypeWriter {
-    
-	private:
-
-		const vector<Sample> & samples;
-		const string output_prefix;
-
-    	ProducerConsumerQueue<vector<Genotypes *> * > * genotypes_queue;
-		vector<thread> writer_threads; 
-
-		void writeTemporaryFile();
-
-		template <typename ValueType>
-		void writeAlleleField(ofstream *, const vector<ValueType> &);
-
-		void writeQualityAndFilter(ofstream *, const Genotypes::VariantStats &, const VariantInfo &);
-		void writeVariantStats(ofstream *, const Genotypes::VariantStats &, const VariantInfo &);
-		void writeAlleleCover(ofstream *, vector<ushort> *, VariantInfo *);
-		void writeSamples(ofstream *, const vector<Genotypes::SampleStats> &, const VariantInfo &);
-		void writeAlleleKmerStats(ofstream *, const AlleleKmerStats &);
-
-		void writeSampleAttributeCumDistFunc(const string &, const vector<vector<ulong> > &, const pair<uint, uint> &);
-	
-		template <typename FileType>
-		uint parseAndWriteGenotypes(FileType *,  const Regions &, const string &, const string &, const uint);
-
-		string writeHeader(const vector<Sample> &, const string &, const string &);		
-		void writeUnsupportedVariant(ofstream *, const string &, const string &, const uint, const ChromosomePloidy &);
-
+ 
 	public:
 
-		GenotypeWriter(const vector<Sample> &, const string &, const ushort);
+		GenotypeWriter(const string &, const ushort, const vector<Sample> &, const Chromosomes &, const Filters &);
 
 		void addGenotypes(vector<Genotypes *> *);
-		void completedGenotyping();
+		void finalise(const string &, const Chromosomes &, const string &, const OptionsContainer &, const Filters &);
 
-		uint writeGenotypesToVariantCallFormat(const string &, const Regions &, const string &, const string &, const uint);	
+	private:
+
+		const vector<Sample> samples;
+
+		string tmp_filename;
+		unordered_map<string, uint> tmp_outfile_chrom_stats;
+
+		ofstream tmp_outfile;
+		boost::iostreams::filtering_ostream tmp_outfile_fstream;
+
+    	ProducerConsumerQueue<vector<Genotypes *> * > * genotypes_queue;
+		vector<thread> writing_threads; 
+
+		void writeGenotypes(const Chromosomes &, const Filters & filters);
+
+		template <typename ValueType>
+		void writeAlleleField(const vector<ValueType> &);
+
+		void writeAlleleSequences(const VariantInfo &, const string &);
+		void writeQualityAndFilter(const Genotypes::VariantStats &, const ushort, const Filters &);
+		void writeVariantStats(const Genotypes::VariantStats &, const ushort);
+		void writeAlleleCover(vector<ushort> *, const ushort);
+		void writeAlleleOrigin(const VariantInfo &);
+		void writeSamples(const vector<Genotypes::SampleStats> &, const ushort);
+		void writeAlleleKmerStats(const AlleleKmerStats &);
+
+		string generateHeader(const string &, const Chromosomes &, const string &, const string &, const Filters &);
+
+		struct GenotypedVariant {
+
+			uint position;
+			string variant_id;
+			uint max_ref_length;
+			string genotypes;
+		};
+
+		static bool genotypedVariantCompare(const GenotypedVariant &, const GenotypedVariant &);
 };
 
 #endif

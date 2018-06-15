@@ -27,8 +27,8 @@ THE SOFTWARE.
 */
 
 
-#ifndef SAMPLE_FILTER
-#define SAMPLE_FILTER
+#ifndef __vcf__SampleAlleleAttributeFilter_hpp
+#define __vcf__SampleAlleleAttributeFilter_hpp
 
 #include "AttributeFilter.hpp"
 #include "ReductionOperator.hpp"

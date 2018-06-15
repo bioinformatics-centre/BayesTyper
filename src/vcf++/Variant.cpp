@@ -113,32 +113,21 @@ Variant::Variant(const vector<string> & var_line, VcfMetaData & vcf_meta_data) {
 
             switch (info_descriptor.number()) {
 
-                case Attribute::Number::R :
+                case Attribute::Number::R : {
 
                     assert(info_descriptor.type() != Attribute::Type::Flag);
                     assert(info_str_split.size() == 2);
 
-                    assert(info_str_val_split.size() == numAlls());
-
-                    for (uint allele_idx = 0; allele_idx < numAlls(); allele_idx++) {
-
-                        assert(allele(allele_idx).info().add(info_str_split.front(), info_str_val_split.at(allele_idx), info_descriptor.type()));
-                    }
-
+                    parseInfoAlleleAttribute(info_descriptor, info_str_val_split, 0);
                     break;
+                }
 
                 case Attribute::Number::A : {
 
                     assert(info_descriptor.type() != Attribute::Type::Flag);
                     assert(info_str_split.size() == 2);
 
-                    assert(info_str_val_split.size() == numAlts());
-
-                    for (uint alt_allele_idx = 0; alt_allele_idx < numAlts(); alt_allele_idx++) {
-
-                        assert(alt(alt_allele_idx).info().add(info_str_split.front(), info_str_val_split.at(alt_allele_idx), info_descriptor.type()));
-                    }
-
+                    parseInfoAlleleAttribute(info_descriptor, info_str_val_split, 1);
                     break;
                 }
 
@@ -147,7 +136,7 @@ Variant::Variant(const vector<string> & var_line, VcfMetaData & vcf_meta_data) {
                     assert(info_descriptor.type() == Attribute::Type::Flag);
 
                     assert(info_str_split.size() == 1);
-                    assert(info_str_val_split.size() == 1);
+                    assert(info_str_split.front() != ".");
 
                     assert(_info.addFlag(info_str_split.front()));
 
@@ -161,11 +150,17 @@ Variant::Variant(const vector<string> & var_line, VcfMetaData & vcf_meta_data) {
 
                     if (info_str_val_split.size() > 1) {
 
-                        assert(_info.add(info_str_split.front(), info_str_split.back(), Attribute::Type::String));
+                        if (find_if_not(info_str_val_split.begin(), info_str_val_split.end(), [](string str){return str == ".";}) != info_str_val_split.end()) {
+
+                            assert(_info.add(info_str_split.front(), info_str_split.back(), Attribute::Type::String));
+                        }
 
                     } else {
 
-                        assert(_info.add(info_str_split.front(), info_str_split.back(), info_descriptor.type()));
+                        if (info_str_split.back() != ".") {
+
+                            assert(_info.add(info_str_split.front(), info_str_split.back(), info_descriptor.type()));
+                        }
                     }
                 }
             }
@@ -477,7 +472,6 @@ string Variant::vcf(VcfMetaData & vcf_meta_data) {
     for (auto & info_id_descriptor : vcf_meta_data.infoDescriptors()) {
 
         JoiningString info_element_value(',');
-        bool found_info_id = false;
 
         auto info_descriptor = info_id_descriptor.second;
         assert(info_descriptor.number() != Attribute::Number::G);
@@ -488,19 +482,12 @@ string Variant::vcf(VcfMetaData & vcf_meta_data) {
 
                 assert(info_descriptor.type() != Attribute::Type::Flag);
 
-                for (uint allele_idx = 0; allele_idx < numAlls(); allele_idx++) {
+                auto info_str = writeInfoAlleleAttribute(info_descriptor.id(), 0);
+                assert(!(info_str.empty()));
 
-                    auto info_value = allele(allele_idx).info().getValue(info_descriptor.id());
-                    
-                    if (info_value.second) {
+                if (info_str != ".") {
 
-                        found_info_id = true;
-                        info_element_value.join(info_value.first.str());
-
-                    } else {
-
-                        info_element_value.join(".");                            
-                    }
+                    info_element.join(info_descriptor.id() + "=" + info_str);                    
                 }
 
                 break;
@@ -510,19 +497,12 @@ string Variant::vcf(VcfMetaData & vcf_meta_data) {
 
                 assert(info_descriptor.type() != Attribute::Type::Flag);
 
-                for (uint alt_allele_idx = 0; alt_allele_idx < numAlts(); alt_allele_idx++) {
+                auto info_str = writeInfoAlleleAttribute(info_descriptor.id(), 1);
+                assert(!(info_str.empty()));
 
-                    auto info_value = alt(alt_allele_idx).info().getValue(info_descriptor.id());
+                if (info_str != ".") {
 
-                    if (info_value.second) {
-
-                        found_info_id = true;
-                        info_element_value.join(info_value.first.str());
-
-                    } else {
-
-                        info_element_value.join(".");                            
-                    }
+                    info_element.join(info_descriptor.id() + "=" + info_str);                    
                 }
 
                 break;
@@ -531,13 +511,12 @@ string Variant::vcf(VcfMetaData & vcf_meta_data) {
             case Attribute::Number::Zero : {
 
                 assert(info_descriptor.type() == Attribute::Type::Flag);
-
                 auto info_value = _info.getValue(info_descriptor.id());
 
                 if (info_value.second) {
 
-                    found_info_id = true;
                     assert(info_value.first.str().empty());
+                    info_element.join(info_descriptor.id());
                 }
 
                 break;
@@ -546,27 +525,12 @@ string Variant::vcf(VcfMetaData & vcf_meta_data) {
             default : {
 
                 assert(info_descriptor.type() != Attribute::Type::Flag);
-
                 auto info_value = _info.getValue(info_descriptor.id());
 
                 if (info_value.second) {
 
-                    found_info_id = true;
-                    info_element_value.join(info_value.first.str());
+                    info_element.join(info_descriptor.id() + "=" + info_value.first.str());
                 }
-            }
-        }
-
-        if (found_info_id) {
-
-            if (info_element_value.empty()) {
-
-                info_element.join(info_descriptor.id());
-
-            } else {
-
-                auto info_element_key_value = info_descriptor.id() + "=" + info_element_value.str();
-                info_element.join(info_element_key_value);
             }
         }
     }
@@ -593,8 +557,8 @@ string Variant::vcf(VcfMetaData & vcf_meta_data) {
 
         if (samples_parsed) {
 
-            // Assemble format str
             set<string> fmt_str_ids;
+
             for (auto & sample : _samples) {
 
                 for (auto & fmt_dscr : vcf_meta_data.formatDescriptors()) {
@@ -604,28 +568,34 @@ string Variant::vcf(VcfMetaData & vcf_meta_data) {
                         fmt_str_ids.insert(fmt_dscr.first);
                     }
 
-                    if (!(sample.second.alleleInfo().empty())) {
+                    if (fmt_str_ids.count(fmt_dscr.first) < 1) {
 
-                        assert(!(sample.second.genotypeInfo().empty()));
+                        for (uint allele_idx = 0; allele_idx < sample.second.alleleInfo().size(); allele_idx++) {
 
-                        if (sample.second.alleleInfo().front().hasValue(fmt_dscr.first) or sample.second.genotypeInfo().front().hasValue(fmt_dscr.first)) {
+                            if (sample.second.alleleInfo().at(allele_idx).hasValue(fmt_dscr.first)) {
 
-                            fmt_str_ids.insert(fmt_dscr.first);
+                                fmt_str_ids.insert(fmt_dscr.first);
+                                break;
+                            }
                         }
-
-                    } else {
-
-                        assert(sample.second.genotypeInfo().empty());
                     }
-                }
 
-                if (fmt_str_ids.size() + 1 == vcf_meta_data.formatDescriptors().size()) {
+                    if (fmt_str_ids.count(fmt_dscr.first) < 1) {
 
-                    break;
+                        for (uint genotype_idx = 0; genotype_idx < sample.second.genotypeInfo().size(); genotype_idx++) {
+
+                            if (sample.second.genotypeInfo().at(genotype_idx).hasValue(fmt_dscr.first)) {
+
+                                fmt_str_ids.insert(fmt_dscr.first);
+                                break;
+                            }
+                        }
+                    }
                 }
             }
 
             assert(fmt_str_ids.find("GT") == fmt_str_ids.end());
+            assert(fmt_str_ids.size() < vcf_meta_data.formatDescriptors().size());
 
             JoiningString fmt_str(':');
             fmt_str.join("GT");
@@ -755,5 +725,58 @@ void Variant::clearSamples() {
         assert(_samples.empty());
         sample_info.sample_ids.clear();
         sample_info.sample_strs.clear();
+    }
+}
+
+void Variant::parseInfoAlleleAttribute(const Attribute::DetailedDescriptor & attribute_dscr, const vector<string> & attribute_str, const uint first_allele_idx) {
+
+    assert(first_allele_idx < numAlls());
+    assert(attribute_str.size() == (numAlls() - first_allele_idx));
+    
+    auto attribute_str_it = attribute_str.begin();
+
+    for (uint allele_idx = first_allele_idx; allele_idx < numAlls(); allele_idx++) {
+
+        if (*attribute_str_it != ".") {
+
+            assert(allele(allele_idx).info().add(attribute_dscr.id(), *attribute_str_it, attribute_dscr.type()));
+        }
+
+        attribute_str_it++;
+    }
+
+    assert(attribute_str_it == attribute_str.end());
+}
+
+string Variant::writeInfoAlleleAttribute(const string & id, const uint first_allele_idx) {
+
+    assert(first_allele_idx < numAlls());
+
+    bool found_info_id = false;
+
+    JoiningString info_element_value(',');
+
+    for (uint allele_idx = first_allele_idx; allele_idx < numAlls(); allele_idx++) {
+
+        auto info_value = allele(allele_idx).info().getValue(id);
+        
+        if (info_value.second) {
+
+            found_info_id = true;
+            info_element_value.join(info_value.first.str());
+
+        } else {
+
+            info_element_value.join(".");
+        }
+    }
+
+    if (found_info_id) {
+
+        return info_element_value.str();            
+
+    } else {
+
+        return ".";
     }
 }

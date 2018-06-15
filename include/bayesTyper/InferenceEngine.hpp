@@ -46,6 +46,8 @@ THE SOFTWARE.
 #include "GenotypeWriter.hpp"
 #include "OptionsContainer.hpp"
 #include "Regions.hpp"
+#include "InferenceUnit.hpp"
+#include "Filters.hpp"
 
 
 using namespace std;
@@ -56,45 +58,40 @@ class InferenceEngine {
 
 		InferenceEngine(const vector<Sample> &, const OptionsContainer &);		
 
-		void estimateNoiseParameters(CountDistribution *, vector<VariantClusterGroup*> *, KmerHash *, const vector<Sample> &);
-		void genotypeVariantClusterGroups(vector<VariantClusterGroup*> *, const uint, KmerHash *, const CountDistribution &, const vector<Sample> &, GenotypeWriter *);	
+		void estimateNoiseParameters(CountDistribution *, InferenceUnit *, KmerCountsHash *, const string &);
+		void genotypeVariantClusterGroups(InferenceUnit *, KmerCountsHash *, const CountDistribution &, const Filters & filters, GenotypeWriter *);	
 
 	private: 
 
-		const ushort num_samples;
+		const vector<Sample> samples;
 
-		const ChromosomePloidy chromosome_ploidy;
-		const Regions chromosome_regions;
+		const ChromosomePloidy chrom_ploidy;
 
-		const uint prng_seed;
 		const ushort num_threads;
-		const ushort gibbs_burn;
-		const ushort gibbs_samples;
+		const uint prng_seed;
+		const ushort num_gibbs_burn;
+		const ushort num_gibbs_samples;
 		const ushort num_gibbs_chains;
 		const float kmer_subsampling_rate;
 		const uint max_haplotype_variant_kmers;
-		const uchar num_genomic_rate_gc_bias_bins;
-		const ushort num_parameter_estimation_samples;
-		const uint num_parameter_estimation_snvs;
 
 		struct VariantClusterGroupBatch {
 
-			uint first_variant_cluster_groups_idx;
-			uint number_of_variants;
+			uint first_variant_cluster_group_idx;
+			uint num_variants;
 
 			vector<VariantClusterGroup*>::iterator start_it; 
 			vector<VariantClusterGroup*>::iterator end_it;
 
 			VariantClusterGroupBatch() {}
-			VariantClusterGroupBatch(const uint first_variant_cluster_groups_idx_in, const uint number_of_variants_in, const vector<VariantClusterGroup*>::iterator start_it_in, const vector<VariantClusterGroup*>::iterator end_it_in) : first_variant_cluster_groups_idx(first_variant_cluster_groups_idx_in), number_of_variants(number_of_variants_in), start_it(start_it_in), end_it(end_it_in) {}
+			VariantClusterGroupBatch(const uint first_variant_cluster_group_idx_in, const uint num_variants_in, const vector<VariantClusterGroup*>::iterator start_it_in, const vector<VariantClusterGroup*>::iterator end_it_in) : first_variant_cluster_group_idx(first_variant_cluster_group_idx_in), num_variants(num_variants_in), start_it(start_it_in), end_it(end_it_in) {}
 		};
 
-		void allocateShuffledIndicesToThreads(vector<vector<uint> > *, const uint);
-		void selectVariantsClusterGroupsForParameterEstimationCallback(vector<VariantClusterGroup*> *, const vector<uint> &, vector<VariantClusterGroup*> *, KmerHash *, const vector<Sample> &, const uint);
-		void allocateCountsForParameterEstimationCallback(vector<VariantClusterGroup*> *, const CountDistribution &, CountAllocation *, mutex *);
-		vector<double> meanParameterEstimates(const vector<vector<double> > &);
-		
-		void genotypeVariantClusterGroupsCallback(ProducerConsumerQueue<VariantClusterGroupBatch> *, KmerHash *, const CountDistribution &, const vector<Sample> &, GenotypeWriter *, uint *, mutex *);
+		void initNoiseEstimationGroupsCallback(vector<VariantClusterGroup *> *, const vector<uint> &, KmerCountsHash *, const ushort, const ushort);
+		void sampleNoiseCountsCallback(vector<VariantClusterGroup *> *, const vector<uint> &, CountAllocation *, mutex *, const CountDistribution &, const ushort);
+		void resetNoiseEstimationGroups(vector<VariantClusterGroup *> *, const vector<uint> &);
+
+		void genotypeVariantClusterGroupsCallback(ProducerConsumerQueue<VariantClusterGroupBatch> *, KmerCountsHash *, const CountDistribution &, const Filters & filters, GenotypeWriter *, uint *, mutex *);
 };
 
 #endif

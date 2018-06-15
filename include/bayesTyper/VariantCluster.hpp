@@ -34,6 +34,7 @@ THE SOFTWARE.
 #include <set>
 
 #include "Utils.hpp"
+#include "VariantInfo.hpp"
 
 using namespace std;
 
@@ -46,24 +47,25 @@ class VariantCluster {
 	friend class VariantClusterGraph;
 	friend class VariantClusterGroup;
 
+	public:
+
+		enum class VariantType : uchar {SNP = 0, Insertion, Deletion, Complex, Mixture, Unsupported, VARIANT_TYPE_SIZE};
+
 	protected:
 
 		struct Variant {
 
-			const uint id;
+			const string id;
 			const bool has_dependency;
 
-			Utils::VariantType type;			
-			uint max_reference_length;
+			VariantType type;			
 			uint num_redundant_nucleotides;
 			
-			vector<ushort> excluded_alt_alleles;
-			vector<pair<ushort, pair<uint, const string> > > alternative_alleles;
+			vector<AlleleInfo> alt_alleles;
 
-			Variant(const uint id_in, const bool has_dependency_in) : id(id_in), has_dependency(has_dependency_in) {
+			Variant(const string & id_in, const bool has_dependency_in) : id(id_in), has_dependency(has_dependency_in) {
 
-				type = Utils::VariantType::Unsupported;
-				max_reference_length = 0;
+				type = VariantType::Unsupported;
 				num_redundant_nucleotides = Utils::uint_overflow;
 			}
 		};
@@ -98,9 +100,8 @@ class VariantCluster {
 		uint left_flank;
 		uint right_flank;
 
-		string chromosome_id;
-		string chromosome_name;
-		Utils::ChromosomeClass chromosome_class;
+		string chrom_name;
+		Utils::ChromClass chrom_class;
 
 		map<uint, Variant> variants;
 		set<ContainedCluster, ContainedClusterCompare> contained_clusters;

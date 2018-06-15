@@ -56,7 +56,7 @@ THE SOFTWARE.
 using namespace std;
 
 
-VariantClusterGenotyper::VariantClusterGenotyper(VariantClusterGraph * variant_cluster_graph, KmerHash * kmer_hash, const vector<Sample> & samples_in, const uint prng_seed, const uchar num_genomic_rate_gc_bias_bins) : samples(samples_in) {
+VariantClusterGenotyper::VariantClusterGenotyper(VariantClusterGraph * variant_cluster_graph, KmerCountsHash * kmer_hash, const vector<Sample> & samples_in, const uint prng_seed, const uchar num_genomic_rate_gc_bias_bins) : samples(samples_in) {
 
 	prng = mt19937(prng_seed);
 	
@@ -65,58 +65,48 @@ VariantClusterGenotyper::VariantClusterGenotyper(VariantClusterGraph * variant_c
 	unique_diplotype_log_probabilities = vector<unordered_map<pair<ushort, ushort>, double, boost::hash<pair<ushort, ushort> > > >(samples.size());
 	multicluster_diplotype_log_probabilities = vector<unordered_map<pair<ushort, ushort>, double, boost::hash<pair<ushort, ushort> > > >(samples.size());
 
-	diplotype_sample = vector<pair<ushort,ushort> >(samples.size(), make_pair(Utils::ushort_overflow, Utils::ushort_overflow));
+	diplotypes = vector<pair<ushort,ushort> >(samples.size(), make_pair(Utils::ushort_overflow, Utils::ushort_overflow));
 	
 	variant_cluster_info = variant_cluster_graph->getInfo();
 	allele_kmer_stats.reserve(variant_cluster_info.size());
 
 	for (auto & variant_info: variant_cluster_info) {
 
-		allele_kmer_stats.emplace_back(vector<AlleleKmerStats>(samples.size(), AlleleKmerStats(variant_info.num_alleles)));
+		allele_kmer_stats.emplace_back(vector<AlleleKmerStats>(samples.size(), AlleleKmerStats(variant_info.numberOfAlleles())));
 	}
 
 	variant_cluster_haplotypes = variant_cluster_graph->getHaplotypeCandidates(kmer_hash, num_genomic_rate_gc_bias_bins);
 
-	assert(variant_cluster_haplotypes.unique_kmers.size() == uint(variant_cluster_haplotypes.haplotype_unique_kmer_multiplicities.rows()));
-    assert(variant_cluster_haplotypes.multicluster_kmers.size() == uint(variant_cluster_haplotypes.haplotype_multicluster_kmer_multiplicities.rows()));
+	assert(variant_cluster_haplotypes.haplotype_kmer_multiplicities.cols() > 0);
+	assert(variant_cluster_haplotypes.haplotype_kmer_multiplicities.cols() < Utils::ushort_overflow);
 
-	assert(variant_cluster_haplotypes.haplotype_unique_kmer_multiplicities.cols() > 0);
-	assert(variant_cluster_haplotypes.haplotype_unique_kmer_multiplicities.cols() < Utils::ushort_overflow);
-
-	assert(variant_cluster_haplotypes.haplotype_multicluster_kmer_multiplicities.cols() > 0);
-	assert(variant_cluster_haplotypes.haplotype_multicluster_kmer_multiplicities.cols() < Utils::ushort_overflow);
-
-	assert(variant_cluster_haplotypes.haplotype_unique_kmer_multiplicities.cols() == variant_cluster_haplotypes.haplotype_multicluster_kmer_multiplicities.cols());
-	assert(variant_cluster_haplotypes.haplotypes.size() == uint(variant_cluster_haplotypes.haplotype_unique_kmer_multiplicities.cols()));
+	assert(variant_cluster_haplotypes.haplotypes.size() == uint(variant_cluster_haplotypes.haplotype_kmer_multiplicities.cols()));
 
 	assert(variant_cluster_haplotypes.unique_kmer_subset_indices.empty());
 	assert(variant_cluster_haplotypes.multicluster_kmer_subset_indices.empty());
 
     variant_cluster_haplotypes.kmer_stats_cache = vector<VariantClusterHaplotypes::KmerStatsCache>(samples.size(), variant_cluster_info.size());
 
-	Eigen::RowVectorXbool non_zero_unqiue_kmer_counts;
-	non_zero_unqiue_kmer_counts = Eigen::RowVectorXbool(variant_cluster_haplotypes.unique_kmers.size());
+	Utils::RowVectorXbool non_zero_unqiue_kmer_counts;
+	non_zero_unqiue_kmer_counts = Utils::RowVectorXbool(variant_cluster_haplotypes.kmers.size());
+	non_zero_unqiue_kmer_counts.fill(false);
 
 	bool has_unique_observed_kmer = false;
 
-	for (uint kmer_idx = 0; kmer_idx < variant_cluster_haplotypes.unique_kmers.size(); kmer_idx++) {
+	for (auto & kmer_idx: variant_cluster_haplotypes.unique_kmer_indices) {
 
-		if (variant_cluster_haplotypes.unique_kmers.at(kmer_idx).counts) {
+		auto kmer_counts = variant_cluster_haplotypes.kmers.at(kmer_idx).counts;
 
-			if (variant_cluster_haplotypes.unique_kmers.at(kmer_idx).counts->getInterclusterMultiplicity(Utils::Gender::Male) > 0) {
+		if (kmer_counts) {
 
-				non_zero_unqiue_kmer_counts(kmer_idx) = false;
-		
-			} else {
+			assert(!(kmer_counts->hasMulticlusterOccurrence()));
+
+			if (kmer_counts->getInterclusterMultiplicity(Utils::Gender::Male) == 0) {
 
 				has_unique_observed_kmer = true;
 				non_zero_unqiue_kmer_counts(kmer_idx) = true;	
 			}
-
-		} else {
-
-			non_zero_unqiue_kmer_counts(kmer_idx) = false;
-		}
+		} 
 	}
 		
 	SparsityEstimator sparsity_estimator(prng_seed);
@@ -124,36 +114,34 @@ VariantClusterGenotyper::VariantClusterGenotyper(VariantClusterGraph * variant_c
 
 	if (has_unique_observed_kmer) {
 
-		minimum_set_cover = sparsity_estimator.estimateMinimumSetCover(variant_cluster_haplotypes.haplotype_unique_kmer_multiplicities, &non_zero_unqiue_kmer_counts);
+		minimum_set_cover = sparsity_estimator.estimateMinimumSetCover(variant_cluster_haplotypes.haplotype_kmer_multiplicities, &non_zero_unqiue_kmer_counts);
 
 	} else {
 
-		minimum_set_cover = variant_cluster_haplotypes.haplotype_unique_kmer_multiplicities.cols();
+		minimum_set_cover = variant_cluster_haplotypes.haplotype_kmer_multiplicities.cols();
 	}
 
 	assert(minimum_set_cover > 0);
-	assert(minimum_set_cover <= variant_cluster_haplotypes.haplotype_unique_kmer_multiplicities.cols());
+	assert(minimum_set_cover <= variant_cluster_haplotypes.haplotype_kmer_multiplicities.cols());
 	assert(non_zero_unqiue_kmer_counts.sum() == 0);
 
-	if (minimum_set_cover == variant_cluster_haplotypes.haplotype_unique_kmer_multiplicities.cols()) {
+	if (minimum_set_cover == variant_cluster_haplotypes.haplotype_kmer_multiplicities.cols()) {
 
-		haplotype_frequency_distribution = new SparseHaplotypeFrequencyDistribution(new FrequencyDistribution(variant_cluster_haplotypes.haplotype_unique_kmer_multiplicities.cols(), prng_seed));
+		haplotype_frequency_distribution = new SparseHaplotypeFrequencyDistribution(new FrequencyDistribution(variant_cluster_haplotypes.haplotype_kmer_multiplicities.cols(), prng_seed));
 
 	} else {
 
-		double sparsity = minimum_set_cover / static_cast<double>(variant_cluster_haplotypes.haplotype_unique_kmer_multiplicities.cols());
-		haplotype_frequency_distribution = new SparseHaplotypeFrequencyDistribution(new SparseFrequencyDistribution(variant_cluster_haplotypes.haplotype_unique_kmer_multiplicities.cols(), prng_seed, sparsity));
+		double sparsity = minimum_set_cover / static_cast<double>(variant_cluster_haplotypes.haplotype_kmer_multiplicities.cols());
+		haplotype_frequency_distribution = new SparseHaplotypeFrequencyDistribution(new SparseFrequencyDistribution(variant_cluster_haplotypes.haplotype_kmer_multiplicities.cols(), prng_seed, sparsity));
 	}
 }
-
 
 VariantClusterGenotyper::~VariantClusterGenotyper() {
 
 	delete haplotype_frequency_distribution;
 }
 
-
-void VariantClusterGenotyper::restart(const float kmer_subsampling_rate, const uint max_haplotype_variant_kmers) {
+void VariantClusterGenotyper::reset(const float kmer_subsampling_rate, const uint max_haplotype_variant_kmers) {
 
 	use_multicluster_kmers = false;
 
@@ -171,85 +159,94 @@ void VariantClusterGenotyper::restart(const float kmer_subsampling_rate, const u
 	haplotype_frequency_distribution->reset();
 }
 
+void VariantClusterGenotyper::updateNestedPloidy(Utils::Ploidy * nested_ploidy) {
 
-void VariantClusterGenotyper::reduceSamplePloidy(Utils::Ploidy * sample_ploidy) {
+	assert(*nested_ploidy != Utils::Ploidy::Null);
 
-	assert(*sample_ploidy != Utils::Ploidy::Null);
+	if (*nested_ploidy == Utils::Ploidy::Diploid) {
 
-	if (*sample_ploidy == Utils::Ploidy::Diploid) {
-
-		*sample_ploidy = Utils::Ploidy::Haploid;
+		*nested_ploidy = Utils::Ploidy::Haploid;
 	
 	} else {
 
-		*sample_ploidy = Utils::Ploidy::Null;
+		*nested_ploidy = Utils::Ploidy::Null;
 	}
 }
 
+void VariantClusterGenotyper::addNestedKmerStats(vector<KmerStats> * nested_kmer_stats, const uint variant_cluster_idx, const ushort haplotype_idx, const vector<KmerStats> & haplotype_kmer_stats_cache) {
 
-vector<Utils::Ploidy> VariantClusterGenotyper::getVariantClusterPloidy(const uint variant_cluster_idx) {
+	assert(nested_kmer_stats->size() < 2);
+	assert(haplotype_idx != Utils::ushort_overflow);
 
-	vector<Utils::Ploidy> variant_cluster_ploidy;
-	variant_cluster_ploidy.reserve(samples.size());
+	auto nested_variant_cluster_dependency_it = variant_cluster_haplotypes.nested_variant_cluster_dependency.find(variant_cluster_idx);
+	assert(nested_variant_cluster_dependency_it != variant_cluster_haplotypes.nested_variant_cluster_dependency.end());
 
-	assert(diplotype_sample.size() == samples.size());
+	ushort variant_idx = Utils::ushort_overflow; 
+
+	for (auto & nested_variant_idx: nested_variant_cluster_dependency_it->second) {
+
+		auto allele_idx = variant_cluster_haplotypes.haplotypes.at(haplotype_idx).variant_allele_indices.at(nested_variant_idx);
+		assert(allele_idx < variant_cluster_info.at(nested_variant_idx).numberOfAlleles());
+
+		if (!(variant_cluster_info.at(nested_variant_idx).isMissing(allele_idx))) {
+
+			assert(allele_idx > 0);
+			variant_idx = nested_variant_idx;
+
+			break;
+		}
+	}
+
+	assert(variant_idx != Utils::ushort_overflow);
+	nested_kmer_stats->push_back(haplotype_kmer_stats_cache.at(variant_idx));
+}
+
+void VariantClusterGenotyper::updateNestedVariantClusterInfo(vector<VariantClusterHaplotypes::NestedVariantClusterInfo> * nested_variant_cluster_info, const uint variant_cluster_idx) {
+
+	assert(nested_variant_cluster_info->size() == samples.size());
 
 	for (ushort sample_idx = 0; sample_idx < samples.size(); sample_idx++) {
 
-		Utils::Ploidy sample_ploidy = Utils::Ploidy::Diploid;
+		if (diplotypes.at(sample_idx).first != Utils::ushort_overflow) {
 
-		if (diplotype_sample.at(sample_idx).first != Utils::ushort_overflow) {
+			if (!(binary_search(variant_cluster_haplotypes.haplotypes.at(diplotypes.at(sample_idx).first).nested_variant_cluster_indices.begin(), variant_cluster_haplotypes.haplotypes.at(diplotypes.at(sample_idx).first).nested_variant_cluster_indices.end(), variant_cluster_idx))) {
 
-			if (!(binary_search(variant_cluster_haplotypes.haplotypes.at(diplotype_sample.at(sample_idx).first).nested_variant_cluster_indices.begin(), variant_cluster_haplotypes.haplotypes.at(diplotype_sample.at(sample_idx).first).nested_variant_cluster_indices.end(), variant_cluster_idx))) {
-
-				reduceSamplePloidy(&sample_ploidy);				
+				updateNestedPloidy(&(nested_variant_cluster_info->at(sample_idx).nested_ploidy));				
+				addNestedKmerStats(&(nested_variant_cluster_info->at(sample_idx).nested_kmer_stats), variant_cluster_idx, diplotypes.at(sample_idx).first, variant_cluster_haplotypes.kmer_stats_cache.at(sample_idx).haplotype_1);
 			}
-		
-		} else {
-
-			reduceSamplePloidy(&sample_ploidy);			
 		} 
 
-		if (diplotype_sample.at(sample_idx).second != Utils::ushort_overflow) {
+		if (diplotypes.at(sample_idx).second != Utils::ushort_overflow) {
 
-			if (!(binary_search(variant_cluster_haplotypes.haplotypes.at(diplotype_sample.at(sample_idx).second).nested_variant_cluster_indices.begin(), variant_cluster_haplotypes.haplotypes.at(diplotype_sample.at(sample_idx).second).nested_variant_cluster_indices.end(), variant_cluster_idx))) {
+			if (!(binary_search(variant_cluster_haplotypes.haplotypes.at(diplotypes.at(sample_idx).second).nested_variant_cluster_indices.begin(), variant_cluster_haplotypes.haplotypes.at(diplotypes.at(sample_idx).second).nested_variant_cluster_indices.end(), variant_cluster_idx))) {
 
-				reduceSamplePloidy(&sample_ploidy);			
-			}
-		
-		} else {
-
-			reduceSamplePloidy(&sample_ploidy);
-		} 
-
-		variant_cluster_ploidy.push_back(sample_ploidy);
+				updateNestedPloidy(&(nested_variant_cluster_info->at(sample_idx).nested_ploidy));			
+				addNestedKmerStats(&(nested_variant_cluster_info->at(sample_idx).nested_kmer_stats), variant_cluster_idx, diplotypes.at(sample_idx).second, variant_cluster_haplotypes.kmer_stats_cache.at(sample_idx).haplotype_2);
+			}	
+		}
 	}
-
-	return variant_cluster_ploidy;
 }
-
 
 ushort VariantClusterGenotyper::haplotypeToAlleleIndex(const ushort haplotype_idx, const ushort variant_idx) {
 
-	if (haplotype_idx < Utils::ushort_overflow) {
+	if (haplotype_idx != Utils::ushort_overflow) {
 
-		assert(variant_cluster_haplotypes.haplotypes.at(haplotype_idx).variant_allele_indices.at(variant_idx) < variant_cluster_info.at(variant_idx).num_alleles);
+		assert(variant_cluster_haplotypes.haplotypes.at(haplotype_idx).variant_allele_indices.at(variant_idx) < variant_cluster_info.at(variant_idx).numberOfAlleles());
 		return variant_cluster_haplotypes.haplotypes.at(haplotype_idx).variant_allele_indices.at(variant_idx);
 
 	} else {
 
-		return variant_cluster_info.at(variant_idx).num_alleles - 1;
+		return variant_cluster_info.at(variant_idx).numberOfAlleles() - 1;
 	}
 }
 
-
 vector<ushort> VariantClusterGenotyper::getNonCoveredAlleles(const ushort variant_idx) {
 
-	vector<bool> is_allele_covered(variant_cluster_info.at(variant_idx).num_alleles, false);
+	vector<bool> is_allele_covered(variant_cluster_info.at(variant_idx).numberOfAlleles(), false);
 
 	for (auto & haplotype_info: variant_cluster_haplotypes.haplotypes) {
 
-		assert(haplotype_info.variant_allele_indices.at(variant_idx) < variant_cluster_info.at(variant_idx).num_alleles);
+		assert(haplotype_info.variant_allele_indices.at(variant_idx) < variant_cluster_info.at(variant_idx).numberOfAlleles());
 		is_allele_covered.at(haplotype_info.variant_allele_indices.at(variant_idx)) = true;
 	}
 
@@ -271,8 +268,7 @@ vector<ushort> VariantClusterGenotyper::getNonCoveredAlleles(const ushort varian
 	return non_covered_alleles;
 }
 
-
-vector<Genotypes::SampleStats> VariantClusterGenotyper::getGenotypeSampleStats(const uint variant_idx, const vector<Utils::Ploidy> & chromosome_ploidy) {
+vector<Genotypes::SampleStats> VariantClusterGenotyper::getGenotypeSampleStats(const uint variant_idx, const vector<Utils::Ploidy> & chrom_ploidy, const Filters & filters) {
 
 	vector<Genotypes::SampleStats> sample_stats;
 	sample_stats.reserve(samples.size());
@@ -281,17 +277,17 @@ vector<Genotypes::SampleStats> VariantClusterGenotyper::getGenotypeSampleStats(c
 
 	for (ushort sample_idx = 0; sample_idx < samples.size(); sample_idx++) {
 
-        if (chromosome_ploidy.at(sample_idx) == Utils::Ploidy::Diploid) {
+        if (chrom_ploidy.at(sample_idx) == Utils::Ploidy::Diploid) {
 
-            sample_stats.emplace_back(variant_cluster_info.at(variant_idx).num_alleles, (variant_cluster_info.at(variant_idx).num_alleles * (variant_cluster_info.at(variant_idx).num_alleles - 1)) / 2 + variant_cluster_info.at(variant_idx).num_alleles);
+            sample_stats.emplace_back(variant_cluster_info.at(variant_idx).numberOfAlleles(), (variant_cluster_info.at(variant_idx).numberOfAlleles() * (variant_cluster_info.at(variant_idx).numberOfAlleles() - 1)) / 2 + variant_cluster_info.at(variant_idx).numberOfAlleles());
 
-        } else if (chromosome_ploidy.at(sample_idx) == Utils::Ploidy::Haploid) {
+        } else if (chrom_ploidy.at(sample_idx) == Utils::Ploidy::Haploid) {
 
-            sample_stats.emplace_back(variant_cluster_info.at(variant_idx).num_alleles, variant_cluster_info.at(variant_idx).num_alleles);
+            sample_stats.emplace_back(variant_cluster_info.at(variant_idx).numberOfAlleles(), variant_cluster_info.at(variant_idx).numberOfAlleles());
         
         } else {
 
-        	assert(chromosome_ploidy.at(sample_idx) == Utils::Ploidy::Null);
+        	assert(chrom_ploidy.at(sample_idx) == Utils::Ploidy::Null);
             sample_stats.emplace_back(0, 0);
         }
 
@@ -307,23 +303,24 @@ vector<Genotypes::SampleStats> VariantClusterGenotyper::getGenotypeSampleStats(c
 
 			if (diplotype_sampling_frequency.second.at(sample_idx) > 0) {
 
-				auto allele_idx_1 = haplotypeToAlleleIndex(diplotype_sampling_frequency.first.first, variant_idx); 
-				auto allele_idx_2 = haplotypeToAlleleIndex(diplotype_sampling_frequency.first.second, variant_idx);
-
-				pair<ushort, ushort> genotype_estimate(allele_idx_1, allele_idx_2);
-
-				if (allele_idx_1 > allele_idx_2) {
-
-					genotype_estimate.first = allele_idx_2;
-					genotype_estimate.second = allele_idx_1;
-				}
-
+				pair<ushort, ushort> genotype_estimate(Utils::ushort_overflow, Utils::ushort_overflow);
 				auto genotype_idx = genotype_estimate.first;
 
-	            if (chromosome_ploidy.at(sample_idx) == Utils::Ploidy::Diploid) {
+	            if (chrom_ploidy.at(sample_idx) == Utils::Ploidy::Diploid) {
 
 	            	assert((diplotype_sampling_frequency.first.first != Utils::ushort_overflow) or variant_cluster_info.at(variant_idx).has_dependency);
 	            	assert((diplotype_sampling_frequency.first.second != Utils::ushort_overflow) or variant_cluster_info.at(variant_idx).has_dependency);
+
+					genotype_estimate.first = haplotypeToAlleleIndex(diplotype_sampling_frequency.first.first, variant_idx); 
+					genotype_estimate.second = haplotypeToAlleleIndex(diplotype_sampling_frequency.first.second, variant_idx);
+
+					if (genotype_estimate.first > genotype_estimate.second) {
+
+						auto allele_idx_tmp = genotype_estimate.first;
+
+						genotype_estimate.first = genotype_estimate.second;
+						genotype_estimate.second = allele_idx_tmp;
+					}
 
 	                genotype_idx = (genotype_estimate.second * (genotype_estimate.second + 1)) / 2 + genotype_estimate.first;
 	                
@@ -335,24 +332,27 @@ vector<Genotypes::SampleStats> VariantClusterGenotyper::getGenotypeSampleStats(c
 	                    sample_stats.back().allele_posteriors.at(genotype_estimate.second) += diplotype_sampling_frequency.second.at(sample_idx);
 	                }
 
-	            } else if (chromosome_ploidy.at(sample_idx) == Utils::Ploidy::Haploid) {
+	            } else if (chrom_ploidy.at(sample_idx) == Utils::Ploidy::Haploid) {
 
 	            	assert((diplotype_sampling_frequency.first.first != Utils::ushort_overflow) or variant_cluster_info.at(variant_idx).has_dependency);
 	            	assert(diplotype_sampling_frequency.first.second == Utils::ushort_overflow);
+
+					genotype_estimate.first = haplotypeToAlleleIndex(diplotype_sampling_frequency.first.first, variant_idx); 
+				 	genotype_idx = genotype_estimate.first;
 
 	                sample_stats.back().genotype_posteriors.at(genotype_estimate.first) += diplotype_sampling_frequency.second.at(sample_idx);
 	                sample_stats.back().allele_posteriors.at(genotype_estimate.first) += diplotype_sampling_frequency.second.at(sample_idx);
 	            
 	            } else {
 
-	            	assert(chromosome_ploidy.at(sample_idx) == Utils::Ploidy::Null);
+	            	assert(chrom_ploidy.at(sample_idx) == Utils::Ploidy::Null);
 	           		assert(diplotype_sampling_frequency.first.first == Utils::ushort_overflow);
 	           		assert(diplotype_sampling_frequency.first.second == Utils::ushort_overflow);
 	            }
 
 	            num_iterations += diplotype_sampling_frequency.second.at(sample_idx);
 
-	            if (chromosome_ploidy.at(sample_idx) != Utils::Ploidy::Null) {
+	            if (chrom_ploidy.at(sample_idx) != Utils::Ploidy::Null) {
 
 					if (Utils::floatCompare(max_posterior_genotypes.second, sample_stats.back().genotype_posteriors.at(genotype_idx))) {
 			 		
@@ -371,68 +371,107 @@ vector<Genotypes::SampleStats> VariantClusterGenotyper::getGenotypeSampleStats(c
 
         max_posterior_genotypes.second /= num_iterations;
 
-       	for (auto &posterior: sample_stats.back().genotype_posteriors) {
+       	for (auto & posterior: sample_stats.back().genotype_posteriors) {
 
             posterior /= num_iterations;
         }
 
-        for (auto &posterior: sample_stats.back().allele_posteriors) {
+        for (auto & posterior: sample_stats.back().allele_posteriors) {
 
             posterior /= num_iterations;
         }
+
+
+		sample_stats.back().allele_kmer_stats = allele_kmer_stats.at(variant_idx).at(sample_idx);
+
+    	assert(sample_stats.back().allele_kmer_stats.count_stats.size() == variant_cluster_info.at(variant_idx).numberOfAlleles());
+    	assert(sample_stats.back().allele_kmer_stats.fraction_stats.size() == variant_cluster_info.at(variant_idx).numberOfAlleles());
+		assert(sample_stats.back().allele_kmer_stats.mean_stats.size() == variant_cluster_info.at(variant_idx).numberOfAlleles());
+
+
+    	assert((sample_stats.back().allele_posteriors.size() == sample_stats.back().allele_kmer_stats.count_stats.size()) or sample_stats.back().allele_posteriors.empty());
+    	assert(sample_stats.back().allele_posteriors.size() == sample_stats.back().allele_filters.size());
+
+	    for (ushort allele_idx = 0; allele_idx < sample_stats.back().allele_posteriors.size(); allele_idx++) {
+
+	        if (!(Utils::floatCompare(sample_stats.back().allele_posteriors.at(allele_idx), 0))) {
+
+            	assert(sample_stats.back().allele_posteriors.at(allele_idx) > 0);  	
+
+		        if (Utils::floatLess(sample_stats.back().allele_kmer_stats.count_stats.at(allele_idx).getMean().first, filters.minNumberOfKmers())) {
+
+		        	sample_stats.back().allele_filters.at(allele_idx) = "F";
+		        
+		        } else if (Utils::floatLess(sample_stats.back().allele_kmer_stats.fraction_stats.at(allele_idx).getMean().first, filters.minFractionObservedKmers(sample_idx))) {
+
+		        	sample_stats.back().allele_filters.at(allele_idx) = "F";
+		        }
+		    }
+	    }
+
 
         assert(sample_stats.back().genotype_estimate.empty());
+        assert(!(sample_stats.back().is_homozygote));
 
-        if (chromosome_ploidy.at(sample_idx) == Utils::Ploidy::Diploid) {
+        if (chrom_ploidy.at(sample_idx) == Utils::Ploidy::Diploid) {
 
+			sample_stats.back().genotype_estimate = vector<ushort>(2, Utils::ushort_overflow);
 	        assert(!(max_posterior_genotypes.first.empty()));
 
             if (max_posterior_genotypes.first.size() == 1) {
 
-			    assert(max_posterior_genotypes.first.front().first <= max_posterior_genotypes.first.front().second);
-			    assert(max_posterior_genotypes.first.front().second < variant_cluster_info.at(variant_idx).num_alleles);
+        		if (max_posterior_genotypes.first.front().first == max_posterior_genotypes.first.front().second) {
 
-                sample_stats.back().genotype_estimate.push_back(max_posterior_genotypes.first.front().first);
-                sample_stats.back().genotype_estimate.push_back(max_posterior_genotypes.first.front().second);
- 
-            } else {
+        			sample_stats.back().is_homozygote = true;
+        		}
 
-                sample_stats.back().genotype_estimate.push_back(Utils::ushort_overflow);
-                sample_stats.back().genotype_estimate.push_back(Utils::ushort_overflow);            
+            	if (!(Utils::floatLess(max_posterior_genotypes.second, filters.minGenotypePosterior()))) {
+
+				    assert(max_posterior_genotypes.first.front().first <= max_posterior_genotypes.first.front().second);
+				    assert(max_posterior_genotypes.first.front().second < variant_cluster_info.at(variant_idx).numberOfAlleles());
+
+				    if ((sample_stats.back().allele_filters.at(max_posterior_genotypes.first.front().first) == "P") and (sample_stats.back().allele_filters.at(max_posterior_genotypes.first.front().second) == "P")) {
+
+				    	sample_stats.back().genotype_estimate.front() = max_posterior_genotypes.first.front().first;
+				    	sample_stats.back().genotype_estimate.back() = max_posterior_genotypes.first.front().second;
+				    }
+				}
             }
         
-        } else if (chromosome_ploidy.at(sample_idx) == Utils::Ploidy::Haploid) {
+        } else if (chrom_ploidy.at(sample_idx) == Utils::Ploidy::Haploid) {
 
+			sample_stats.back().genotype_estimate = vector<ushort>(1, Utils::ushort_overflow);
 	        assert(!(max_posterior_genotypes.first.empty()));
 
-            if (max_posterior_genotypes.first.size() == 1) {
+        	sample_stats.back().is_homozygote = true;
 
-			    assert(max_posterior_genotypes.first.front().first < variant_cluster_info.at(variant_idx).num_alleles);
-                sample_stats.back().genotype_estimate.push_back(max_posterior_genotypes.first.front().first);
-                
-            } else {
+            if ((max_posterior_genotypes.first.size() == 1) and !(Utils::floatLess(max_posterior_genotypes.second, filters.minGenotypePosterior()))) {
 
-                sample_stats.back().genotype_estimate.push_back(Utils::ushort_overflow);
+			    assert(max_posterior_genotypes.first.front().first < variant_cluster_info.at(variant_idx).numberOfAlleles());
+
+			    if (sample_stats.back().allele_filters.at(max_posterior_genotypes.first.front().first) == "P") {
+
+			    	sample_stats.back().genotype_estimate.front() = max_posterior_genotypes.first.front().first;
+                }
             }    
         
         } else {
 			
-			assert(chromosome_ploidy.at(sample_idx) == Utils::Ploidy::Null);
+			assert(chrom_ploidy.at(sample_idx) == Utils::Ploidy::Null);
 	        assert(max_posterior_genotypes.first.empty());
+
+        	sample_stats.back().is_homozygote = true;
         } 
-		
-		sample_stats.back().allele_kmer_stats = allele_kmer_stats.at(variant_idx).at(sample_idx);
 	}
 
     return sample_stats;
 }
 
-
 Genotypes::VariantStats VariantClusterGenotyper::getGenotypeVariantStats(const uint variant_idx, const vector<Genotypes::SampleStats> & sample_stats) {
 
 	assert(sample_stats.size() == samples.size());
 
-	Genotypes::VariantStats variant_stat(variant_cluster_info.at(variant_idx).num_alleles);
+	Genotypes::VariantStats variant_stat(variant_cluster_info.at(variant_idx).numberOfAlleles());
 
 	for (ushort sample_idx = 0; sample_idx < samples.size(); sample_idx++) {
 
@@ -440,7 +479,8 @@ Genotypes::VariantStats VariantClusterGenotyper::getGenotypeVariantStats(const u
 
 			if (allele_idx != Utils::ushort_overflow) {
 
-				assert(allele_idx < variant_cluster_info.at(variant_idx).num_alleles);
+				assert(allele_idx < variant_cluster_info.at(variant_idx).numberOfAlleles());
+				assert(sample_stats.at(sample_idx).allele_filters.at(allele_idx) == "P");
 
 				variant_stat.total_count++;
 
@@ -451,13 +491,24 @@ Genotypes::VariantStats VariantClusterGenotyper::getGenotypeVariantStats(const u
 			}
 		}
 
-		assert((variant_stat.allele_call_probabilities.size() == sample_stats.at(sample_idx).allele_posteriors.size()) or sample_stats.at(sample_idx).allele_posteriors.empty());
+		assert((sample_stats.at(sample_idx).allele_posteriors.size() == variant_stat.allele_call_probabilities.size()) or sample_stats.at(sample_idx).allele_posteriors.empty());
 
 		for (ushort allele_idx = 0; allele_idx < sample_stats.at(sample_idx).allele_posteriors.size(); allele_idx++) {
 
-			variant_stat.allele_call_probabilities.at(allele_idx) = max(variant_stat.allele_call_probabilities.at(allele_idx), sample_stats.at(sample_idx).allele_posteriors.at(allele_idx));
+			if (sample_stats.at(sample_idx).allele_filters.at(allele_idx) == "P") {
+
+				variant_stat.allele_call_probabilities.at(allele_idx) = max(variant_stat.allele_call_probabilities.at(allele_idx), sample_stats.at(sample_idx).allele_posteriors.at(allele_idx));
+			}
 		}
 	}
+
+	assert(variant_cluster_info.at(variant_idx).alt_alleles.size() < variant_stat.allele_call_probabilities.size());
+
+    for (ushort alt_allele_idx = 0; alt_allele_idx < variant_cluster_info.at(variant_idx).alt_alleles.size(); alt_allele_idx++) {
+
+    	assert(!(variant_cluster_info.at(variant_idx).isMissing(alt_allele_idx + 1)));
+        variant_stat.max_alt_allele_call_probability = max(variant_stat.max_alt_allele_call_probability, variant_stat.allele_call_probabilities.at(alt_allele_idx + 1));  
+    }
 
 	assert(variant_stat.alt_allele_counts.size() == variant_stat.alt_allele_frequency.size());
 
@@ -472,34 +523,55 @@ Genotypes::VariantStats VariantClusterGenotyper::getGenotypeVariantStats(const u
     return variant_stat;
 }
 
+vector<Genotypes*> VariantClusterGenotyper::getGenotypes(const string & chrom_name, const vector<Utils::Ploidy> & chrom_ploidy, const Filters & filters) {
 
-vector<Genotypes*> VariantClusterGenotyper::getGenotypes(const vector<Utils::Ploidy> & chromosome_ploidy) {
-
-	assert(samples.size() == chromosome_ploidy.size());
+	assert(samples.size() == chrom_ploidy.size());
 	assert(variant_cluster_info.size() == allele_kmer_stats.size());
 
 	vector<Genotypes*> variant_genotypes;
 	variant_genotypes.reserve(variant_cluster_info.size());
 
+	uint start_position = variant_cluster_info.front().position;
+	uint end_position = 0;
+
+	for (auto & variant_info: variant_cluster_info) {
+
+		assert(start_position <= variant_info.position);
+        end_position = max(end_position, static_cast<uint>(variant_info.position + variant_info.maxReferenceLength() - 1));
+    }
+
+    assert(start_position <= end_position);
+
 	for (ushort variant_idx = 0; variant_idx < variant_cluster_info.size(); variant_idx++) {
 
 		auto genotypes = new Genotypes();
 
-		genotypes->num_candidates = variant_cluster_haplotypes.haplotype_unique_kmer_multiplicities.cols();
-		genotypes->variant_cluster_size = variant_cluster_info.size();
-
+		genotypes->chrom_name = chrom_name;
 		genotypes->variant_info = variant_cluster_info.at(variant_idx);
 
+		genotypes->variant_cluster_size = variant_cluster_info.size();
+		genotypes->variant_cluster_region = chrom_name + ":" + to_string(start_position) + "-" + to_string(end_position);
+
+		genotypes->num_candidates = variant_cluster_haplotypes.haplotype_kmer_multiplicities.cols();
 	    genotypes->non_covered_alleles = getNonCoveredAlleles(variant_idx);
-	    genotypes->sample_stats = getGenotypeSampleStats(variant_idx, chromosome_ploidy);
+
+	    genotypes->sample_stats = getGenotypeSampleStats(variant_idx, chrom_ploidy, filters);
 	    genotypes->variant_stats = getGenotypeVariantStats(variant_idx, genotypes->sample_stats);
+
+	    genotypes->num_homozygote_genotypes = 0;
+
+	    for (auto & sample: genotypes->sample_stats) {
+
+	    	genotypes->num_homozygote_genotypes += static_cast<ushort>(sample.is_homozygote); 
+	    }
+
+		assert(genotypes->num_homozygote_genotypes <= samples.size());
 
 		variant_genotypes.push_back(genotypes);
 	}
 
 	return variant_genotypes;
 }
-
 
 void VariantClusterGenotyper::updateMulticlusterDiplotypeLogProb(const CountDistribution & count_distribution, const ushort sample_idx) {
 
@@ -510,20 +582,21 @@ void VariantClusterGenotyper::updateMulticlusterDiplotypeLogProb(const CountDist
 			for (auto & multicluster_diplotype_log_probability: multicluster_diplotype_log_probabilities.at(sample_idx)) {
 
 				const uint kmer_idx = variant_cluster_haplotypes.multicluster_kmer_subset_indices.at(kmer_subset_idx);
-				assert(variant_cluster_haplotypes.multicluster_kmers.at(kmer_idx).counts);
 
-				auto prev_kmer_multiplicity = variant_cluster_haplotypes.getPreviousMulticlusterKmerMultiplicity(kmer_subset_idx, multicluster_diplotype_log_probability.first, diplotype_sample.at(sample_idx), sample_idx, samples.at(sample_idx).gender);
+				auto kmer_counts = variant_cluster_haplotypes.kmers.at(kmer_idx).counts;
+				assert(kmer_counts);
 
-				multicluster_diplotype_log_probability.second -= count_distribution.calcCountLogProb(sample_idx, variant_cluster_haplotypes.multicluster_kmers.at(kmer_idx).bias_idx, prev_kmer_multiplicity, variant_cluster_haplotypes.multicluster_kmers.at(kmer_idx).counts->getSampleCount(sample_idx));
+				auto prev_kmer_multiplicity = variant_cluster_haplotypes.getPreviousMulticlusterKmerMultiplicity(kmer_subset_idx, multicluster_diplotype_log_probability.first, diplotypes.at(sample_idx), sample_idx, samples.at(sample_idx).gender);
 
-				auto kmer_multiplicity = variant_cluster_haplotypes.getMulticlusterKmerMultiplicity(kmer_idx, multicluster_diplotype_log_probability.first, diplotype_sample.at(sample_idx), sample_idx, samples.at(sample_idx).gender);
+				multicluster_diplotype_log_probability.second -= count_distribution.calcCountLogProb(sample_idx, variant_cluster_haplotypes.kmers.at(kmer_idx).bias_idx, prev_kmer_multiplicity, kmer_counts->getSampleCount(sample_idx));
 
-				multicluster_diplotype_log_probability.second += count_distribution.calcCountLogProb(sample_idx, variant_cluster_haplotypes.multicluster_kmers.at(kmer_idx).bias_idx, kmer_multiplicity, variant_cluster_haplotypes.multicluster_kmers.at(kmer_idx).counts->getSampleCount(sample_idx));
+				auto kmer_multiplicity = variant_cluster_haplotypes.getMulticlusterKmerMultiplicity(kmer_idx, multicluster_diplotype_log_probability.first, diplotypes.at(sample_idx), sample_idx, samples.at(sample_idx).gender);
+
+				multicluster_diplotype_log_probability.second += count_distribution.calcCountLogProb(sample_idx, variant_cluster_haplotypes.kmers.at(kmer_idx).bias_idx, kmer_multiplicity, kmer_counts->getSampleCount(sample_idx));
 			}
 		}
 	}
 }
-
 
 double VariantClusterGenotyper::calcDiplotypeLogProb(const CountDistribution & count_distribution, const ushort sample_idx, const pair<ushort, ushort> & diplotype) {
 
@@ -553,12 +626,14 @@ double VariantClusterGenotyper::calcDiplotypeLogProb(const CountDistribution & c
 
 		for (auto & kmer_idx: variant_cluster_haplotypes.unique_kmer_subset_indices) {
 
-			auto bias_idx = variant_cluster_haplotypes.unique_kmers.at(kmer_idx).bias_idx;
+			auto bias_idx = variant_cluster_haplotypes.kmers.at(kmer_idx).bias_idx;
 			auto kmer_multiplicity = variant_cluster_haplotypes.getUniqueKmerMultiplicity(kmer_idx, diplotype, samples.at(sample_idx).gender);
 
-			if (variant_cluster_haplotypes.unique_kmers.at(kmer_idx).counts) {
+			auto kmer_counts = variant_cluster_haplotypes.kmers.at(kmer_idx).counts;
 
-				unique_diplotype_log_probabilities_emplace.first->second += count_distribution.calcCountLogProb(sample_idx, bias_idx, kmer_multiplicity, variant_cluster_haplotypes.unique_kmers.at(kmer_idx).counts->getSampleCount(sample_idx));
+			if (kmer_counts) {
+
+				unique_diplotype_log_probabilities_emplace.first->second += count_distribution.calcCountLogProb(sample_idx, bias_idx, kmer_multiplicity, kmer_counts->getSampleCount(sample_idx));
 
 			} else {
 
@@ -577,11 +652,12 @@ double VariantClusterGenotyper::calcDiplotypeLogProb(const CountDistribution & c
 
 			for (auto & kmer_idx: variant_cluster_haplotypes.multicluster_kmer_subset_indices) {
 
-				assert(variant_cluster_haplotypes.multicluster_kmers.at(kmer_idx).counts);
+				auto kmer_counts = variant_cluster_haplotypes.kmers.at(kmer_idx).counts;
+				assert(kmer_counts);
 
-				auto kmer_multiplicity = variant_cluster_haplotypes.getMulticlusterKmerMultiplicity(kmer_idx, diplotype, diplotype_sample.at(sample_idx), sample_idx, samples.at(sample_idx).gender);
+				auto kmer_multiplicity = variant_cluster_haplotypes.getMulticlusterKmerMultiplicity(kmer_idx, diplotype, diplotypes.at(sample_idx), sample_idx, samples.at(sample_idx).gender);
 
-				multicluster_diplotype_log_probabilities_emplace.first->second += count_distribution.calcCountLogProb(sample_idx, variant_cluster_haplotypes.multicluster_kmers.at(kmer_idx).bias_idx, kmer_multiplicity, variant_cluster_haplotypes.multicluster_kmers.at(kmer_idx).counts->getSampleCount(sample_idx));
+				multicluster_diplotype_log_probabilities_emplace.first->second += count_distribution.calcCountLogProb(sample_idx, variant_cluster_haplotypes.kmers.at(kmer_idx).bias_idx, kmer_multiplicity, kmer_counts->getSampleCount(sample_idx));
 			}
 		}
 
@@ -593,42 +669,45 @@ double VariantClusterGenotyper::calcDiplotypeLogProb(const CountDistribution & c
 	return diplotype_log_prob;
 }
 
+void VariantClusterGenotyper::sampleDiplotypes(const CountDistribution & count_distribution, const vector<VariantClusterHaplotypes::NestedVariantClusterInfo> & nested_variant_cluster_info, const bool collect_samples) {
 
-void VariantClusterGenotyper::sampleGenotypes(const CountDistribution & count_distribution, const vector<Utils::Ploidy> & variant_cluster_ploidy, const bool collect_samples) {
+	assert(nested_variant_cluster_info.size() == samples.size());
 
 	for (ushort sample_idx = 0; sample_idx < samples.size(); sample_idx++) {
 
-		auto prev_diplotype = diplotype_sample.at(sample_idx);
-
+		auto prev_diplotype = diplotypes.at(sample_idx);
+		
 		updateMulticlusterDiplotypeLogProb(count_distribution, sample_idx);		
-		sampleGenotype(count_distribution, sample_idx, variant_cluster_ploidy.at(sample_idx));
+		sampleDiplotype(count_distribution, sample_idx, nested_variant_cluster_info.at(sample_idx).nested_ploidy);
 
-		variant_cluster_haplotypes.updateMulticlusterKmerMultiplicities(diplotype_sample.at(sample_idx), prev_diplotype, sample_idx);
+		variant_cluster_haplotypes.updateMulticlusterKmerMultiplicities(diplotypes.at(sample_idx), prev_diplotype, sample_idx);
 
 		if (collect_samples) {
 
-			auto diplotype_sampling_frequencies_emplace = diplotype_sampling_frequencies.emplace(diplotype_sample.at(sample_idx), vector<uint>(samples.size(), 0));
+			auto diplotype_sampling_frequencies_emplace = diplotype_sampling_frequencies.emplace(diplotypes.at(sample_idx), vector<uint>(samples.size(), 0));
 			diplotype_sampling_frequencies_emplace.first->second.at(sample_idx)++;
-
-			variant_cluster_haplotypes.updateAlleleKmerStats(&allele_kmer_stats, diplotype_sample.at(sample_idx), sample_idx, samples.at(sample_idx).gender);
 		}
+	}
+
+	if (collect_samples) {
+
+		variant_cluster_haplotypes.updateAlleleKmerStats(&allele_kmer_stats, samples, variant_cluster_info, nested_variant_cluster_info, diplotypes);
 	}
 
 	use_multicluster_kmers = !(variant_cluster_haplotypes.multicluster_kmer_subset_indices.empty());
 }
 
+void VariantClusterGenotyper::sampleDiplotype(const CountDistribution & count_distribution, const ushort sample_idx, const Utils::Ploidy ploidy) {
 
-void VariantClusterGenotyper::sampleGenotype(const CountDistribution & count_distribution, const ushort sample_idx, const Utils::Ploidy sample_variant_cluster_ploidy) {
-
-	const ushort num_haplotypes = variant_cluster_haplotypes.haplotype_unique_kmer_multiplicities.cols();
-
-	uint num_expected_diplotypes = (num_haplotypes * num_haplotypes)/2;
+	const ushort num_haplotypes = variant_cluster_haplotypes.haplotypes.size();
+	const uint num_expected_diplotypes = (num_haplotypes * (num_haplotypes - 1)) / 2 + num_haplotypes;
+	
 	LogDiscreteSampler diplotype_sampler(num_expected_diplotypes);
 	
-	vector<pair<ushort, ushort> > diplotypes;
-	diplotypes.reserve(num_expected_diplotypes);
+	vector<pair<ushort, ushort> > diplotype_samples;
+	diplotype_samples.reserve(num_expected_diplotypes);
 
-	if (sample_variant_cluster_ploidy == Utils::Ploidy::Diploid) {
+	if (ploidy == Utils::Ploidy::Diploid) {
 
 		for (ushort i = 0; i < num_haplotypes; i++) {
 
@@ -639,7 +718,7 @@ void VariantClusterGenotyper::sampleGenotype(const CountDistribution & count_dis
 					if (haplotype_frequency_distribution->getElementFrequency(j).first) {
 
 						diplotype_sampler.addOutcome(calcDiplotypeLogProb(count_distribution, sample_idx, make_pair(i, j)));
-						diplotypes.emplace_back(i, j);
+						diplotype_samples.emplace_back(i, j);
 					}
 
 				} else {
@@ -649,69 +728,68 @@ void VariantClusterGenotyper::sampleGenotype(const CountDistribution & count_dis
 			}
 		}
 
-	} else if (sample_variant_cluster_ploidy == Utils::Ploidy::Haploid) {
+	} else if (ploidy == Utils::Ploidy::Haploid) {
 
 		for (ushort i = 0; i < num_haplotypes; i++) {
 
 			if (haplotype_frequency_distribution->getElementFrequency(i).first) {
 
 				diplotype_sampler.addOutcome(calcDiplotypeLogProb(count_distribution, sample_idx, make_pair(i, Utils::ushort_overflow)));
-				diplotypes.emplace_back(i, Utils::ushort_overflow);
+				diplotype_samples.emplace_back(i, Utils::ushort_overflow);
 			}
 		}
 
 	} else {
 
-		assert(sample_variant_cluster_ploidy == Utils::Ploidy::Null);
+		assert(ploidy == Utils::Ploidy::Null);
 
 		diplotype_sampler.addOutcome(0);
-		diplotypes.emplace_back(Utils::ushort_overflow, Utils::ushort_overflow);
+		diplotype_samples.emplace_back(Utils::ushort_overflow, Utils::ushort_overflow);
 	}
 
-	assert(diplotypes.size() > 0);
-	diplotype_sample.at(sample_idx) = diplotypes.at(diplotype_sampler.sample(&prng));
+	assert(diplotype_samples.size() > 0);
 
-	haplotype_frequency_distribution->incrementObservationCount(diplotype_sample.at(sample_idx).first);
-	haplotype_frequency_distribution->incrementObservationCount(diplotype_sample.at(sample_idx).second);
+	diplotypes.at(sample_idx) = diplotype_samples.at(diplotype_sampler.sample(&prng));
+
+	haplotype_frequency_distribution->incrementObservationCount(diplotypes.at(sample_idx).first);
+	haplotype_frequency_distribution->incrementObservationCount(diplotypes.at(sample_idx).second);
 }
 
-
-void VariantClusterGenotyper::getCountAllocations(CountAllocation * sample_noise_counts, const CountDistribution & count_distribution) {
+void VariantClusterGenotyper::getNoiseCounts(CountAllocation * noise_counts, const CountDistribution & count_distribution) {
 
 	assert(!use_multicluster_kmers);
 	assert(variant_cluster_info.size() == 1);
 
-	assert(variant_cluster_haplotypes.multicluster_kmers.empty());
+	assert(variant_cluster_haplotypes.multicluster_kmer_indices.empty());
 	assert(variant_cluster_haplotypes.multicluster_kmer_subset_indices.empty());
-	assert(variant_cluster_haplotypes.haplotype_multicluster_kmer_multiplicities.rows() == 0);
 
 	for (ushort sample_idx = 0; sample_idx < samples.size(); sample_idx++) {
 
-		assert(diplotype_sample.at(sample_idx).first != Utils::ushort_overflow);
-		assert(diplotype_sample.at(sample_idx).second != Utils::ushort_overflow);
+		assert(diplotypes.at(sample_idx).first != Utils::ushort_overflow);
+		assert(diplotypes.at(sample_idx).second != Utils::ushort_overflow);
 
 		unique_diplotype_log_probabilities.at(sample_idx).clear();
 		assert(multicluster_diplotype_log_probabilities.at(sample_idx).empty());
 
 		for (auto & kmer_idx: variant_cluster_haplotypes.unique_kmer_subset_indices) {
 
-			auto kmer_multiplicity = variant_cluster_haplotypes.getUniqueKmerMultiplicity(kmer_idx, diplotype_sample.at(sample_idx), samples.at(sample_idx).gender);
+			if (variant_cluster_haplotypes.getUniqueKmerMultiplicity(kmer_idx, diplotypes.at(sample_idx), samples.at(sample_idx).gender) == 0) {
 
-			if (kmer_multiplicity == 0) {
+				auto kmer_counts = variant_cluster_haplotypes.kmers.at(kmer_idx).counts;
 
-				if (variant_cluster_haplotypes.unique_kmers.at(kmer_idx).counts) {
+				if (kmer_counts) {
 
-					sample_noise_counts->addCount(sample_idx, variant_cluster_haplotypes.unique_kmers.at(kmer_idx).counts->getSampleCount(sample_idx));
+					assert(!(kmer_counts->hasMulticlusterOccurrence()));
+					noise_counts->addCount(sample_idx, kmer_counts->getSampleCount(sample_idx));
 
 				} else {
 
-					sample_noise_counts->addCount(sample_idx, 0);
+					noise_counts->addCount(sample_idx, 0);
 				}
 			}
 		}
 	}
 }
-
 
 void VariantClusterGenotyper::sampleHaplotypeFrequencies() {
 

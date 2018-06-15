@@ -50,15 +50,19 @@ class Genotypes {
 
 		Genotypes() {}
 
-		string variant_cluster_id;
-		string variant_cluster_group_id;
+		string chrom_name;
+		VariantInfo variant_info;
+
+		ushort variant_cluster_size;
+		string variant_cluster_region;
+		
+		uint variant_cluster_group_size;
+		string variant_cluster_group_region;
 
 		ushort num_candidates;
-		ushort variant_cluster_size;
-		uint variant_cluster_group_size;
-
-		VariantInfo variant_info;
 		vector<ushort> non_covered_alleles;
+
+		ushort num_homozygote_genotypes;
 
 		struct VariantStats {
 
@@ -66,10 +70,12 @@ class Genotypes {
 
 			vector<uint> alt_allele_counts;
 			vector<float> alt_allele_frequency;
+
+			float max_alt_allele_call_probability;
 			vector<float> allele_call_probabilities;
 
 			VariantStats() {};
-			VariantStats(const ushort num_alleles) : total_count(0), alt_allele_counts(num_alleles - 1, 0), alt_allele_frequency(num_alleles - 1, 0), allele_call_probabilities(num_alleles, 0) {}
+			VariantStats(const ushort num_alleles) : total_count(0), alt_allele_counts(num_alleles - 1, 0), alt_allele_frequency(num_alleles - 1, 0), max_alt_allele_call_probability(0), allele_call_probabilities(num_alleles, 0) {}
 		};
 
 	    VariantStats variant_stats;
@@ -77,12 +83,16 @@ class Genotypes {
 		struct SampleStats {
 
 		    vector<ushort> genotype_estimate;
+		    bool is_homozygote;
+
 		    vector<float> genotype_posteriors;
 
 		    vector<float> allele_posteriors;
 			AlleleKmerStats allele_kmer_stats;
 
-			SampleStats(const ushort num_alleles, const uint num_genotypes) : genotype_posteriors(num_genotypes, 0), allele_posteriors(num_alleles, 0) {
+			vector<string> allele_filters;
+
+			SampleStats(const ushort num_alleles, const uint num_genotypes) : is_homozygote(false), genotype_posteriors(num_genotypes, 0), allele_posteriors(num_alleles, 0), allele_filters(num_alleles, "P") {
 
 				genotype_estimate.reserve(2);
 			}

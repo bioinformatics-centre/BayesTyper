@@ -41,7 +41,7 @@ int main(int argc, char const *argv[]) {
 
 	if (argc != 4) {
 
-		std::cout << "USAGE: getGenomicIntervals <input> <output_prefix> <min_var_per_interval>" << std::endl;
+		std::cout << "USAGE: getGenomicIntervals <variant_file> <output_prefix> <min_var_per_interval>" << std::endl;
 		return 1;
 	}
 
@@ -52,8 +52,8 @@ int main(int argc, char const *argv[]) {
 	vcf_reader.metaData().infoDescriptors().clear();
 	vcf_reader.metaData().formatDescriptors().clear();
 	
-	ofstream interval_writer(string(argv[2]) + ".bed");
-	assert(interval_writer.is_open());
+	ofstream intervals_outfile(string(argv[2]) + ".bed");
+	assert(intervals_outfile.is_open());
 
 	Variant * cur_var;
 	uint num_variants = 0;
@@ -81,7 +81,7 @@ int main(int argc, char const *argv[]) {
 				assert(cur_chrom_len > 0);
 				assert(interval_start_pos <= cur_chrom_len);
 
-				interval_writer << cur_chrom << "\t" << interval_start_pos - 1 << "\t" << cur_chrom_len - 1 << "\n";
+				intervals_outfile << cur_chrom << "\t" << interval_start_pos - 1 << "\t" << cur_chrom_len - 1 << "\n";
 				num_intervals++;
 				
 				interval_num_variants = 0;
@@ -97,7 +97,7 @@ int main(int argc, char const *argv[]) {
 
 			assert(interval_start_pos < cur_var->pos());
 
-			interval_writer << cur_chrom << "\t" << interval_start_pos - 1 << "\t" << cur_var->pos() - 2 << "\n";
+			intervals_outfile << cur_chrom << "\t" << interval_start_pos - 1 << "\t" << cur_var->pos() - 2 << "\n";
 			num_intervals++;
 
 			interval_num_variants = 0;
@@ -139,10 +139,10 @@ int main(int argc, char const *argv[]) {
 	assert(cur_chrom_len > 0);
 	assert(interval_start_pos <= cur_chrom_len);
 
-	interval_writer << cur_chrom << "\t" << interval_start_pos - 1 << "\t" << cur_chrom_len - 1 << "\n";
+	intervals_outfile << cur_chrom << "\t" << interval_start_pos - 1 << "\t" << cur_chrom_len - 1 << "\n";
 	num_intervals++;
 
-	interval_writer.close();	
+	intervals_outfile.close();	
 
 	cout << "\n[" << Utils::getLocalTime() << "] Wrote " << num_intervals << " genomic intervals" << endl;
 	cout << endl;

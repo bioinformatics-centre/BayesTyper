@@ -1,6 +1,6 @@
 
 /*
-KmerHash.hpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
+KmerCountsHash.hpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -27,71 +27,83 @@ THE SOFTWARE.
 */
 
 
-#ifndef __bayesTyper__KmerHash_hpp
-#define __bayesTyper__KmerHash_hpp
+#ifndef __bayesTyper__KmerCountsHash_hpp
+#define __bayesTyper__KmerCountsHash_hpp
 
 #include <vector>
 #include <unordered_map>
 #include <string>
 #include <mutex>
 
+#include "KmerBloom.hpp"
+
 #include "Utils.hpp"
 #include "HybridHash.hpp"
 #include "KmerCounts.hpp"
+#include "KmerStats.hpp"
 #include "Sample.hpp"
-#include "NegativeBinomialDistribution.hpp"
+
 
 using namespace std;
 
+class BooleanKmerHash {
 
-class KmerHash {
+    private:
+
+        ThreadedHybridHash<bool, Utils::kmer_size * 2> * _hash;
+
+    public:
+
+        BooleanKmerHash(const ulong, const ushort);
+        ~BooleanKmerHash();
+
+        unique_lock<mutex> getKmerLock(const bitset<Utils::kmer_size * 2> &);
+        pair<bool *, bool> addKmer(const bitset<Utils::kmer_size * 2> &);
+        bool * findKmer(const bitset<Utils::kmer_size * 2> &);
+
+        void shuffle(const uint);
+        ulong size();
+
+        void writeRootSizeDistribution(const string &);
+        ulong writeKmersToFasta(const string &, const bool, const uint);
+        ulong addKmersToBloomFilter(KmerBloom<Utils::kmer_size> *, const bool);
+};
+
+class KmerCountsHash {
 
 	public:
 
-    	KmerHash() {};
-    	virtual ~KmerHash() {};
+    	KmerCountsHash() {};
+    	virtual ~KmerCountsHash() {};
 
-        virtual vector<vector<vector<ulong> > > calculateKmerStats(const uchar) = 0;
-};
-
-
-template<uchar kmer_size>
-class BasicKmerHash : public KmerHash {
-
-    public:
-
-        BasicKmerHash() {};
-        ~BasicKmerHash() {};
-
-        virtual unique_lock<mutex> getKmerLock(const bitset<kmer_size * 2> &) = 0;
-        virtual pair<KmerCounts *, bool> addKmer(const bitset<kmer_size * 2> &, const bool) = 0;
-        virtual KmerCounts * findKmer(const bitset<kmer_size * 2> &) = 0;
+        virtual unique_lock<mutex> getKmerLock(const bitset<Utils::kmer_size * 2> &) = 0;
+        virtual pair<KmerCounts *, bool> addKmer(const bitset<Utils::kmer_size * 2> &, const bool) = 0;
+        virtual KmerCounts * findKmer(const bitset<Utils::kmer_size * 2> &) = 0;
         virtual void sortKmers() = 0;
+
+        virtual void writeRootSizeDistribution(const string &) = 0;
+        virtual vector<vector<KmerStats> > calculateKmerStats(const ushort, const uchar) = 0;
 };
 
+template<uchar sample_bin>
+class ObservedKmerCountsHash : public KmerCountsHash {
 
-template<uchar kmer_size, uchar sample_bin>
-class HybridKmerHash : public BasicKmerHash<kmer_size> {
+    private:
 
-	private:
-
-		static const uint hash_root_size = 24;
-        const ushort num_samples;
-
-        ThreadedHybridHash<ObservedKmerCounts<sample_bin>, hash_root_size, kmer_size * 2 - hash_root_size> * _hash;
+        ThreadedHybridHash<ObservedKmerCounts<sample_bin>, Utils::kmer_size * 2> * _hash;
 
     public:
 
-    	HybridKmerHash(const ushort, const ushort);
-    	~HybridKmerHash();
+        ObservedKmerCountsHash(const ulong, const ushort);
+        ~ObservedKmerCountsHash();
 
-        unique_lock<mutex> getKmerLock(const bitset<kmer_size * 2> &);
-        pair<KmerCounts *, bool> addKmer(const bitset<kmer_size * 2> &, const bool);
-        KmerCounts * findKmer(const bitset<kmer_size * 2> &);
+        unique_lock<mutex> getKmerLock(const bitset<Utils::kmer_size * 2> &);
+        pair<KmerCounts *, bool> addKmer(const bitset<Utils::kmer_size * 2> &, const bool);
+        KmerCounts * findKmer(const bitset<Utils::kmer_size * 2> &);
         void sortKmers();
 
-        vector<vector<vector<ulong> > > calculateKmerStats(const uchar);
+        void writeRootSizeDistribution(const string &);
+        vector<vector<KmerStats> > calculateKmerStats(const ushort, const uchar);
 };
-
 
 #endif

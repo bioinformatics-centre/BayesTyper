@@ -27,8 +27,8 @@ THE SOFTWARE.
 */
 
 
-#ifndef AUXILIARIES
-#define AUXILIARIES
+#ifndef __vcf__Auxiliaries_hpp
+#define __vcf__Auxiliaries_hpp
 
 #include <iostream>
 
@@ -85,7 +85,7 @@ namespace Auxiliaries {
     bool isAlleleCalled(Allele &, const float);
 
     pair<float, bool> getMaxGenotypePosterior(Sample &);
-    pair<uint, bool> getMaxGenotypePosteriorIndex(Sample &);
+    pair<int, bool> getMaxGenotypePosteriorIndex(Sample &);
 
     void resetFilters(Variant * variant);
     void updateAlleleStatsAndCallProb(Variant * variant);
@@ -102,6 +102,8 @@ namespace Auxiliaries {
 
     pair<uint, string> getHomopolymerInfo(uint, const string &);
     vector<bool> getHomopolymerAlleles(Variant &, const string &, const uint);
+
+    vector<Contig> mergeContigs(const vector<Contig> &, const vector<Contig> &);
 }
 
 ostream& operator<< (ostream &, Auxiliaries::Type);

@@ -40,126 +40,113 @@ THE SOFTWARE.
 #include "Combinator.hpp"
 
 
-CountDistribution::CountDistribution(const ushort num_samples_in, const vector<vector<NegativeBinomialDistribution> > & genomic_count_distributions_in, const OptionsContainer & options_container) : num_samples(num_samples_in), num_genomic_rate_gc_bias_bins(options_container.getValue<uchar>("number-of-genomic-rate-gc-bias-bins")), noise_rate_priors(num_samples, options_container.getValue<pair<double,double> >("noise-rate-prior")) {
+CountDistribution::CountDistribution(const vector<Sample> & samples_in, const OptionsContainer & options_container) : samples(samples_in), num_genomic_rate_gc_bias_bins(1), noise_rate_priors(samples.size(), options_container.getValue<pair<double,double> >("noise-rate-prior")) {
 
-	prng = mt19937(options_container.getValue<int>("random-seed"));
+	prng = mt19937(options_container.getValue<uint>("random-seed"));
 	
-	assert(num_samples > 0);
+	genomic_count_distributions = vector<vector<NegativeBinomialDistribution> >(samples.size(), vector<NegativeBinomialDistribution>(num_genomic_rate_gc_bias_bins));
 
-	genomic_count_distributions = genomic_count_distributions_in;
+	noise_rates = vector<double>(samples.size(), 0);
+	genomic_count_log_pmf_cache = vector<vector<vector<vector<double> > > >(samples.size(), vector<vector<vector<double> > >(num_genomic_rate_gc_bias_bins, vector<vector<double> >(max_multiplicity + 1, vector<double>(max_kmer_count + 1))));
+	noise_count_log_pmf_cache = vector<vector<double> >(samples.size(), vector<double>(max_kmer_count + 1));
 
-	assert(genomic_count_distributions.size() == num_samples);
-	assert(noise_rate_priors.size() == num_samples);
-
-	noise_rates = vector<double>(num_samples, 0);
-
-	for (uint sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-
-		assert(genomic_count_distributions.at(sample_idx).size() == num_genomic_rate_gc_bias_bins);
-
-		noise_rates.at(sample_idx) = sampleGamma(noise_rate_priors.at(sample_idx).first, noise_rate_priors.at(sample_idx).second);
-	}
-
-	noise_rate_estimates.push_back(noise_rates);
-
-	genomic_count_log_pmf_cache = vector<vector<vector<vector<double> > > >(num_samples, vector<vector<vector<double> > >(num_genomic_rate_gc_bias_bins, vector<vector<double> >(max_multiplicity + 1, vector<double>(max_kmer_count + 1))));
-	noise_count_log_pmf_cache = vector<vector<double> >(num_samples, vector<double>(max_kmer_count + 1));
-
+	resetNoiseRates();
 	updateGenomicCache();
-	updateNoiseCache();
 }
 
-const vector<vector<NegativeBinomialDistribution> > & CountDistribution::genomicCountDistributions() const {
+
+void CountDistribution::setGenomicCountDistributions(const vector<vector<KmerStats> > & intercluster_diploid_kmer_stats, const string & output_prefix) {
+
+	assert(intercluster_diploid_kmer_stats.size() == samples.size());
+	assert(intercluster_diploid_kmer_stats.size() == genomic_count_distributions.size());
+
+	assert(!(intercluster_diploid_kmer_stats.empty()));
+	assert(intercluster_diploid_kmer_stats.front().size() == 1);
+
+    cout << "[" << Utils::getLocalTime() << "] Estimating genomic haploid kmer count distribtion(s) from " << intercluster_diploid_kmer_stats.front().front().getCount() << " diploid parameter kmers ...\n" << endl;
+
+    ofstream genomic_outfile(output_prefix + ".txt");
+    assert(genomic_outfile.is_open());
+
+    genomic_outfile << "Sample\tMean\tVariance" << endl;
+
+    for (ushort sample_idx = 0; sample_idx < samples.size(); sample_idx++) {
+
+    	assert(num_genomic_rate_gc_bias_bins == 1);
+		assert(genomic_count_distributions.at(sample_idx).size() == num_genomic_rate_gc_bias_bins);
+
+        for (ushort bias_idx = 0; bias_idx < num_genomic_rate_gc_bias_bins; bias_idx++) {
+
+        	assert(intercluster_diploid_kmer_stats.front().front().getCount() == intercluster_diploid_kmer_stats.at(sample_idx).at(bias_idx).getCount());
+
+        	auto sample_mean = intercluster_diploid_kmer_stats.at(sample_idx).at(bias_idx).getMean();
+        	assert(sample_mean.second);
+
+        	auto sample_var = intercluster_diploid_kmer_stats.at(sample_idx).at(bias_idx).getVariance();
+        	assert(sample_var.second);
+
+        	auto ng_parameters = NegativeBinomialDistribution::momentsToParameters(sample_mean.first, sample_var.first);
+        	ng_parameters.second /= 2;
+
+            genomic_count_distributions.at(sample_idx).at(bias_idx).setParameters(ng_parameters);
+
+            auto ng_mean = genomic_count_distributions.at(sample_idx).at(bias_idx).mean();
+            auto ng_var = genomic_count_distributions.at(sample_idx).at(bias_idx).var();
+
+            cout << "[" << Utils::getLocalTime() << "] Estimated fixed negative binomial distribution for sample " << samples.at(sample_idx).name << " with mean " << ng_mean << " and variance " << ng_var << endl;
+
+	        genomic_outfile << samples.at(sample_idx).name << "\t" << ng_mean << "\t" << ng_var << endl;
+        }
+    }
+
+    genomic_outfile.close();
+    updateGenomicCache();
+
+	cout << "\n[" << Utils::getLocalTime() << "] Wrote parameters to " << output_prefix << ".txt" << endl;
+}
+
+const vector<vector<NegativeBinomialDistribution> > & CountDistribution::getGenomicCountDistributions() const {
 
 	return genomic_count_distributions;
 }
 
-const vector<double> & CountDistribution::noiseRates() const {
+const vector<double> & CountDistribution::getNoiseRates() const {
 
 	return noise_rates;
 }
 
-const vector<vector<double> > & CountDistribution::noiseRateEstimates() const {
-
-	return noise_rate_estimates;
-}
-
-void CountDistribution::setGenomicCountDistributions(const vector<vector<NegativeBinomialDistribution> > & genomic_count_distributions_in) {
-
-	genomic_count_distributions = genomic_count_distributions_in;
-}
-
 void CountDistribution::setNoiseRates(const vector<double> & noise_rates_in) {
 
+	assert(noise_rates_in.size() == samples.size());
+	assert(noise_rates_in.size() == noise_rates.size());
+	
 	noise_rates = noise_rates_in;
+	
+	updateNoiseCache();
 }
 
-void CountDistribution::writeNoiseParameterEstimates( const string & output_prefix, const vector<Sample> & samples) const {
+void CountDistribution::resetNoiseRates() {
 
-	assert(samples.size() == num_samples);
-	assert(noise_rates.size() == num_samples);
-	assert(noise_rate_priors.size() == num_samples);
+	for (uint sample_idx = 0; sample_idx < samples.size(); sample_idx++) {
 
-    ofstream output_file(output_prefix + "_noise_rate_parameter_estimates.txt");
-    assert(output_file.is_open());
-
-    output_file << "#Priors: ";
-
-    output_file << samples.at(0).name << " = (" << noise_rate_priors.at(0).first << ", " << noise_rate_priors.at(0).second << ")";
-
-    for (ushort sample_idx = 1; sample_idx < num_samples; sample_idx++) {
-
-	  	output_file << ", " << samples.at(sample_idx).name << " = (" << noise_rate_priors.at(sample_idx).first << ", " << noise_rate_priors.at(sample_idx).second << ")";
-    }
-
-    output_file << "\n#Final estimates: ";
-
-    output_file << samples.at(0).name << " = " << noise_rates.at(0);
-
-    for (ushort sample_idx = 1; sample_idx < num_samples; sample_idx++) {
-
-	  	output_file << ", " << samples.at(sample_idx).name << " = " << noise_rates.at(sample_idx);
-    }
-
-    output_file << "\nIteration";
-
-    for (ushort sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-
-	  	output_file << "\t" << samples.at(sample_idx).name;
-    }
-
-    output_file << endl;
-
-    for (ushort i = 0; i < noise_rate_estimates.size(); i++) {
-
-		assert(noise_rate_estimates.at(i).size() == num_samples);
-
-    	output_file << i;
-
-    	for (auto & noise_rate_estimate: noise_rate_estimates.at(i)) {
-
-    		output_file << "\t" << noise_rate_estimate;
-    	}
-
-	    output_file << endl;
-    }
-
-	output_file.close();
-}
-
-void CountDistribution::sampleNoiseParameters(const CountAllocation & count_allocation) {
-
-	assert(count_allocation.getCounts().size() == num_samples);
-
-	for (uint sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-
-		assert(count_allocation.getCounts().at(sample_idx).size() == (Utils::uchar_overflow + 1));
-		auto count_suff_stats = calcCountSuffStats(count_allocation.getCounts().at(sample_idx));
-
-		noise_rates.at(sample_idx) = sampleGamma(noise_rate_priors.at(sample_idx).first + count_suff_stats.second, noise_rate_priors.at(sample_idx).second/(count_suff_stats.first * noise_rate_priors.at(sample_idx).second + 1));
+		noise_rates.at(sample_idx) = sampleGamma(noise_rate_priors.at(sample_idx).first, noise_rate_priors.at(sample_idx).second);
 	}
 
-	noise_rate_estimates.push_back(noise_rates);
+	updateNoiseCache();
+}
+
+void CountDistribution::sampleNoiseParameters(const CountAllocation & noise_counts) {
+
+	assert(noise_counts.getCounts().size() == samples.size());
+
+	for (uint sample_idx = 0; sample_idx < samples.size(); sample_idx++) {
+
+		assert(noise_counts.getCounts().at(sample_idx).size() == (Utils::uchar_overflow + 1));
+		auto noise_count_suff_stats = calcCountSuffStats(noise_counts.getCounts().at(sample_idx));
+
+		noise_rates.at(sample_idx) = sampleGamma(noise_rate_priors.at(sample_idx).first + noise_count_suff_stats.second, noise_rate_priors.at(sample_idx).second/(noise_count_suff_stats.first * noise_rate_priors.at(sample_idx).second + 1));
+	}
+
 	updateNoiseCache();
 }
 
@@ -192,9 +179,9 @@ double CountDistribution::sampleGamma(const double shape, const double scale) {
 
 void CountDistribution::updateGenomicCache() {
 
-	assert(genomic_count_log_pmf_cache.size() == num_samples);
+	assert(genomic_count_log_pmf_cache.size() == samples.size());
 
-	for (ushort sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+	for (ushort sample_idx = 0; sample_idx < samples.size(); sample_idx++) {
 
 		assert(genomic_count_log_pmf_cache.at(sample_idx).size() == num_genomic_rate_gc_bias_bins);
 
@@ -217,9 +204,9 @@ void CountDistribution::updateGenomicCache() {
 
 void CountDistribution::updateNoiseCache() {
 
-	assert(noise_count_log_pmf_cache.size() == num_samples);
+	assert(noise_count_log_pmf_cache.size() == samples.size());
 
-	for (ushort sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+	for (ushort sample_idx = 0; sample_idx < samples.size(); sample_idx++) {
 
 		assert(noise_count_log_pmf_cache.at(sample_idx).size() == static_cast<uint>(max_kmer_count + 1));
 

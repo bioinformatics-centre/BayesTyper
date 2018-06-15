@@ -38,16 +38,16 @@ THE SOFTWARE.
 template <typename Data>
 class ProducerConsumerQueue {
 
-	public: 
+	public:
 
-		typedef unsigned int uint; 
+		typedef unsigned int uint;
 
 		ProducerConsumerQueue(uint); // Argument - max buffer size
 		void push(Data);
 		void pushedLast();
 		bool pop(Data *);
 
-	private: 
+	private:
 
 		uint max_buffer_size;
 

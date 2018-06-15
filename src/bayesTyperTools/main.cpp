@@ -37,15 +37,12 @@ THE SOFTWARE.
 #include "Utils.hpp"
 #include "CompareOperators.hpp"
 
-#include "bloomMaker.hpp"
-#include "convertAlleleId.hpp"
-#include "combine.hpp"
-#include "split.hpp"
-#include "merge.hpp"
-#include "filter.hpp"
-#include "annotate.hpp"
-#include "addAttributes.hpp"
-#include "getSummary.hpp"
+#include "MakeBloom.hpp"
+#include "ConvertAllele.hpp"
+#include "Combine.hpp"
+#include "Filter.hpp"
+#include "Annotate.hpp"
+#include "AddAttributes.hpp"
 
 namespace po = boost::program_options;
 
@@ -53,23 +50,33 @@ namespace po = boost::program_options;
 
 using namespace std;
 
+string generateVariantFileOutput(const string & output_prefix, const bool is_compressed) {
+
+	stringstream suffix;
+	suffix << output_prefix << ".vcf";
+
+	if (is_compressed) {
+
+		suffix << ".gz";
+	}
+
+	return suffix.str();
+}
+
 int main (int argc, char * const argv[]) {
 
 	std::cout << "\n[" << Utils::getLocalTime() << "] " << "You are using BayesTyperTools (" << BT_VERSION << ")\n" << std::endl;
 
 	stringstream command_info;
 
-	command_info << "Usage BayesTyperTools <command> [options]" << endl;
+	command_info << "Usage: bayesTyperTools <command> [options]" << endl;
 	command_info << "\nCommands:\n" << endl;
-	command_info << "\tmakeBloom\t\tcreate k-mer bloom filter" << endl;
-	command_info << "\tconvertAlleleId\t\tconvert allele IDs to sequence" << endl;
+	command_info << "\tmakeBloom\t\tcreate kmer bloom filter" << endl;
+	command_info << "\tconvertAllele\t\tconvert allele IDs to sequence" << endl;
 	command_info << "\tcombine\t\t\tcombine callsets (vertical)" << endl;
-	command_info << "\tsplit\t\t\tsplit callset(s)" << endl;
-	command_info << "\tmerge\t\t\tmerge callsets (horizontal)" << endl;
 	command_info << "\tfilter\t\t\tfilter variants, alleles and/or samples" << endl;
 	command_info << "\tannotate\t\tannotate alleles" << endl;
 	command_info << "\taddAttributes\t\tadd variant, allele and/or trio attributes" << endl;
-	command_info << "\tgetSummary\t\tget variant and allele summary" << endl;
 
 	if (argc == 1) {
 
@@ -77,32 +84,52 @@ int main (int argc, char * const argv[]) {
 
 	} else {
 
+		po::options_description help_options("", 160);
+		help_options.add_options()
+
+		   ("help,h", "produce help message for options")
+		;
+
+		bool gzip_output;
+
+		po::options_description general_options("== General ==", 160);
+		general_options.add_options()
+
+			("gzip-output,z", po::value<bool>(&gzip_output)->default_value(false)->implicit_value(true), "compress output file(s) using gzip.")
+		;
+
 		if (strcmp(argv[1],"makeBloom") == 0) {
 
 			string kmc_table_prefix;
-			float fpr;
-			bool run_test;
+			
+			ushort num_threads;
+			bool run_test = false;
 
-			po::options_description general("", 150);
-			general.add_options()
-			   ("help,h", "produce help message for base options")
-			;
+			float false_positive_rate;
 
-			po::options_description required_options("== Required options ==", 160);
+			po::options_description required_options("== Required ==", 160);
 			required_options.add_options()
 
-				("kmc3-table-prefix,k", po::value<std::string>(&kmc_table_prefix)->required(), "KMC3 k-mer table prefix. makeBloom output is written as <prefix>.bloom.")
+				("kmc-table-prefix,k", po::value<string>(&kmc_table_prefix)->required(), "KMC kmer table prefix. Output is written as <kmc-table-prefix>.bloomMeta and <kmc-table-prefix>.bloomData.")
 			;
 
-			po::options_description optional_options("== Optional options ==", 160);
-			optional_options.add_options()
+			po::options_description general_options_makebloom("== General ==", 160);
+			general_options_makebloom.add_options()
 
-				("false-positive-rate", po::value<float>(&fpr)->default_value(0.001, "0.001"), "bloom filter false positive rate.")
-				("run-test", po::value<bool>(&run_test)->default_value(false)->implicit_value(true), "test bloom filter. WARNING: Memory intensive!")
+				("num-threads,p", po::value<ushort>(&num_threads)->default_value(1), "number of threads used (+= 1 I/O thread).")
+
+				// ("run-test", po::value<bool>(&run_test)->default_value(false)->implicit_value(true), "test bloom filter. WARNING: Memory intensive!")
+			;
+
+			po::options_description parameters_options("== Parameters ==", 160);
+			parameters_options.add_options()
+
+				("false-positive-rate", po::value<float>(&false_positive_rate)->default_value(0.001, "0.001"), "bloom filter false positive rate.")
+
 			;
 
 			po::options_description desc("## BayesTyperTools makeBloom ##");
-			desc.add(general).add(required_options).add(optional_options);
+			desc.add(help_options).add(required_options).add(general_options_makebloom).add(parameters_options);
 
 			po::variables_map vm;
 			po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -114,39 +141,35 @@ int main (int argc, char * const argv[]) {
 
 			po::notify(vm);
 
-			BloomMaker<55>::kmc2bloomFile(kmc_table_prefix, fpr, run_test);
+			MakeBloom make_bloom;
+			make_bloom.kmc2bloomFile(kmc_table_prefix, false_positive_rate, run_test, num_threads);
 
-		} else if (strcmp(argv[1],"convertAlleleId") == 0) {
+		} else if (strcmp(argv[1],"convertAllele") == 0) {
 
-			string vcf_filename;
-			string genome_filename;
+			string variant_file;
+			string genome_file;
 			string output_prefix;
 
-			string mei_filename = "";
-			bool keep_imprecise_variants;
+			string mei_file;
+			bool keep_imprecise;
 
-			po::options_description general("", 150);
-			general.add_options()
-			   ("help,h", "produce help message for base options")
-			;
-
-			po::options_description required_options("== Required options ==", 160);
+			po::options_description required_options("== Required ==", 160);
 			required_options.add_options()
 
-				("vcf-filename,v", po::value<std::string>(&vcf_filename)->required(), "variant file.")
-				("genome-filename,g", po::value<std::string>(&genome_filename)->required(), "genome file.")
-				("output-prefix,o", po::value<std::string>(&output_prefix)->required(), "output prefix (suffix: \".vcf\").")
+				("variant-file,v", po::value<string>(&variant_file)->required(), "variant file (vcf format).")
+				("genome-file,g", po::value<string>(&genome_file)->required(), "reference genome file (fasta format).")
+				("output-prefix,o", po::value<string>(&output_prefix)->required(), "output prefix.")
 			;
 
-			po::options_description optional_options("== Optional options ==", 160);
-			optional_options.add_options()
+			po::options_description alleles_options("== Alleles ==", 160);
+			alleles_options.add_options()
 
-				("mobile-element-insertion-filename", po::value<std::string>(&mei_filename), "fasta file contaning mobile element insertion sequence(s) (sequence \"name\" in fasta should match <INS:ME:\"name\">)")
-				("keep-imprecise-variants", po::value<bool>(&keep_imprecise_variants)->default_value(false)->implicit_value(true), "do not filter imprecise variants")
+				("mei-file", po::value<string>(&mei_file)->default_value(""), "mobile element insertion(s) file (fasta format). Sequence name in fasta (>\"name\") should match <INS:ME:\"name\">.")
+				("keep-imprecise", po::value<bool>(&keep_imprecise)->default_value(false)->implicit_value(true), "do not filter imprecise variants")
 			;
 
-			po::options_description desc("## BayesTyperTools convertAlleleId ##");
-			desc.add(general).add(required_options).add(optional_options);
+			po::options_description desc("## BayesTyperTools convertAllele ##");
+			desc.add(help_options).add(required_options).add(general_options).add(alleles_options);
 
 			po::variables_map vm;
 			po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -158,35 +181,30 @@ int main (int argc, char * const argv[]) {
 
 			po::notify(vm);
 
-			ConvertAlleleId::convertAlleleId(vcf_filename, genome_filename, output_prefix, mei_filename, keep_imprecise_variants);
+			ConvertAllele::convertAllele(variant_file, genome_file, generateVariantFileOutput(output_prefix, gzip_output), mei_file, keep_imprecise);
 
 		} else if (strcmp(argv[1],"combine") == 0) {
 
-			string vcf_filenames_str;
+			string variant_files;
 			string output_prefix;
 
-			bool exclude_ambiguous_alleles;
+			bool filter_ambiguous_alleles;
 
-			po::options_description general("", 150);
-			general.add_options()
-			   ("help,h", "produce help message for base options")
-			;
-
-			po::options_description required_options("== Required options ==", 160);
+			po::options_description required_options("== Required ==", 160);
 			required_options.add_options()
 
-				("vcf-filenames,v", po::value<std::string>(&vcf_filenames_str)->required(), "call-set names and files (<name>:<filename>,<name>:<filename>,...).")
-				("output-prefix,o", po::value<std::string>(&output_prefix)->required(), "output prefix (suffix: \".vcf\").")
+				("variant-files,v", po::value<string>(&variant_files)->required(), "comma-separated list of name and variant file (vcf format) pairs (<name>:<file>).")
+				("output-prefix,o", po::value<string>(&output_prefix)->required(), "output prefix.")
 			;
 
-			po::options_description optional_options("== Optional options ==", 160);
-			optional_options.add_options()
+			po::options_description filters_options("== Filters ==", 160);
+			filters_options.add_options()
 
-				("exclude-ambiguous-alleles", po::value<bool>(&exclude_ambiguous_alleles)->default_value(false)->implicit_value(true), "exclude alleles (including reference) with ambiguous nucleotides (non ACGT).")
+				("filter-ambiguous-alleles", po::value<bool>(&filter_ambiguous_alleles)->default_value(false)->implicit_value(true), "filter alleles (including reference) with ambiguous nucleotides (non ACGT).")
 			;
 
 			po::options_description desc("## BayesTyperTools combine ##");
-			desc.add(general).add(required_options).add(optional_options);
+			desc.add(help_options).add(required_options).add(general_options).add(filters_options);
 
 			po::variables_map vm;
 			po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -198,115 +216,37 @@ int main (int argc, char * const argv[]) {
 
 			po::notify(vm);
 
-			Combine::combine(Utils::splitString(vcf_filenames_str, ','), output_prefix, exclude_ambiguous_alleles);
-
-		} else if (strcmp(argv[1],"split") == 0) {
-
-			string vcf_filenames_str;
-			uint min_batch_size;
-
-			po::options_description general("", 150);
-			general.add_options()
-			   ("help,h", "produce help message for base options")
-			;
-
-			po::options_description required_options("== Required options ==", 160);
-			required_options.add_options()
-
-				("vcf-filenames,v", po::value<std::string>(&vcf_filenames_str)->required(), "batch names and files (<batch>:<filename>,<batch>:<filename>,...). The variants need to be identical between input batches. The number of threads will be equal to the number of input batches.")
-			;
-
-			po::options_description optional_options("== Optional options ==", 160);
-			optional_options.add_options()
-
-				("min-batch-size", po::value<uint>(&min_batch_size)->default_value(50000), "minimum number of variants in a variant batch.")
-			;
-
-			po::options_description desc("## BayesTyperTools split ##");
-			desc.add(general).add(required_options).add(optional_options);
-
-			po::variables_map vm;
-			po::store(po::parse_command_line(argc, argv, desc), vm);
-
-			if (vm.count("help") || argc == 2) {
-			   cout << desc << endl;
-			   return 1;
-			}
-
-			po::notify(vm);
-
-			Split::split(Utils::splitString(vcf_filenames_str, ','), min_batch_size);
-
-		} else if (strcmp(argv[1],"merge") == 0) {
-
-			string vcf_filenames_str;
-			string output_prefix;
-			string parents_trio_regex;
-
-			po::options_description general("", 150);
-			general.add_options()
-			   ("help,h", "produce help message for base options")
-			;
-
-			po::options_description required_options("== Required options ==", 160);
-			required_options.add_options()
-
-				("vcf-filenames,v", po::value<std::string>(&vcf_filenames_str)->required(), "variant files.")
-				("output-prefix,o", po::value<std::string>(&output_prefix)->required(), "output prefix (suffix: \".vcf\").")
-			;
-
-			po::options_description desc("## BayesTyperTools merge ##");
-			desc.add(general).add(required_options);
-
-			po::variables_map vm;
-			po::store(po::parse_command_line(argc, argv, desc), vm);
-
-			if (vm.count("help") || argc == 2) {
-			   cout << desc << endl;
-			   return 1;
-			}
-
-			po::notify(vm);
-
-			Merge::merge(Utils::splitString(vcf_filenames_str, ','), output_prefix);
+			Combine::combine(Utils::splitString(variant_files, ','), generateVariantFileOutput(output_prefix, gzip_output), filter_ambiguous_alleles);
 		
 		} else if (strcmp(argv[1],"filter") == 0) {
 
-			string vcf_filename;
-			string genome_filename;
+			string variant_file;
 			string output_prefix;
-			string kmer_coverage_filename;
 
-			string indepedent_samples_regex_str;
+			string kmer_coverage_file;
 	        Filter::FilterValues filter_values;
 
-			po::options_description general("", 150);
-			general.add_options()
-			   ("help,h", "produce help message for base options")
-			;
+	        const uint min_filter_samples = 10;
+			const string min_homozygote_genotypes_option_help = "filter variants with less than <value> homozygote genotypes (calculated before other filters). Minimum " + to_string(min_filter_samples) + " samples required for this filter.";
 
-			po::options_description required_options("== Required options ==", 160);
+			po::options_description required_options("== Required ==", 160);
 			required_options.add_options()
 
-				("vcf-filename,v", po::value<std::string>(&vcf_filename)->required(), "variant file.")
-				("genome-filename,g", po::value<std::string>(&genome_filename)->required(), "genome file.")
-				("output-prefix,o", po::value<std::string>(&output_prefix)->required(), "output prefix (suffix: \".vcf\").")
+				("variant-file,v", po::value<string>(&variant_file)->required(), "variant file (vcf format).")
+				("output-prefix,o", po::value<string>(&output_prefix)->required(), "output prefix.")
 			;
 
-			po::options_description optional_options("== Optional options ==", 160);
-			optional_options.add_options()
+			po::options_description filters_options("== Filters ==", 160);
+			filters_options.add_options()
 
-				("independent-samples-regex", po::value<string>(&indepedent_samples_regex_str)->default_value("^$"), "regular expression for matching independent samples (e.g. parents in a trio).")
-				("max-inbreeding-coef", po::value<float>(&filter_values.max_inbreeding_coef)->default_value(1, "1"), "filter variants with an absolute inbreeding coefficient above <value> (calculated before filtering). Minimum 10 independent samples required for this filter.")
-				("min-number-of-homozygote", po::value<uint>(&filter_values.min_homozygote)->default_value(1), "filter variants with less than <value> homozygote genotypes (calculated before filtering). Minimum 10 samples required for this filter.")
-				("max-homopolymer-length", po::value<int>(&filter_values.max_homopolymer_length)->default_value(-1, "-1"), "filter insertions and deletions located in homopolymer tracts longer than <value>. Value of -1 disables the filter.")
-				("min-number-of-kmers", po::value<float>(&filter_values.min_nak_value)->default_value(1, "1"), "filter sampled alleles with less than <value> kmers.")
-				("kmer-coverage-filename", po::value<string>(&kmer_coverage_filename)->default_value("bayestyper_kmer_coverage_estimates.txt"), "sample kmer coverage file used for filtering sampled alleles with a low fraction of observed kmers.")
-				("min-genotype-posterior", po::value<float>(&filter_values.min_gpp_value)->default_value(0.99, "0.99"), "filter genotypes with a posterior probability below <value>.")
+				("min-homozygote-genotypes", po::value<uint>(&filter_values.min_homozygote)->default_value(1), min_homozygote_genotypes_option_help.c_str())
+				("min-genotype-posterior", po::value<float>(&filter_values.min_gpp_value)->default_value(0.99, "0.99"), "filter genotypes with a posterior probability (GPP) below <value>.")
+				("min-number-of-kmers", po::value<float>(&filter_values.min_nak_value)->default_value(1, "1"), "filter sampled alleles with less than <value> kmers (NAK).")
+				("kmer-coverage-file", po::value<string>(&kmer_coverage_file)->default_value("bayestyper_genomic_parameters.txt"), "sample kmer coverage file used for filtering sampled alleles with a low fraction of observed kmers (FAK).")
 			;
 
 			po::options_description desc("## BayesTyperTools filter ##");
-			desc.add(general).add(required_options).add(optional_options);
+			desc.add(help_options).add(required_options).add(general_options).add(filters_options);
 
 			po::variables_map vm;
 			po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -318,41 +258,42 @@ int main (int argc, char * const argv[]) {
 
 			po::notify(vm);
 
-			Filter::filter(vcf_filename, genome_filename, output_prefix, kmer_coverage_filename, indepedent_samples_regex_str, filter_values);
+			Filter::filter(variant_file, generateVariantFileOutput(output_prefix, gzip_output), kmer_coverage_file, filter_values, min_filter_samples);
 
 		} else if (strcmp(argv[1],"annotate") == 0) {
 
-			string vcf_filename;
-			string annotation_filename;
+			string variant_file;
+			string annotation_file;
 			string output_prefix;
+
+			bool clear_prev_annotation;
 
 			float match_threshold;
 			float window_size_scale;
-			bool overwrite_prev_anno;
 
-			po::options_description general("", 150);
-			general.add_options()
-			   ("help,h", "produce help message for base options")
-			;
-
-			po::options_description required_options("== Required options ==", 160);
+			po::options_description required_options("== Required ==", 160);
 			required_options.add_options()
 
-				("vcf-filename,v", po::value<std::string>(&vcf_filename)->required(), "variant file.")
-				("annotation,a", po::value<std::string>(&annotation_filename)->required(), "annotation file (vcf format).")
-				("output-prefix,o", po::value<std::string>(&output_prefix)->required(), "output prefix (suffix: \".vcf\").")
+				("variant-file,v", po::value<string>(&variant_file)->required(), "variant file (vcf format).")
+				("annotation-file,a", po::value<string>(&annotation_file)->required(), "annotation file (vcf format).")
+				("output-prefix,o", po::value<string>(&output_prefix)->required(), "output prefix.")
 			;
 
-			po::options_description optional_options("== Optional options ==", 160);
-			optional_options.add_options()
+			auto general_options_annotate = general_options;
+			general_options_annotate.add_options()
+
+				("clear-prev-annotation,c", po::value<bool>(&clear_prev_annotation)->default_value(false)->implicit_value(true), "clear previous annotations (variant id and AAI).")
+			;
+
+			po::options_description parameters_options("== Parameters ==", 160);
+			parameters_options.add_options()
 
 				("match-threshold", po::value<float>(&match_threshold)->default_value(0.5, "0.5"), "minimum sequence overlap between input allele and annotation allele.")
 				("window-size-scale", po::value<float>(&window_size_scale)->default_value(3, "3"), "window size allele length scaling factor.")
-				("overwrite-prev-annotation", po::value<bool>(&overwrite_prev_anno)->default_value(false)->implicit_value(true), "overwrite previous annotations (variant id and \"AAI\" attribute).")
 			;
 
 			po::options_description desc("## BayesTyperTools annotate ##");
-			desc.add(general).add(required_options).add(optional_options);
+			desc.add(help_options).add(required_options).add(general_options_annotate).add(parameters_options);
 
 			po::variables_map vm;
 			po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -365,41 +306,36 @@ int main (int argc, char * const argv[]) {
 
 			po::notify(vm);
 
-			Annotate::annotate(vcf_filename, annotation_filename, output_prefix, match_threshold, window_size_scale, overwrite_prev_anno);
+			Annotate::annotate(variant_file, annotation_file, generateVariantFileOutput(output_prefix, gzip_output), match_threshold, window_size_scale, clear_prev_annotation);
 
 		} else if (strcmp(argv[1],"addAttributes") == 0) {
 
-			string vcf_filename;
+			string variant_file;
 			string output_prefix;
 
-			string genome_filename;
-			string repeat_filename;
+			string genome_file;
+			string repeat_file;
 			string indepedent_samples_regex_str;
 			string trio_sample_info_str;
 
-			po::options_description general("", 150);
-			general.add_options()
-			   ("help,h", "produce help message for base options")
-			;
-
-			po::options_description required_options("== Required options ==", 160);
+			po::options_description required_options("== Required ==", 160);
 			required_options.add_options()
 
-				("vcf-filename,v", po::value<std::string>(&vcf_filename)->required(), "variant file.")
-				("output-prefix,o", po::value<std::string>(&output_prefix)->required(), "output prefix (suffix: \".vcf\").")
+				("variant-file,v", po::value<string>(&variant_file)->required(), "variant file (vcf format).")
+				("output-prefix,o", po::value<string>(&output_prefix)->required(), "output prefix.")
 			;
 
-			po::options_description optional_options("== Optional options ==", 160);
-			optional_options.add_options()
+			po::options_description attributes_options("== Attributes ==", 160);
+			attributes_options.add_options()
 
-				("genome-filename", po::value<std::string>(&genome_filename), "genome file used for homopolymer length (HPL) calculation. If not specified HPL will not be calculated.")
-				("repeatmasker-filename", po::value<string>(&repeat_filename), "repeatmasker file used for repeat annotation (RMA). If not specified RMA will not be annotated.")
+				("genome-file", po::value<string>(&genome_file), "reference genome file (fasta format) used for homopolymer length (HPL) calculation. If not specified HPL will not be calculated.")
+				("repeat-file", po::value<string>(&repeat_file), "repeatmasker file used for repeat annotation (RMA). If not specified RMA will not be annotated.")
 				("independent-samples-regex", po::value<string>(&indepedent_samples_regex_str), "regular expression for matching independent samples (e.g. parents in a trio) used for absolute inbreeding coefficient (IBC) calculation. If not specified IBC will not be calculated.")
-				("trio-sample-info", po::value<std::string>(&trio_sample_info_str), "trio sample id information used for concordance (CONC) calculation (<father>,<mother>,<child>:<father>,<mother>,<child>:...). If not specified CONC will not be calculated.")
+				("trio-sample-info", po::value<string>(&trio_sample_info_str), "trio sample id information used for concordance (CONC) calculation (<father>,<mother>,<child>:<father>,<mother>,<child>:...). If not specified CONC will not be calculated.")
 			;
 
 			po::options_description desc("## BayesTyperTools addAttributes ##");
-			desc.add(general).add(required_options).add(optional_options);
+			desc.add(help_options).add(required_options).add(general_options).add(attributes_options);
 
 			po::variables_map vm;
 			po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -411,40 +347,7 @@ int main (int argc, char * const argv[]) {
 
 			po::notify(vm);
 
-			AddAttributes::addAttributes(vcf_filename, output_prefix, genome_filename, repeat_filename, indepedent_samples_regex_str, trio_sample_info_str);
-
-		} else if (strcmp(argv[1],"getSummary") == 0) {
-
-			string vcf_filename;
-			string output_prefix;
-
-			string trio_info_str;
-
-			po::options_description general("", 150);
-			general.add_options()
-			   ("help,h", "produce help message for base options")
-			;
-
-			po::options_description required_options("== Required options ==", 160);
-			required_options.add_options()
-
-				("vcf-filename,v", po::value<std::string>(&vcf_filename)->required(), "variant file.")
-				("output-prefix,o", po::value<std::string>(&output_prefix)->required(), "output prefix (suffixes: \"_variant.txt\" & \"_allele.txt\").")
-			;
-
-			po::options_description desc("## BayesTyperTools getSummary ##");
-			desc.add(general).add(required_options);
-
-			po::variables_map vm;
-			po::store(po::parse_command_line(argc, argv, desc), vm);
-
-			if (vm.count("help") || argc == 2) {
-			   cout << desc << endl;
-			   return 1;
-			}
-
-			po::notify(vm);
-			GetSummary::getSummary(vcf_filename, output_prefix);
+			AddAttributes::addAttributes(variant_file, generateVariantFileOutput(output_prefix, gzip_output), genome_file, repeat_file, indepedent_samples_regex_str, trio_sample_info_str);
 
 		} else {
 

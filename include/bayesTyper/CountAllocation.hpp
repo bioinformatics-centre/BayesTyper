@@ -48,7 +48,7 @@ class CountAllocation {
 
 	private: 
 
-		vector<vector<ulong> > sample_noise_counts;
+		vector<vector<ulong> > sample_counts;
 };
 
 #endif

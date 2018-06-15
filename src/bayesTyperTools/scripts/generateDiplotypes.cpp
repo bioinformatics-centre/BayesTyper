@@ -47,7 +47,7 @@ struct Diplotype {
     pair<uint, uint> max_allele_end_pos;
     pair<FastaRecord *, FastaRecord *> haplotype_seqs;
 
-    ofstream * genome_writer;
+    ofstream * genome_outfile;
 };
 
 
@@ -55,7 +55,7 @@ int main(int argc, char const *argv[]) {
 
 	if ((argc != 4) and (argc != 5)) {
 
-		std::cout << "USAGE: generateDiplotypes <input> <genome> <output_prefix> (<sample_ambiguous>)" << std::endl;
+		std::cout << "USAGE: generateDiplotypes <variant_file> <genome_file> <output_prefix> (<sample_ambiguous>)" << std::endl;
 		return 1;
 	}
 
@@ -83,9 +83,7 @@ int main(int argc, char const *argv[]) {
 
     cout << "[" << Utils::getLocalTime() << "] Parsed " << ref_genome_seqs.size() << " chromosome(s)" << endl;
 
-
-	string vcf_filename(argv[1]);
-	GenotypedVcfFileReader vcf_reader(vcf_filename, true);
+	GenotypedVcfFileReader vcf_reader(string(argv[1]), true);
 
 	vcf_reader.metaData().infoDescriptors().clear();
 	vcf_reader.metaData().filterDescriptors().clear();
@@ -101,7 +99,7 @@ int main(int argc, char const *argv[]) {
         assert(sample_diplotypes_it.second);
 
         sample_diplotypes_it.first->second.max_allele_end_pos = make_pair(0,0);
-        sample_diplotypes_it.first->second.genome_writer = new ofstream(string(argv[3]) + "_" + sample_id + ".fa");
+        sample_diplotypes_it.first->second.genome_outfile = new ofstream(string(argv[3]) + "_" + sample_id + ".fa");
     }
 
     assert(vcf_reader.metaData().sampleIds().size() == sample_diplotypes.size());
@@ -243,8 +241,8 @@ int main(int argc, char const *argv[]) {
 					assert(diplotype.second.haplotype_seqs.second->seq().find_first_of("N") == string::npos);
 				}
 
-				*diplotype.second.genome_writer << diplotype.second.haplotype_seqs.first->str();
-				*diplotype.second.genome_writer << diplotype.second.haplotype_seqs.second->str();
+				*diplotype.second.genome_outfile << diplotype.second.haplotype_seqs.first->str();
+				*diplotype.second.genome_outfile << diplotype.second.haplotype_seqs.second->str();
 			}
 		}
 
@@ -262,8 +260,8 @@ int main(int argc, char const *argv[]) {
 
 	for (auto & diplotype: sample_diplotypes) {
 
-		diplotype.second.genome_writer->close();
-		delete diplotype.second.genome_writer;
+		diplotype.second.genome_outfile->close();
+		delete diplotype.second.genome_outfile;
 	}
 
 	cout << "\n[" << Utils::getLocalTime() << "] Wrote diplotypes using " << num_variants << " variants" << endl;

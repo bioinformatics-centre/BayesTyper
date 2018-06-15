@@ -41,7 +41,11 @@ THE SOFTWARE.
 #include "JoiningString.hpp"
 
 typedef unsigned char uchar;
+
+
 static const uchar uchar_overflow = numeric_limits<uchar>::max();
+static const uint kmer_size = BT_KMER_SIZE;
+
 
 int main(int argc, char const *argv[]) {
 
@@ -67,6 +71,8 @@ int main(int argc, char const *argv[]) {
 	
 	assert(kmer_database.Info(db_kmer_size, mode, counter_size, lut_prefix_length, signature_len, min_count, max_count, total_kmers));
 	assert(!mode);
+
+	assert(db_kmer_size == kmer_size);
 
 	cout << "[" << Utils::getLocalTime() << "] Parsing kmer table containing " << total_kmers << " unique kmers with a length of " << db_kmer_size << " nts ...\n" << endl;
 
@@ -122,17 +128,17 @@ int main(int argc, char const *argv[]) {
 		}		
 	}
 
-    ofstream kmer_stats_writer(string(argv[2]) + "_kmer_stats.txt");
-    assert(kmer_stats_writer.is_open());
+    ofstream stats_outfile(string(argv[2]) + "_kmer_stats.txt");
+    assert(stats_outfile.is_open());
 
-	kmer_stats_writer << "NumberOfKmers\tKmerCount\tAdenineCount\tCytosineCount\tGuanineCount\tThymineCount\n";
+	stats_outfile << "NumberOfKmers\tKmerCount\tAdenineCount\tCytosineCount\tGuanineCount\tThymineCount\n";
 
 	for (auto & kmer_stat: kmer_stats) {
 
-		kmer_stats_writer << kmer_stat.second << "\t" << kmer_stat.first << "\n";
+		stats_outfile << kmer_stat.second << "\t" << kmer_stat.first << "\n";
 	}
 
-	kmer_stats_writer.close();
+	stats_outfile.close();
 
 	cout << "\n[" << Utils::getLocalTime() << "] Wrote statistics for " << num_kmers << " kmers" << endl;
 	cout << endl;

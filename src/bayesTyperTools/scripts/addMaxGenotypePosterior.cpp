@@ -43,7 +43,7 @@ int main(int argc, char const *argv[]) {
 
 	if (argc != 3) {
 
-		std::cout << "USAGE: addMaxGenotypePosterior <input> <output_prefix>" << std::endl;
+		std::cout << "USAGE: addMaxGenotypePosterior <variant_file> <output_prefix>" << std::endl;
 		return 1;
 	}
 
@@ -54,7 +54,7 @@ int main(int argc, char const *argv[]) {
 	auto output_meta_data = vcf_reader.metaData();
 	output_meta_data.formatDescriptors().emplace("MaxGPP", Attribute::DetailedDescriptor("MaxGPP", Attribute::Number::One, Attribute::Type::Float, "Maximum genotype posterior probability"));
 
-	VcfFileWriter vcf_writer(string(argv[2]) + ".vcf", output_meta_data, true);
+	VcfFileWriter vcf_writer(string(argv[2]) + ".vcf.gz", output_meta_data, true);
 
 	const vector<string> sample_ids = vcf_reader.metaData().sampleIds();
 	vector<vector<uint> > max_allele_end_pos(sample_ids.size(), vector<uint>(2, 0));

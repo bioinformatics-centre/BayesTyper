@@ -27,8 +27,8 @@ THE SOFTWARE.
 */
 
 
-#ifndef TRIO
-#define TRIO
+#ifndef __vcf__Trio_hpp
+#define __vcf__Trio_hpp
 
 #include <vector>
 #include <iostream>
@@ -62,8 +62,7 @@ class Trio {
         bool is_diploid;
         bool is_informative;
         bool is_concordant;
-        bool is_exclusively_child_heterozygote;
-        bool is_parents_bi_allelelic_heterozygote;
+        bool is_simple_heterozygote;
         bool is_reference_call;
         bool has_called_missing;
 
@@ -71,8 +70,7 @@ class Trio {
         bool isDiploid();
         bool isInformative();
         bool isConcordant();
-        bool isExclusivelyChildHeterozygote();
-        bool isParentsBiAllelicHeterozygote();
+        bool isSimpleHeterozygote();
         bool isReferenceCall();
         bool hasCalledMissing();
 

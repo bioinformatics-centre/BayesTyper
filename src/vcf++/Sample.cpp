@@ -36,19 +36,23 @@ THE SOFTWARE.
 
 Sample::Sample() {
 
-    call_status_ = CallStatus::Missing;
+    call_status_ = CallStatus::Complete;
     ploidy_ = Ploidy::Zeroploid;
+
     phased_ = false;
 
     num_alleles = 0;
-
     var_has_missing_allele = false;
 }
 
 Sample::Sample(const string & sample_str, const string & format_str, const map<string, Attribute::DetailedDescriptor> & format_dscrs, ushort num_alleles_in, bool var_has_missing_allele_in) {
 
-    num_alleles = num_alleles_in;
+    call_status_ = CallStatus::Complete;
+    ploidy_ = Ploidy::Zeroploid;
+    
     phased_ = false;
+
+    num_alleles = num_alleles_in;
     var_has_missing_allele = var_has_missing_allele_in;
 
     auto sample_split_str = Utils::splitString(sample_str, ':');
@@ -63,21 +67,12 @@ Sample::Sample(const string & sample_str, const string & format_str, const map<s
 
         assert(format_str_split.size() == 1);
 
-        ploidy_ = Ploidy::Zeroploid;
-        call_status_ = CallStatus::Complete;
-
-    } else if (sample_split_str.front().size() == 0) {
-
-        ploidy_ = Ploidy::Zeroploid;
-        call_status_ = CallStatus::Complete;
-
-    } else {
+    } else if (sample_split_str.front().size() > 0) {
 
         vector<string> gt_str_split;
 
         if (sample_split_str.front().find("/") != string::npos) {
 
-            phased_ = false;
             gt_str_split = Utils::splitString(sample_split_str.front(), '/');
 
         } else {
@@ -95,18 +90,16 @@ Sample::Sample(const string & sample_str, const string & format_str, const map<s
             }
         }
 
-        uchar gt_ploidy = gt_str_split.size();
+        const uchar gt_ploidy = gt_str_split.size();
+        
         assert(gt_ploidy > 0);
-
-        if (gt_ploidy == genotype_estimate.size()) {
-
-            call_status_ = CallStatus::Complete;
-
-        } else if (genotype_estimate.size() == 0) {
+        assert(genotype_estimate.size() <= gt_ploidy);
+        
+        if (genotype_estimate.size() == 0) {
 
             call_status_ = CallStatus::Missing;
 
-        } else {
+        } else if (genotype_estimate.size() < gt_ploidy) {
 
             call_status_ = CallStatus::Partial;
         }
@@ -167,37 +160,19 @@ Sample::Sample(const string & sample_str, const string & format_str, const map<s
 
                 case Attribute::Number::G : {
 
-                    assert(genotype_info.size() == format_str_val_split.size());
-
-                    for (uint genotype_idx = 0; genotype_idx < genotype_info.size(); genotype_idx++) {
-
-                        assert(genotype_info.at(genotype_idx).add(current_format_str_dscr.id(), format_str_val_split.at(genotype_idx), current_format_str_dscr.type()));
-                    }
-
+                    parseFormatAttributeVector(&genotype_info, current_format_str_dscr, format_str_val_split, 0);
                     break;
                 }
 
                 case Attribute::Number::R : {
 
-                    assert(allele_info.size() == format_str_val_split.size());
-
-                    for (uint allele_idx = 0; allele_idx < allele_info.size(); allele_idx++) {
-
-                        assert(allele_info.at(allele_idx).add(current_format_str_dscr.id(), format_str_val_split.at(allele_idx), current_format_str_dscr.type()));
-                    }
-
+                    parseFormatAttributeVector(&allele_info, current_format_str_dscr, format_str_val_split, 0);
                     break;
                 }
 
                 case Attribute::Number::A : {
 
-                    assert((allele_info.size() - 1) == format_str_val_split.size());
-
-                    for (uint allele_idx = 1; allele_idx < allele_info.size(); allele_idx++) {
-
-                        assert(allele_info.at(allele_idx).add(current_format_str_dscr.id(), format_str_val_split.at(allele_idx - 1), current_format_str_dscr.type()));
-                    }
-
+                    parseFormatAttributeVector(&allele_info, current_format_str_dscr, format_str_val_split, 1);
                     break;
                 }
 
@@ -205,11 +180,17 @@ Sample::Sample(const string & sample_str, const string & format_str, const map<s
 
                     if (format_str_val_split.size() > 1) {
 
-                        assert(info_.add(current_format_str_dscr.id(), sample_split_str.at(sample_split_str_idx), Attribute::Type::String));
+                        if (find_if_not(format_str_val_split.begin(), format_str_val_split.end(), [](string str){return str == ".";}) != format_str_val_split.end()) {
+
+                            assert(info_.add(current_format_str_dscr.id(), sample_split_str.at(sample_split_str_idx), Attribute::Type::String));
+                        }
 
                     } else {
 
-                        assert(info_.add(current_format_str_dscr.id(), sample_split_str.at(sample_split_str_idx), current_format_str_dscr.type()));
+                        if (sample_split_str.at(sample_split_str_idx) != ".") {
+
+                            assert(info_.add(current_format_str_dscr.id(), sample_split_str.at(sample_split_str_idx), current_format_str_dscr.type()));
+                        }
                     }
                 }
             }
@@ -284,7 +265,7 @@ vector<AttributeSet> & Sample::genotypeInfo() {
 
 string Sample::vcf(const vector<Attribute::DetailedDescriptor> & format_descriptors) {
 
-    JoiningString sample_element(':');
+    assert(!(format_descriptors.empty()));
     assert(format_descriptors.front().id() == "GT");
 
     JoiningString sample_gt_element;
@@ -313,6 +294,7 @@ string Sample::vcf(const vector<Attribute::DetailedDescriptor> & format_descript
         sample_gt_element.join(".");
     }
 
+    JoiningString sample_element(':');
     sample_element.join(sample_gt_element.str());
 
     for (uint format_descriptor_idx = 1; format_descriptor_idx < format_descriptors.size(); format_descriptor_idx++) {
@@ -326,19 +308,19 @@ string Sample::vcf(const vector<Attribute::DetailedDescriptor> & format_descript
 
             case Attribute::Number::G : {
 
-                sample_element.join(joinVectorAttribute(genotype_info, current_format_descriptor.id(), true));
+                sample_element.join(writeFormatAttributeVector(genotype_info, current_format_descriptor.id(), 0));
                 break;
             }
 
             case Attribute::Number::R : {
 
-                sample_element.join(joinVectorAttribute(allele_info, current_format_descriptor.id(), true));
+                sample_element.join(writeFormatAttributeVector(allele_info, current_format_descriptor.id(), 0));
                 break;
             }
 
             case Attribute::Number::A : {
 
-                sample_element.join(joinVectorAttribute(allele_info, current_format_descriptor.id(), false));
+                sample_element.join(writeFormatAttributeVector(allele_info, current_format_descriptor.id(), 1));
                 break;
             }
 
@@ -358,42 +340,13 @@ string Sample::vcf(const vector<Attribute::DetailedDescriptor> & format_descript
         }
     }
 
-    return sample_element.str();
-}
-
-string Sample::joinVectorAttribute(const vector<AttributeSet> & vector_attribute, const string & id, const bool include_first) {
-
-    if (vector_attribute.size() > 0) {
-
-        auto first_format_value = vector_attribute.front().getValue(id);
-
-        if (first_format_value.second) {
-
-            JoiningString format_element_value(',');
-
-            if (include_first) {
-
-                format_element_value.join(first_format_value.first.str());                
-            }
-
-            for (uint attribute_idx = 1; attribute_idx < vector_attribute.size(); attribute_idx++) {
-
-                auto format_value = vector_attribute.at(attribute_idx).getValue(id);
-                assert(format_value.second);
-
-                format_element_value.join(format_value.first.str());
-            }
-
-            return format_element_value.str();
-
-        } else {
-
-            return ".";
-        }
-
-    } else {
+    if (sample_element.empty()) {
 
         return ".";
+    
+    } else {
+
+        return sample_element.str();
     }
 }
 
@@ -539,3 +492,64 @@ uint Sample::twoToOneDimIdx(const vector<ushort> & two_d_idx) const {
 
     return ((two_d_idx.back() * (two_d_idx.back() + 1)) / 2 + two_d_idx.front());
 }
+
+void Sample::parseFormatAttributeVector(vector<AttributeSet> * attributes, const Attribute::DetailedDescriptor & attribute_dscr, const vector<string> & attribute_str, const uint first_attribute_idx) {
+
+    assert(first_attribute_idx < attributes->size());
+    assert(attribute_str.size() == (attributes->size() - first_attribute_idx));
+    
+    auto attribute_str_it = attribute_str.begin();
+
+    for (uint attribute_idx = first_attribute_idx; attribute_idx < attributes->size(); attribute_idx++) {
+
+        if (*attribute_str_it != ".") {
+
+            assert(attributes->at(attribute_idx).add(attribute_dscr.id(), *attribute_str_it, attribute_dscr.type()));
+        }
+
+        attribute_str_it++;
+    }
+
+    assert(attribute_str_it == attribute_str.end());
+}
+
+string Sample::writeFormatAttributeVector(const vector<AttributeSet> & attributes, const string & id, const uint first_attribute_idx) {
+
+    if (attributes.size() > 0) {
+
+        assert(first_attribute_idx < attributes.size());
+
+        bool found_format_id = false;
+
+        JoiningString format_element_value(',');
+
+        for (uint attribute_idx = first_attribute_idx; attribute_idx < attributes.size(); attribute_idx++) {
+
+            auto format_value = attributes.at(attribute_idx).getValue(id);
+            
+            if (format_value.second) {
+    
+                found_format_id = true;
+                format_element_value.join(format_value.first.str());
+
+            } else {
+
+                format_element_value.join(".");
+            }
+        }
+
+        if (found_format_id) {
+
+            return format_element_value.str();            
+
+        } else {
+
+            return ".";
+        }
+
+    } else {
+
+        return ".";
+    }
+}
+

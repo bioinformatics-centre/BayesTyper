@@ -41,7 +41,7 @@ int main(int argc, char const *argv[]) {
 
 	if (argc != 6) {
 
-		std::cout << "USAGE: filterStructuralVariants <input> <output_prefix> <max_allele_length (reference | alternative)> <min_sv_length (alternative_length - reference_length)> <max_sv_length (alternative_length - reference_length)>" << std::endl;
+		std::cout << "USAGE: filterStructuralVariants <variant_file> <output_prefix> <max_allele_length (reference | alternative)> <min_sv_length (alternative_length - reference_length)> <max_sv_length (alternative_length - reference_length)>" << std::endl;
 		return 1;
 	}
 
@@ -49,7 +49,7 @@ int main(int argc, char const *argv[]) {
 	
 	VcfFileReader vcf_reader(string(argv[1]), true);
 
-	VcfFileWriter output_vcf(string(argv[2]) + ".vcf", vcf_reader.metaData(), true);
+	VcfFileWriter output_vcf(string(argv[2]) + ".vcf.gz", vcf_reader.metaData(), true);
 	Variant * cur_var;
 
 	uint max_allele_length = stoi(argv[3]);

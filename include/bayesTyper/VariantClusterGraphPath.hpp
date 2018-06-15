@@ -38,10 +38,9 @@ THE SOFTWARE.
 #include "VariantClusterGraphVertex.hpp"
 #include "KmerBloom.hpp"
 
+
 using namespace std;
 
-
-template <uchar kmer_size>
 class VariantClusterGraphPath {
 
 	public:
@@ -60,7 +59,7 @@ class VariantClusterGraphPath {
 
 		VariantClusterGraphPath(const ushort);
 
-		void addVertex(const uint, const VariantClusterGraphVertex &, KmerBloom *);
+		void addVertex(const uint, const VariantClusterGraphVertex &, KmerBloom<Utils::kmer_size> *);
 
 		const vector<PathVertexInfo> & getPath() const;
 
@@ -71,7 +70,7 @@ class VariantClusterGraphPath {
 
 	private:
 
-		KmerPair<kmer_size> kmer_pair;
+		KmerPair<Utils::kmer_size> kmer_pair;
 
 		vector<PathVertexInfo> path;
 		pair<uint, uint> kmer_score;

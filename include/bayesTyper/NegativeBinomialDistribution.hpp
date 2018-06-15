@@ -41,17 +41,18 @@ class NegativeBinomialDistribution {
     public:
 
         static std::pair<double, double> methodOfMomentsEst(const std::vector<ulong> &);
+        static std::pair<double, double> momentsToParameters(const double, double);
 
         NegativeBinomialDistribution();
-        NegativeBinomialDistribution(std::pair<double, double>);
+        NegativeBinomialDistribution(const std::pair<double, double> &);
+
+        void setParameters(const std::pair<double, double> &);
 
         double p() const;
         double size() const;
         double mean() const;
         double var() const;
 
-        void p(double);
-        void size(double);
         double pmf(uint) const;
         double pmf(uint, uint) const;
         double logPmf(uint) const;

@@ -34,8 +34,8 @@ target_link_libraries(addEditDistanceAndCondordance vcf++)
 add_executable(convertSeqToAlleleId convertSeqToAlleleId.cpp)
 target_link_libraries(convertSeqToAlleleId vcf++)
 
-add_executable(transferAlleleCallsetOrigin transferAlleleCallsetOrigin.cpp)
-target_link_libraries(transferAlleleCallsetOrigin vcf++)
+add_executable(getSummary getSummary.cpp)
+target_link_libraries(getSummary vcf++)
 
 add_executable(writeIndels writeIndels.cpp)
 target_link_libraries(writeIndels vcf++)

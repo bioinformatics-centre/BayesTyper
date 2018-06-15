@@ -40,12 +40,7 @@ THE SOFTWARE.
 #include <algorithm>
 #include <thread>
 #include <random>
-
-#include "boost/algorithm/string.hpp"
-#include "boost/iostreams/filtering_stream.hpp"
-#include "boost/iostreams/filter/gzip.hpp"
-#include "boost/functional/hash.hpp"
-#include "ProducerConsumerQueue.hpp"
+#include <stdio.h>
 
 #include "GenotypeWriter.hpp"
 #include "Genotypes.hpp"
@@ -59,20 +54,30 @@ THE SOFTWARE.
 
 using namespace std;
 
-static const string format_column = "GT:GPP:APP:NAK:FAK:MAC";
-static const string empty_variant_sample = ".:.:.:.:.";
 
+static const string format_column = "GT:GPP:APP:NAK:FAK:MAC:SAF";
+static const string empty_variant_sample = ".:.:.:.:.:.";
 
-GenotypeWriter::GenotypeWriter(const vector<Sample> & samples, const string & output_prefix_in, const ushort num_threads) : samples(samples), output_prefix(output_prefix_in) {
+GenotypeWriter::GenotypeWriter(const string & output_prefix, const ushort num_threads, const vector<Sample> & samples_in, const Chromosomes & chromosomes, const Filters & filters) : samples(samples_in), tmp_filename(output_prefix + "_tmp.txt.gz") {
+
+    assert(!(tmp_outfile.is_open()));
+    assert(tmp_outfile_fstream.empty());
+
+    assert(tmp_filename.substr(tmp_filename.size() - 3, 3) == ".gz");
+
+    tmp_outfile.open(tmp_filename, ios::binary);
+    assert(tmp_outfile.is_open());
+
+    tmp_outfile_fstream.push(boost::iostreams::gzip_compressor());
+    tmp_outfile_fstream.push(boost::ref(tmp_outfile));
+    
+    assert(tmp_outfile_fstream.is_complete());   
 
     genotypes_queue = new ProducerConsumerQueue<vector<Genotypes *> *>(Utils::queue_size_thread_scaling * num_threads);
-    writer_threads.push_back(thread(&GenotypeWriter::writeTemporaryFile, this));
+    writing_threads.push_back(thread(&GenotypeWriter::writeGenotypes, this, ref(chromosomes), ref(filters)));
 }
 
-void GenotypeWriter::writeTemporaryFile() {
-
-    ofstream output_file(output_prefix + "_genotypes_tmp.txt");
-    assert(output_file.is_open());
+void GenotypeWriter::writeGenotypes(const Chromosomes & chromosomes, const Filters & filters) {
 
     vector<Genotypes *> * variant_genotypes = nullptr;
 
@@ -80,127 +85,191 @@ void GenotypeWriter::writeTemporaryFile() {
 
         for (auto & genotypes: *variant_genotypes) {
 
+            auto tmp_outfile_chrom_stats_it = tmp_outfile_chrom_stats.emplace(genotypes->chrom_name, 0);
+            tmp_outfile_chrom_stats_it.first->second++;
+
             assert(genotypes);
-            assert(genotypes->variant_info.num_alleles > 1);
-            assert(genotypes->variant_info.num_alleles < Utils::ushort_overflow);
 
-            output_file << genotypes->variant_info.variant_id << "\t" << genotypes->variant_info.has_dependency;
+            const ushort num_alleles = genotypes->variant_info.numberOfAlleles();
 
-            writeQualityAndFilter(&output_file, genotypes->variant_stats, genotypes->variant_info);
-            writeVariantStats(&output_file, genotypes->variant_stats, genotypes->variant_info);
+            assert(genotypes->variant_info.numberOfAlleles() > 1);
+            assert(genotypes->variant_info.numberOfAlleles() < Utils::ushort_overflow);
 
-            output_file << ";VCS=" << genotypes->variant_cluster_size << ";VCI=" << genotypes->variant_cluster_id << ";VCGS=" << genotypes->variant_cluster_group_size << ";VCGI=" << genotypes->variant_cluster_group_id << ";HC=" << genotypes->num_candidates;
+            tmp_outfile_fstream << genotypes->chrom_name << "\t" << genotypes->variant_info.position << "\t" << genotypes->variant_info.id;
+
+            auto chromosomes_it = chromosomes.find(genotypes->chrom_name);
+            assert(chromosomes_it != chromosomes.cend());
+
+            writeAlleleSequences(genotypes->variant_info, chromosomes_it->second);
+            writeQualityAndFilter(genotypes->variant_stats, genotypes->num_homozygote_genotypes, filters);
+            writeVariantStats(genotypes->variant_stats, num_alleles);
+
+            tmp_outfile_fstream << ";VCS=" << genotypes->variant_cluster_size << ";VCR=" << genotypes->variant_cluster_region << ";VCGS=" << genotypes->variant_cluster_group_size << ";VCGR=" << genotypes->variant_cluster_group_region << ";HC=" << genotypes->num_candidates;
             
-            writeAlleleCover(&output_file, &(genotypes->non_covered_alleles), &(genotypes->variant_info));
+            writeAlleleCover(&(genotypes->non_covered_alleles), num_alleles);
+            writeAlleleOrigin(genotypes->variant_info);
 
-            output_file << "\t" << format_column;
+            tmp_outfile_fstream << "\t" << format_column;
 
-            writeSamples(&output_file, genotypes->sample_stats, genotypes->variant_info);
+            writeSamples(genotypes->sample_stats, num_alleles);
 
-            output_file << "\n";
+            tmp_outfile_fstream << "\n";
 
             delete genotypes;
         }
 
         delete variant_genotypes;
     }
-
-    output_file.close();
 }
 
 template <typename ValueType>
-void GenotypeWriter::writeAlleleField(ofstream * output_file, const vector<ValueType> & allele_field_values) {
+void GenotypeWriter::writeAlleleField(const vector<ValueType> & allele_field_values) {
 
     auto allele_field_values_it = allele_field_values.begin();
     assert(allele_field_values_it != allele_field_values.end());
         
-    *output_file << *allele_field_values_it;
+    tmp_outfile_fstream << *allele_field_values_it;
     allele_field_values_it++;
 
     while (allele_field_values_it != allele_field_values.end()) {
 
-        *output_file << "," << *allele_field_values_it;
+        tmp_outfile_fstream << "," << *allele_field_values_it;
         allele_field_values_it++; 
     }
 }
 
-void GenotypeWriter::writeQualityAndFilter(ofstream * output_file, const Genotypes::VariantStats & variant_stats, const VariantInfo & variant_info) {
+void GenotypeWriter::writeAlleleSequences(const VariantInfo & variant_info, const string & chrom_sequence) {
 
-    assert(variant_stats.allele_call_probabilities.size() == variant_info.num_alleles);
+    const uint max_ref_length = variant_info.maxReferenceLength();
+    assert(max_ref_length > 0);
 
-    float max_probability = 0;
+    tmp_outfile_fstream << "\t" << max_ref_length;
 
-    for (ushort i = 1; i < (variant_info.num_alleles - variant_info.has_dependency); i++) {
+    assert(!(variant_info.alt_alleles.empty()));
 
-        max_probability = max(max_probability, variant_stats.allele_call_probabilities.at(i));  
+    tmp_outfile_fstream << "\t";
+
+    for (ushort alt_allele_idx = 0; alt_allele_idx < variant_info.alt_alleles.size(); alt_allele_idx++) {
+
+        if (alt_allele_idx > 0) {
+
+            tmp_outfile_fstream << ",";
+        }
+
+        assert(variant_info.alt_alleles.at(alt_allele_idx).ref_length <= max_ref_length);
+
+        tmp_outfile_fstream << variant_info.alt_alleles.at(alt_allele_idx).sequence << chrom_sequence.substr(variant_info.position + variant_info.alt_alleles.at(alt_allele_idx).ref_length - 1, max_ref_length - variant_info.alt_alleles.at(alt_allele_idx).ref_length);
     }
 
-    if (Utils::floatCompare(max_probability, 1)) {
+    if (variant_info.has_dependency) {
 
-        *output_file << "\t99";
+        tmp_outfile_fstream << ",*";
+    }  
+}
+
+void GenotypeWriter::writeQualityAndFilter(const Genotypes::VariantStats & variant_stats, const ushort num_homozygote_genotypes, const Filters & filters) {
+
+    if (Utils::floatCompare(variant_stats.max_alt_allele_call_probability, 1)) {
+
+        tmp_outfile_fstream << "\t99";
     
-    } else if (Utils::floatCompare(max_probability, 0)) {
+    } else if (Utils::floatCompare(variant_stats.max_alt_allele_call_probability, 0)) {
 
-        *output_file << "\t0";
+        tmp_outfile_fstream << "\t0";
 
     } else {
 
-        assert(max_probability > 0);
-        assert(max_probability < 1);
+        assert(variant_stats.max_alt_allele_call_probability > 0);
+        assert(variant_stats.max_alt_allele_call_probability < 1);
 
-        *output_file << "\t" << -10 * log10(1 - max_probability);
+        tmp_outfile_fstream << "\t" << -10 * log10(1 - variant_stats.max_alt_allele_call_probability);
     }
 
-    *output_file << "\t.";   
-}
+    if (variant_stats.total_count == 0) {
 
-void GenotypeWriter::writeVariantStats(ofstream * output_file, const Genotypes::VariantStats & variant_stats, const VariantInfo & variant_info) {
+        tmp_outfile_fstream << "\tAN0";
 
-    assert((variant_stats.alt_allele_counts.size() + 1) == variant_info.num_alleles);
-    assert((variant_stats.alt_allele_frequency.size() + 1) == variant_info.num_alleles);
-    assert(variant_stats.allele_call_probabilities.size() == variant_info.num_alleles);
-        
-    *output_file << "\tAC=";
-    writeAlleleField<uint>(output_file, variant_stats.alt_allele_counts);
+        if ((samples.size() >= filters.minFilterSamples()) and (num_homozygote_genotypes < filters.minHomozygoteGenotypes())) {
 
-    *output_file <<";AF=";
-    writeAlleleField<float>(output_file, variant_stats.alt_allele_frequency);
+            tmp_outfile_fstream << ";HOM";
+        } 
 
-    *output_file << ";AN=" << variant_stats.total_count;
+    } else if ((samples.size() >= filters.minFilterSamples()) and (num_homozygote_genotypes < filters.minHomozygoteGenotypes())) {
 
-    *output_file << ";ACP=";
-    writeAlleleField<float>(output_file, variant_stats.allele_call_probabilities);
-}
+        tmp_outfile_fstream << "\tHOM";
 
-void GenotypeWriter::writeAlleleCover(ofstream * output_file, vector<ushort> * non_covered_alleles, VariantInfo * variant_info) {
+    } else {
 
-    assert(variant_info->num_alleles > (variant_info->excluded_alt_alleles.size() + variant_info->has_dependency));
-
-    if (!(variant_info->excluded_alt_alleles.empty())) {
-        
-        sort(variant_info->excluded_alt_alleles.begin(), variant_info->excluded_alt_alleles.end());
-        
-        *output_file << ";AE=";
-        writeAlleleField<ushort>(output_file, variant_info->excluded_alt_alleles);
+        tmp_outfile_fstream << "\tPASS";
     }
+}
 
-    assert(non_covered_alleles->size() <= variant_info->num_alleles);
+void GenotypeWriter::writeVariantStats(const Genotypes::VariantStats & variant_stats, const ushort num_alleles) {
+
+    assert((variant_stats.alt_allele_counts.size() + 1) == num_alleles);
+    assert((variant_stats.alt_allele_frequency.size() + 1) == num_alleles);
+    assert(variant_stats.allele_call_probabilities.size() == num_alleles);
+        
+    tmp_outfile_fstream << "\tAC=";
+    writeAlleleField<uint>(variant_stats.alt_allele_counts);
+
+    tmp_outfile_fstream <<";AF=";
+    writeAlleleField<float>(variant_stats.alt_allele_frequency);
+
+    tmp_outfile_fstream << ";AN=" << variant_stats.total_count;
+
+    tmp_outfile_fstream << ";ACP=";
+    writeAlleleField<float>(variant_stats.allele_call_probabilities);
+}
+
+void GenotypeWriter::writeAlleleCover(vector<ushort> * non_covered_alleles, const ushort num_alleles) {
+
+    assert(non_covered_alleles->size() <= num_alleles);
 
     if (!(non_covered_alleles->empty())) {
 
         sort(non_covered_alleles->begin(), non_covered_alleles->end());        
-        *output_file << ";ANC=";
-        writeAlleleField<ushort>(output_file, *non_covered_alleles);
+        tmp_outfile_fstream << ";ANC=";
+        writeAlleleField<ushort>(*non_covered_alleles);
     }
 }
 
-void GenotypeWriter::writeSamples(ofstream * output_file, const vector<Genotypes::SampleStats> & sample_stats, const VariantInfo & variant_info) {
+void GenotypeWriter::writeAlleleOrigin(const VariantInfo & variant_info) {
+    
+    assert(!(variant_info.alt_alleles.empty()));
+
+    tmp_outfile_fstream << ";ACO=";
+
+    for (ushort alt_allele_idx = 0; alt_allele_idx < variant_info.alt_alleles.size(); alt_allele_idx++) {
+
+        if (alt_allele_idx > 0) {
+
+            tmp_outfile_fstream << ",";
+        }
+
+        if (variant_info.alt_alleles.at(alt_allele_idx).aco_att.empty()) {
+
+            tmp_outfile_fstream << ".";            
+        
+        } else {
+
+            tmp_outfile_fstream << variant_info.alt_alleles.at(alt_allele_idx).aco_att;                        
+        }
+    }
+
+    if (variant_info.has_dependency) {
+
+        tmp_outfile_fstream << ",.";
+    }  
+}
+
+void GenotypeWriter::writeSamples(const vector<Genotypes::SampleStats> & sample_stats, const ushort num_alleles) {
 
     assert(samples.size() == sample_stats.size());
 
     for (ushort sample_idx = 0; sample_idx < samples.size(); sample_idx++) {
 
-        *output_file << "\t";
+        tmp_outfile_fstream << "\t";
 
         if (!(sample_stats.at(sample_idx).genotype_estimate.empty())) {      
             
@@ -210,48 +279,53 @@ void GenotypeWriter::writeSamples(ofstream * output_file, const vector<Genotypes
 
                 if (i > 0) {
 
-                    *output_file << "/";                    
+                    tmp_outfile_fstream << "/";                    
                 }
 
                 if (sample_stats.at(sample_idx).genotype_estimate.at(i) != Utils::ushort_overflow) {
 
-                    assert(sample_stats.at(sample_idx).genotype_estimate.at(i) < variant_info.num_alleles);
-                    *output_file << sample_stats.at(sample_idx).genotype_estimate.at(i);
+                    assert(sample_stats.at(sample_idx).genotype_estimate.at(i) < num_alleles);
+                    tmp_outfile_fstream << sample_stats.at(sample_idx).genotype_estimate.at(i);
 
                 } else {
 
-                    *output_file << ".";
+                    tmp_outfile_fstream << ".";
                 }
             }
 
-            const uint num_genotypes = (variant_info.num_alleles * (variant_info.num_alleles - 1)) / 2 + variant_info.num_alleles;
+            const uint num_genotypes = (num_alleles * (num_alleles - 1)) / 2 + num_alleles;
 
-            assert((sample_stats.at(sample_idx).genotype_posteriors.size() == num_genotypes) or (sample_stats.at(sample_idx).genotype_posteriors.size() == variant_info.num_alleles));
+            assert((sample_stats.at(sample_idx).genotype_posteriors.size() == num_genotypes) or (sample_stats.at(sample_idx).genotype_posteriors.size() == num_alleles));
 
-            *output_file << ":";
-            writeAlleleField<float>(output_file, sample_stats.at(sample_idx).genotype_posteriors);
+            tmp_outfile_fstream << ":";
+            writeAlleleField<float>(sample_stats.at(sample_idx).genotype_posteriors);
 
-            assert(sample_stats.at(sample_idx).allele_posteriors.size() == variant_info.num_alleles);
+            assert(sample_stats.at(sample_idx).allele_posteriors.size() == num_alleles);
 
-            *output_file << ":";
-            writeAlleleField<float>(output_file, sample_stats.at(sample_idx).allele_posteriors);
+            tmp_outfile_fstream << ":";
+            writeAlleleField<float>(sample_stats.at(sample_idx).allele_posteriors);
 
-            assert(sample_stats.at(sample_idx).allele_kmer_stats.count_stats.size() == variant_info.num_alleles);
+            assert(sample_stats.at(sample_idx).allele_kmer_stats.count_stats.size() == num_alleles);
             
-            *output_file << ":";
-            writeAlleleKmerStats(output_file, sample_stats.at(sample_idx).allele_kmer_stats);
+            tmp_outfile_fstream << ":";
+            writeAlleleKmerStats(sample_stats.at(sample_idx).allele_kmer_stats);
+
+            assert(sample_stats.at(sample_idx).allele_filters.size() == num_alleles);
+
+            tmp_outfile_fstream << ":";
+            writeAlleleField<string>(sample_stats.at(sample_idx).allele_filters);
 
         } else {
 
             assert(sample_stats.at(sample_idx).genotype_posteriors.empty());
             assert(sample_stats.at(sample_idx).allele_posteriors.empty());
 
-            *output_file << ":" << empty_variant_sample;        
+            tmp_outfile_fstream << ":" << empty_variant_sample;        
         }
     } 
 }
 
-void GenotypeWriter::writeAlleleKmerStats(ofstream * output_file, const AlleleKmerStats & allele_kmer_stats) {
+void GenotypeWriter::writeAlleleKmerStats(const AlleleKmerStats & allele_kmer_stats) {
 
     assert(allele_kmer_stats.fraction_stats.size() == allele_kmer_stats.count_stats.size());
     assert(allele_kmer_stats.mean_stats.size() == allele_kmer_stats.count_stats.size());
@@ -271,7 +345,7 @@ void GenotypeWriter::writeAlleleKmerStats(ofstream * output_file, const AlleleKm
         allele_kmer_means << "," << allele_kmer_stats.mean_stats.at(allele_idx).getMean().first;
     }
 
-    *output_file << allele_kmer_counts.str() << ":" << allele_kmer_fractions.str() << ":" << allele_kmer_means.str();
+    tmp_outfile_fstream << allele_kmer_counts.str() << ":" << allele_kmer_fractions.str() << ":" << allele_kmer_means.str();
 }
 
 void GenotypeWriter::addGenotypes(vector<Genotypes *> * variant_genotypes) {
@@ -279,341 +353,204 @@ void GenotypeWriter::addGenotypes(vector<Genotypes *> * variant_genotypes) {
     genotypes_queue->push(variant_genotypes);
 }
 
-void GenotypeWriter::completedGenotyping() {
+void GenotypeWriter::finalise(const string & output_prefix, const Chromosomes & chromosomes, const string & graph_options_header, const OptionsContainer & options_container, const Filters & filters) {
 
     genotypes_queue->pushedLast();
 
-    for (auto &thread: writer_threads) {
+    for (auto & writing_thread: writing_threads) {
 
-        thread.join();
+        writing_thread.join();
     }
 
     delete genotypes_queue;
-}
 
-void GenotypeWriter::writeSampleAttributeCumDistFunc(const string & attribute, const vector<vector<ulong> > & allele_kmer_estimates, const pair<uint, uint> & allele_kmer_estimates_scaling_factors) {
+    tmp_outfile_fstream.reset();
+    assert(!(tmp_outfile.is_open()));
 
-    ofstream cdf_file(output_prefix + "_sample_attribute_" + attribute + "_cdf.txt");
-    assert(cdf_file.is_open());
 
-    cdf_file << attribute;
+    cout << "[" << Utils::getLocalTime() << "] Sorting genotyped variants ..." << endl;
 
-    assert(samples.size() == allele_kmer_estimates.size());
+    assert(tmp_filename.substr(tmp_filename.size() - 3, 3) == ".gz");
+
+    ifstream tmp_infile(tmp_filename, ios::binary);
+    assert(tmp_infile.is_open());
+
+    boost::iostreams::filtering_istream tmp_infile_fstream;
     
-    vector<double> allele_kmer_estimates_total_sum;
-    allele_kmer_estimates_total_sum.reserve(samples.size());
+    tmp_infile_fstream.push(boost::iostreams::gzip_decompressor());
+    tmp_infile_fstream.push(boost::ref(tmp_infile));
 
-    for (ushort sample_idx = 0; sample_idx < samples.size(); sample_idx++) {
+    assert(tmp_infile_fstream.is_complete());    
 
-        assert(allele_kmer_estimates.at(sample_idx).size() == allele_kmer_estimates_scaling_factors.first);
-        allele_kmer_estimates_total_sum.emplace_back(accumulate(allele_kmer_estimates.at(sample_idx).begin(), allele_kmer_estimates.at(sample_idx).end(), 0));
+    unordered_map<string, vector<GenotypedVariant> > genotyped_variants;
 
-        cdf_file << "\t" << samples.at(sample_idx).name;
-    } 
+    for (auto & chrom_stat: tmp_outfile_chrom_stats) {
 
-    cdf_file << endl;
+        auto genotyped_variants_it = genotyped_variants.emplace(chrom_stat.first, vector<GenotypedVariant>());
+        assert(genotyped_variants_it.second);
 
-    assert(allele_kmer_estimates_total_sum.size() == allele_kmer_estimates.size());
-    vector<ulong> allele_kmer_estimates_cumulative_sum(allele_kmer_estimates.size(), 0); 
-
-    for (uint value_idx = 0; value_idx < allele_kmer_estimates_scaling_factors.first; value_idx++) {
-
-        bool write_cdf_line = false;
-
-        for (ushort sample_idx = 0; sample_idx < samples.size(); sample_idx++) {
-
-            allele_kmer_estimates_cumulative_sum.at(sample_idx) += allele_kmer_estimates.at(sample_idx).at(value_idx);
-
-            if (allele_kmer_estimates.at(sample_idx).at(value_idx) > 0) {
-
-                write_cdf_line = true;
-            }
-        }
-
-        if (write_cdf_line) {
-
-            cdf_file << static_cast<float>(value_idx) / allele_kmer_estimates_scaling_factors.second;
-
-            for (ushort sample_idx = 0; sample_idx < samples.size(); sample_idx++) {
-
-                cdf_file << "\t" << allele_kmer_estimates_cumulative_sum.at(sample_idx) / allele_kmer_estimates_total_sum.at(sample_idx);
-            }
-
-            cdf_file << endl;
-        }
+        genotyped_variants_it.first->second.reserve(chrom_stat.second);
     }
 
-    cdf_file.close();
-}   
+    string chrom_name = "";
 
-uint GenotypeWriter::writeGenotypesToVariantCallFormat(const string & vcf_filename, const Regions & chromosome_regions, const string & options_header, const string & genome_filename, const uint num_variants) {
+    while (getline(tmp_infile_fstream, chrom_name, '\t')) {
 
-    cout << "\n[" << Utils::getLocalTime() << "] Writing genotypes to " << output_prefix << ".vcf ..." << endl;
+        auto genotyped_variants_it = genotyped_variants.find(chrom_name);
+        assert(genotyped_variants_it != genotyped_variants.end());
 
-    uint num_written_variants = 0;
-
-    if ((vcf_filename.substr(vcf_filename.size()-3,3) == ".gz") or (vcf_filename.substr(vcf_filename.size()-5,5) == ".gzip")) {
-
-        ifstream gz_vcf_file(vcf_filename.c_str(), ifstream::binary);
-        assert(gz_vcf_file.is_open());            
-        boost::iostreams::filtering_istream in;
-        in.push(boost::iostreams::gzip_decompressor());
-        in.push(gz_vcf_file);
-
-        num_written_variants = parseAndWriteGenotypes<boost::iostreams::filtering_istream>(&in, chromosome_regions, options_header, genome_filename, num_variants);
-
-        gz_vcf_file.close();
-
-    } else {
-
-        assert((vcf_filename.substr(vcf_filename.size()-4,4) == ".vcf"));
-        ifstream vcf_file(vcf_filename.c_str());
-        assert(vcf_file.is_open());
-
-        num_written_variants = parseAndWriteGenotypes<ifstream>(&vcf_file, chromosome_regions, options_header, genome_filename, num_variants);
-    
-        vcf_file.close();
-    }
-
-    return num_written_variants;
-}
-
-template <typename FileType>
-uint GenotypeWriter::parseAndWriteGenotypes(FileType * vcf_file, const Regions & chromosome_regions, const string & options_header, const string & genome_filename, const uint num_variants) {
-
-    string genotypes_tmp_filename = output_prefix + "_genotypes_tmp.txt";
-
-    ifstream genotypes_file(genotypes_tmp_filename);
-    assert(genotypes_file.is_open());
-
-    uint num_written_variants = 0;
-
-    vector<pair<bool, string*> > genotypes = vector<pair<bool, string*> >(num_variants, make_pair(false, nullptr));
-
-    while (genotypes_file.good()) {
-
-        string variant_idx = "";
-        string has_dependency = "";
-
-        getline(genotypes_file, variant_idx, '\t');
-
-        if (variant_idx.size() == 0) {
-
-            genotypes_file.ignore(numeric_limits<streamsize>::max(), '\n');
-            continue;              
-        }
-
-        auto genotype_string = &(genotypes.at(stoi(variant_idx)));
-
-        getline(genotypes_file, has_dependency, '\t');
-
-        if (has_dependency == "1") {
-
-            genotype_string->first = true;
-        
-        } else {
-
-            assert(has_dependency == "0");
-            genotype_string->first = false;
-        }
-            
-        genotype_string->second = new string();
-        getline(genotypes_file, *(genotype_string->second));
-    }    
-
-    genotypes_file.close();
-    remove(genotypes_tmp_filename.c_str());
-
-    ChromosomePloidy chromosome_ploidy = ChromosomePloidy(samples);
-
-    ofstream output_file(output_prefix + ".vcf");
-    assert(output_file.is_open());
-
-    auto genotypes_it = genotypes.begin();
-
-    while (vcf_file->good()) {
-
-        if (vcf_file->peek() == '#') {
-
-            string header_line;
-            getline(*vcf_file, header_line);
-
-            if ((header_line.substr(0,12) == "##fileformat") or (header_line.substr(0,8) == "##contig")) {
-
-                output_file << header_line << "\n";
-            
-            } else if (header_line.substr(0,6) == "#CHROM") {
-
-                vector<string> header_line_split;
-                boost::split(header_line_split, header_line, boost::is_any_of("\t"));
-        
-                assert(header_line_split.size() >= 8);
-                output_file << writeHeader(samples, options_header, genome_filename);
-            }
-
-            continue;
-        }
-
-        string chromosome = "";
-        getline(*vcf_file, chromosome, '\t');
-
-        if (chromosome.size() == 0) {
-
-            vcf_file->ignore(numeric_limits<streamsize>::max(), '\n');
-            continue;              
-        }
+        genotyped_variants_it->second.emplace_back(GenotypedVariant());
 
         string position = "";
-        getline(*vcf_file, position, '\t');    
 
-        if (!genotypes_it->second) {
+        assert(getline(tmp_infile_fstream, position, '\t'));
+        genotyped_variants_it->second.back().position = stoi(position);
 
-            assert(!genotypes_it->first);
+        assert(getline(tmp_infile_fstream, genotyped_variants_it->second.back().variant_id, '\t'));
 
-            if (!(chromosome_regions.overlaps(chromosome, stoi(position), stoi(position)))) {
+        string max_ref_length = "";
 
-                vcf_file->ignore(numeric_limits<streamsize>::max(), '\n');
-                genotypes_it++;
+        assert(getline(tmp_infile_fstream, max_ref_length, '\t'));
+        genotyped_variants_it->second.back().max_ref_length = stoi(max_ref_length);
 
-                continue;
-            }
-        }
-
-        num_written_variants++;
-
-        string id = "";
-        getline(*vcf_file, id, '\t');
-
-        string ref_allele = "";
-        getline(*vcf_file, ref_allele, '\t');
-
-        string alt_allele = "";
-        getline(*vcf_file, alt_allele, '\t');
-
-        vcf_file->ignore(numeric_limits<streamsize>::max(), '\n');
-        
-        if (alt_allele.back() == '*') {
-
-            alt_allele.pop_back();
-            assert(alt_allele.back() == ',');
-
-            alt_allele.pop_back();
-            assert(alt_allele.back() != ',');
-        }
-        
-        assert(alt_allele.find("*") == string::npos);
-
-        if (genotypes_it->first) {
-
-            alt_allele.append(",*");
-        } 
-
-        output_file << chromosome << "\t" << position << "\t" << id << "\t" << ref_allele << "\t" << alt_allele;
-
-        if (genotypes_it->second) {
-
-            output_file << "\t" << *genotypes_it->second;
-            delete genotypes_it->second;
-
-        } else {
-
-            writeUnsupportedVariant(&output_file, chromosome, position, count(alt_allele.begin(), alt_allele.end(), ',') + 2, chromosome_ploidy);  
-        }
-
-        output_file << "\n";
-        genotypes_it++;
+        assert(getline(tmp_infile_fstream, genotyped_variants_it->second.back().genotypes, '\n'));
     }
 
-    assert(genotypes_it == genotypes.end());
+    tmp_infile_fstream.reset();
+    assert(!(tmp_infile.is_open()));
 
-    output_file.close();
+    assert(remove(tmp_filename.c_str()) == 0);
 
-    return num_written_variants;
-}
 
-string GenotypeWriter::writeHeader(const vector<Sample> & samples, const string & options_header, const string & genome_filename) {
+    ofstream variants_outfile;
+    boost::iostreams::filtering_ostream variants_outfile_fstream;
 
-    stringstream header_stream;
+    assert(!(variants_outfile.is_open()));
+    assert(variants_outfile_fstream.empty());
 
-    header_stream << "##reference=file:" << genome_filename << "\n";
-    header_stream << options_header;
-
-    header_stream << "##FILTER=<ID=UV,Description=\"Unsupported variant type\">" << "\n";
+    string genotype_filename = "";
     
-    header_stream << "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Allele counts in called genotypes\">" << "\n";
-    header_stream << "##INFO=<ID=AF,Number=A,Type=Float,Description=\"Allele frequencies calculated from called genotypes\">" << "\n";
-    header_stream << "##INFO=<ID=AN,Number=1,Type=Integer,Description=\"Number of alleles in called genotypes\">" << "\n";
-    header_stream << "##INFO=<ID=ACP,Number=R,Type=Float,Description=\"Allele call probabilites (used for variant quality calculation)\">" << "\n";
+    if (options_container.getValue<bool>("gzip-output")) {
 
-    header_stream << "##INFO=<ID=VCS,Number=1,Type=Integer,Description=\"Variant cluster size\">" << "\n";
-    header_stream << "##INFO=<ID=VCI,Number=1,Type=String,Description=\"Variant cluster id (<chromosome>:<start>-<end>)\">" << "\n";
-    header_stream << "##INFO=<ID=VCGS,Number=1,Type=Integer,Description=\"Variant cluster group size (number of variant clusters)\">" << "\n";
-    header_stream << "##INFO=<ID=VCGI,Number=1,Type=String,Description=\"Variant cluster group id (<chromosome>:<start>-<end>)\">" << "\n";
+        genotype_filename = output_prefix + ".vcf.gz";
 
-    header_stream << "##INFO=<ID=HC,Number=1,Type=Integer,Description=\"Number of haplotype candidates used for inference in variant cluster\">" << "\n";
-    header_stream << "##INFO=<ID=AE,Number=.,Type=String,Description=\"Allele(s) excluded (mutually exclusive with <ANC>). 0: Reference allele\">" << "\n";
-    header_stream << "##INFO=<ID=ANC,Number=.,Type=String,Description=\"Allele(s) not covered by a haplotype candidate (mutually exclusive with <AE>). 0: Reference allele\">" << "\n";
+        variants_outfile_fstream.push(boost::iostreams::gzip_compressor());        
+        variants_outfile.open(genotype_filename, ios::binary);
+    
+    } else {
 
-    header_stream << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">" << "\n";
-    header_stream << "##FORMAT=<ID=GPP,Number=G,Type=Float,Description=\"Genotype posterior probabilities\">" << "\n";
-    header_stream << "##FORMAT=<ID=APP,Number=R,Type=Float,Description=\"Allele posterior probabilities\">" << "\n";
-    header_stream << "##FORMAT=<ID=NAK,Number=R,Type=Float,Description=\"Mean number of allele kmers across gibbs samples. -1: Not sampled\">" << "\n";
-    header_stream << "##FORMAT=<ID=FAK,Number=R,Type=Float,Description=\"Mean fraction of observed allele kmers across gibbs samples. -1: Not sampled or NAK = 0\">" << "\n";
-    header_stream << "##FORMAT=<ID=MAC,Number=R,Type=Float,Description=\"Mean mean allele kmer coverage across gibbs samples. -1: Not sampled or NAK = 0\">" << "\n";
-        
-    header_stream << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT";
+        genotype_filename = output_prefix + ".vcf";
 
-    for (auto &sit: samples) {
-
-        header_stream << "\t" << sit.name;
+        variants_outfile.open(genotype_filename);
     }
 
-    header_stream << "\n";
+    assert(variants_outfile.is_open());
 
-    return header_stream.str();
+    variants_outfile_fstream.push(boost::ref(variants_outfile));
+    assert(variants_outfile_fstream.is_complete());    
+
+    variants_outfile_fstream << generateHeader(options_container.getValue<string>("genome-file"), chromosomes, graph_options_header, options_container.getHeader(), filters);
+
+    ulong num_genotyped_variants = 0;
+
+    auto chromosomes_it = chromosomes.cbegin();
+
+    while (chromosomes_it != chromosomes.cend()) {
+
+        auto genotyped_variants_it = genotyped_variants.find(chromosomes_it->first);
+        
+        if (genotyped_variants_it != genotyped_variants.end()) {
+
+            sort(genotyped_variants_it->second.begin(), genotyped_variants_it->second.end(), GenotypeWriter::genotypedVariantCompare);
+            assert(genotyped_variants_it->second.size() == tmp_outfile_chrom_stats.at(genotyped_variants_it->first));
+
+            for (auto & genotyped_variant: genotyped_variants_it->second) {
+
+                assert(genotyped_variant.position > 0);
+                assert(genotyped_variant.max_ref_length > 0);
+
+                assert(!(genotyped_variant.variant_id.empty()));
+                assert(!(genotyped_variant.genotypes.empty()));
+
+                variants_outfile_fstream << genotyped_variants_it->first << "\t" << genotyped_variant.position << "\t" << genotyped_variant.variant_id << "\t" << chromosomes_it->second.substr(genotyped_variant.position - 1, genotyped_variant.max_ref_length) << "\t" << genotyped_variant.genotypes << endl;
+            }
+
+            num_genotyped_variants += genotyped_variants_it->second.size();
+        }        
+
+        chromosomes_it++;
+    }
+
+    variants_outfile_fstream.reset();
+    assert(!(variants_outfile.is_open()));
+
+    cout << "[" << Utils::getLocalTime() << "] Wrote " << num_genotyped_variants << " genotyped variants to " << genotype_filename << endl;       
 }
 
-void GenotypeWriter::writeUnsupportedVariant(ofstream * output_file, const string & chromosome, const string & position, const uint num_alleles, const ChromosomePloidy & chromosome_ploidy) {
+string GenotypeWriter::generateHeader(const string & genome_filename, const Chromosomes & chromosomes, const string & graph_options_header, const string & genotype_options_header, const Filters & filters) {
 
-    assert(num_alleles >= 2);
+    stringstream header_ss;
 
-    stringstream alt_allele_zero_ss;
-    alt_allele_zero_ss << "0";
+    header_ss << "##fileformat=VCFv4.2\n";
+    header_ss << "##reference=file:" << genome_filename << "\n";
 
-    for (ushort i = 0; i < (num_alleles - 2); i++) {
+    auto chromosomes_it = chromosomes.cbegin();
 
-        alt_allele_zero_ss << ",0";
-    }
+    while (chromosomes_it != chromosomes.cend()) {
 
-    *output_file << "\t0\tUV\tAC=" << alt_allele_zero_ss.str() << ";AF=" << alt_allele_zero_ss.str() << ";AN=0;" << "ACP=0," << alt_allele_zero_ss.str() << ";VCS=1;VCI=" << chromosome << ":" << position << "-" << position << ";VCGS=1;VCGI=" << chromosome << ":" << position << "-" << position << ";HC=0;AE=0";
+        if (!(chromosomes.isDecoy(chromosomes_it->first))) {
 
-    for (ushort allele_idx = 1; allele_idx < num_alleles; allele_idx++) {
-
-        *output_file << "," << allele_idx;
-    }
-
-    *output_file << "\t" << format_column;
-
-    auto ploidy = chromosome_ploidy.getPloidy(VariantFileParser::classifyGenomeChromosome(VariantFileParser::simplifyChromosomeId(chromosome)));
-    assert(ploidy.size() == samples.size());
-
-    for (auto &ploid: ploidy) {
-
-        if (ploid == Utils::Ploidy::Null) {
-
-            *output_file << "\t:";
-        
-        } else if (ploid == Utils::Ploidy::Haploid) {
-
-            *output_file << "\t.:";
-        
-        } else {
-
-            *output_file << "\t./.:";            
+            header_ss << "##contig=<ID=" << chromosomes_it->first << ",length=" << chromosomes_it->second.size() << ">\n";
         }
-
-        *output_file << empty_variant_sample;
+        
+        chromosomes_it++;                     
     }
+
+    header_ss << graph_options_header;
+    header_ss << genotype_options_header;
+
+    if (samples.size() >= filters.minFilterSamples()) {
+
+        header_ss << "##FILTER=<ID=HOM,Description=\"Less than " + to_string(filters.minHomozygoteGenotypes()) + " homozygote genotypes (calculated before other filters)\">\n";
+    }
+
+    header_ss << "##FILTER=<ID=AN0,Description=\"No called genotypes (AN = 0)\">\n";
+    
+    header_ss << "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Alternative allele counts in called genotypes\">\n";
+    header_ss << "##INFO=<ID=AF,Number=A,Type=Float,Description=\"Alternative allele frequencies in called genotypes\">\n";
+    header_ss << "##INFO=<ID=AN,Number=1,Type=Integer,Description=\"Total number of alleles in called genotypes\">\n";
+    header_ss << "##INFO=<ID=ACP,Number=R,Type=Float,Description=\"Allele call probabilites (maximum APP across samples)\">\n";
+
+    header_ss << "##INFO=<ID=VCS,Number=1,Type=Integer,Description=\"Variant cluster size\">\n";
+    header_ss << "##INFO=<ID=VCR,Number=1,Type=String,Description=\"Variant cluster region (<chromosome>:<start>-<end>)\">\n";
+    header_ss << "##INFO=<ID=VCGS,Number=1,Type=Integer,Description=\"Variant cluster group size (number of variant clusters)\">\n";
+    header_ss << "##INFO=<ID=VCGR,Number=1,Type=String,Description=\"Variant cluster group region (<chromosome>:<start>-<end>)\">\n";
+
+    header_ss << "##INFO=<ID=HC,Number=1,Type=Integer,Description=\"Number of haplotype candidates used for inference in variant cluster\">\n";
+    header_ss << "##INFO=<ID=ANC,Number=.,Type=String,Description=\"Allele(s) not covered by a haplotype candidate. '0': Reference allele\">\n";
+    header_ss << "##INFO=<ID=ACO,Number=A,Type=String,Description=\"Alternative allele call-set origin(s) (<call-set>:...)\">\n";
+
+    header_ss << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n";
+    header_ss << "##FORMAT=<ID=GPP,Number=G,Type=Float,Description=\"Genotype posterior probabilities\">\n";
+    header_ss << "##FORMAT=<ID=APP,Number=R,Type=Float,Description=\"Allele posterior probabilities\">\n";
+    header_ss << "##FORMAT=<ID=NAK,Number=R,Type=Float,Description=\"Mean number of allele kmers across gibbs samples. '-1': Not sampled\">\n";
+    header_ss << "##FORMAT=<ID=FAK,Number=R,Type=Float,Description=\"Mean fraction of observed allele kmers across gibbs samples. '-1': Not sampled or NAK = 0\">\n";
+    header_ss << "##FORMAT=<ID=MAC,Number=R,Type=Float,Description=\"Mean allele kmer coverage (mean value) across gibbs samples. '-1': Not sampled or NAK = 0\">\n";
+    header_ss << "##FORMAT=<ID=SAF,Number=R,Type=String,Description=\"Sample specific allele filter ('P': Pass, 'F': Filtered)\">\n";
+        
+    header_ss << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT";
+
+    for (auto & sample: samples) {
+
+        header_ss << "\t" << sample.name;
+    }
+
+    header_ss << "\n";
+
+    return header_ss.str();
 }
 
+bool GenotypeWriter::genotypedVariantCompare(const GenotypedVariant & first_genotyped_variant, const GenotypedVariant & second_genotyped_variant) { 
 
+    return (first_genotyped_variant.position < second_genotyped_variant.position);
+}

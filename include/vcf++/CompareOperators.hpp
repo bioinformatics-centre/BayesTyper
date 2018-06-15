@@ -27,8 +27,8 @@ THE SOFTWARE.
 */
 
 
-#ifndef COMPARE_OPERATOR
-#define COMPARE_OPERATOR
+#ifndef __vcf__CompareOperators_hpp
+#define __vcf__CompareOperators_hpp
 
 #include "boost/variant.hpp"
 

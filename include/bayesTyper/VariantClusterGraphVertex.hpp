@@ -32,22 +32,44 @@ THE SOFTWARE.
 
 #include <vector>
 
+#include <boost/serialization/serialization.hpp>
+#include <boost/serialization/vector.hpp>
+
 #include "Utils.hpp"
 
 using namespace std;
 
 
-struct VariantClusterGraphVertex {
+class VariantClusterGraphVertex {
 
-	pair<ushort, ushort> variant_allele_idx;
-	vector<ushort> reference_variant_indices;
-	
-	uint nested_variant_cluster_index;
-	bool is_first_nucleotides_redundant;
+    public:
 
-	bool is_disconnected;
-	vector<bool> sequence;
-	
+        VariantClusterGraphVertex() {}
+
+    	pair<ushort, ushort> variant_allele_idx;
+    	vector<ushort> reference_variant_indices;
+    	
+    	uint nested_variant_cluster_index;
+    	bool is_first_nucleotides_redundant;
+
+    	bool is_disconnected;
+    	vector<bool> sequence;
+
+    private:
+
+    	friend class boost::serialization::access;
+
+        template<class Archive>
+        void serialize(Archive & ar, const unsigned int version) {
+
+        	ar & variant_allele_idx.first;
+            ar & variant_allele_idx.second;
+            ar & reference_variant_indices;
+            ar & nested_variant_cluster_index;
+            ar & is_first_nucleotides_redundant;
+            ar & is_disconnected;
+            ar & sequence;
+        }	
 };
 
 

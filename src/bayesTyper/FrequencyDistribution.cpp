@@ -125,9 +125,9 @@ void SparseFrequencyDistribution::reset() {
 }
 
 
-void SparseFrequencyDistribution::updateCachedSimplexProbVector(vector<double> * simplex_prob_vector, const uint total_number_of_observations, const ushort count_plus_size) {
+void SparseFrequencyDistribution::updateCachedSimplexProbVector(vector<double> * simplex_prob_vector, const uint total_num_observations, const ushort count_plus_size) {
 
-    assert(total_number_of_observations > 0);
+    assert(total_num_observations > 0);
     assert(count_plus_size > 0);
     assert(count_plus_size <= frequencies.size());
 
@@ -140,7 +140,7 @@ void SparseFrequencyDistribution::updateCachedSimplexProbVector(vector<double> *
 	double prob_z_log = count_plus_size*log(sparsity) + (frequencies.size()-count_plus_size)*log(1-sparsity);
 
 	// Probability of assignment given the binary vector
-	double prob_t_log = boost::math::lgamma(count_plus_size*dirichlet_parameter) - boost::math::lgamma(total_number_of_observations + count_plus_size*dirichlet_parameter);
+	double prob_t_log = boost::math::lgamma(count_plus_size*dirichlet_parameter) - boost::math::lgamma(total_num_observations + count_plus_size*dirichlet_parameter);
 
 	// Full probability of the binary vector		
 	double prob_eq_z_log = cardinal_eq_z_log + prob_z_log + prob_t_log;
@@ -157,7 +157,7 @@ void SparseFrequencyDistribution::updateCachedSimplexProbVector(vector<double> *
 		prob_z_log = j*log(sparsity) + (frequencies.size()-j)*log(1-sparsity);
 	
 		// Probability of assignment given the binary vector
-		prob_t_log = boost::math::lgamma(j*dirichlet_parameter) - boost::math::lgamma(total_number_of_observations + j*dirichlet_parameter);
+		prob_t_log = boost::math::lgamma(j*dirichlet_parameter) - boost::math::lgamma(total_num_observations + j*dirichlet_parameter);
 	
 		// Full probability of the binary std::vector<char> v;
 		prob_eq_z_log = cardinal_eq_z_log + prob_z_log + prob_t_log;

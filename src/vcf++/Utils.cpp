@@ -69,7 +69,6 @@ namespace Utils {
       stringstream ss(str);
       string item;
       vector<string> elems;
-      elems.reserve(100);
 
       while (getline(ss, item, delim)) {
 
@@ -84,7 +83,6 @@ namespace Utils {
       stringstream ss(str);
       string item;
       vector<string> elems;
-      elems.reserve(100);
 
       while (getline(ss, item, delim)) {
 

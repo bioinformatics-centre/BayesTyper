@@ -31,13 +31,17 @@ THE SOFTWARE.
 #define __bayesTyper__VariantClusterGroup_hpp
 
 #include <unordered_map>
+#include <unordered_set>
 #include <random>
 
-#include "KmerBloom.hpp"
+#include <boost/serialization/serialization.hpp>
+#include <boost/serialization/vector.hpp>
+#include <boost/serialization/string.hpp>
 
 #include "Utils.hpp"
 #include "VariantClusterGenotyper.hpp"
 #include "VariantClusterGraph.hpp"
+#include "VariantClusterHaplotypes.hpp"
 #include "CountAllocation.hpp"
 #include "CountDistribution.hpp"
 #include "KmerHash.hpp"
@@ -46,6 +50,7 @@ THE SOFTWARE.
 #include "VariantInfo.hpp"
 #include "Regions.hpp"
 #include "VariantCluster.hpp"
+#include "Filters.hpp"
 
 
 class VariantClusterGroup {
@@ -54,23 +59,31 @@ class VariantClusterGroup {
 
 		struct VariantClusterVertex {
 
-			const uint variant_cluster_idx;
-			const uint start_position;
-			const uint end_position;
+			uint variant_cluster_idx;
 
 			VariantClusterGraph * graph;
 			VariantClusterGenotyper * genotyper;
 
-			VariantClusterVertex(const uint variant_cluster_idx_in, const uint start_position_in, const uint end_position_in) : variant_cluster_idx(variant_cluster_idx_in), start_position(start_position_in), end_position(end_position_in), graph(nullptr), genotyper(nullptr) {}
+			VariantClusterVertex() : genotyper(nullptr) {}
+			VariantClusterVertex(const uint variant_cluster_idx_in) : variant_cluster_idx(variant_cluster_idx_in), graph(nullptr), genotyper(nullptr) {}
+
+			friend class boost::serialization::access;
+			template<class Archive>
+	    	void serialize(Archive & ar, const unsigned int version) {
+
+	    		ar & variant_cluster_idx;
+	    		ar & graph;
+	    	}
 		};
-		
-		const Utils::ChromosomeClass chromosome_class;
-		const string chromosome_id;
+
+		string chrom_name;
+		Utils::ChromClass chrom_class;
 
 		uint start_position;
 		uint end_position;
 
-		uint number_of_variants;
+		uint num_variants;
+		
 		bool is_snv;
 
 		vector<VariantClusterVertex> vertices;
@@ -78,11 +91,27 @@ class VariantClusterGroup {
 
 		vector<uint> source_vertices;
 
-		void runGibbsSample(const uint, const CountDistribution &, const vector<Utils::Ploidy> &, const bool);
+		friend class boost::serialization::access;
+		template<class Archive>
+    	void serialize(Archive & ar, const unsigned int version) {
+
+    		ar & chrom_name;
+    		ar & chrom_class;
+    		ar & start_position;
+    		ar & end_position;
+    		ar & num_variants;
+    		ar & is_snv;
+    		ar & vertices;
+    		ar & out_edges;
+    		ar & source_vertices;
+    	}
+
+		void runGibbsSample(const uint, const CountDistribution &, const vector<VariantClusterHaplotypes::NestedVariantClusterInfo> &, const bool);
 
 	public:
 
-		VariantClusterGroup(const vector<VariantCluster *> &, const vector<VariantClusterGraph *> &, const unordered_map<uint, uint> & , const Utils::ChromosomeClass, const string &);
+		VariantClusterGroup() {}
+		VariantClusterGroup(const vector<VariantCluster *> &, const vector<VariantClusterGraph *> &, const unordered_map<uint, uint> &);
 		~VariantClusterGroup();
 
 		double getComplexity() const;
@@ -91,19 +120,24 @@ class VariantClusterGroup {
 		uint numberOfVariantClusters() const;
 		uint numberOfVariantClusterGroupTrees() const;
 
-		bool isInChromosomeRegions(const Regions &);
+		void findSamplePaths(KmerBloom<Utils::kmer_size> *, const uint, const ushort);
+		
+		void countPathKmers(unordered_set<bitset<Utils::kmer_size * 2> > *);
+		void classifyPathKmers(KmerCountsHash *, KmerBloom<Utils::kmer_size> *);
 
-		void countKmers(KmerHash *, const uint);
+		bool isAutosomalSimpleSNV() const;
 
-		bool isAutosomalSimpleSNV(KmerHash *) const;
+		void initGenotyper(KmerCountsHash *, const vector<Sample> &, const uint, const uchar, const float, const uint);
 
-		void initialise(KmerHash *, const vector<Sample> &, const uint, const uchar, const float, const uint);
-		void shuffleBranchOrder(mt19937 *);
+		void resetGenotyper(const float kmer_subsampling_rate, const uint max_haplotype_variant_kmers);
+		void resetGroup();
+
+		void shuffleBranchOrdering(const uint);
 
 		void estimateGenotypes(const CountDistribution &, const ChromosomePloidy &, const bool);
-		void getCountAllocations(CountAllocation *, const CountDistribution &);
+		void getNoiseCounts(CountAllocation *, const CountDistribution &);
 
-		void collectGenotypes(vector<Genotypes*> *, const ChromosomePloidy &);
+		void collectGenotypes(vector<Genotypes*> *, const ChromosomePloidy &, const Filters & filters);
 };
 
 bool VariantClusterGroupCompare(VariantClusterGroup *, VariantClusterGroup *);

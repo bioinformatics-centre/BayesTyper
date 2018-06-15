@@ -36,6 +36,7 @@ THE SOFTWARE.
 #include "Variant.hpp"
 #include "JoiningString.hpp"
 #include "Stats.hpp"
+#include "Contig.hpp"
 
 namespace Auxiliaries {
 
@@ -557,6 +558,8 @@ namespace Auxiliaries {
 
         if (max_gpp_idx.second) {
 
+            assert(max_gpp_idx.first >= 0);
+
             max_gpp.first = sample.genotypeInfo().at(max_gpp_idx.first).getValue<float>("GPP").first;
             max_gpp.second = max_gpp_idx.second;
 
@@ -567,9 +570,9 @@ namespace Auxiliaries {
         return max_gpp;            
     }
 
-    pair<uint, bool> getMaxGenotypePosteriorIndex(Sample & sample) {
+    pair<int, bool> getMaxGenotypePosteriorIndex(Sample & sample) {
 
-        pair<uint, bool> max_gpp_idx(0, false);
+        pair<int, bool> max_gpp_idx(-1, false);
         float max_gpp_value = 0;
 
         for (uint gpp_idx = 0; gpp_idx < sample.genotypeInfo().size(); gpp_idx++) {
@@ -580,6 +583,7 @@ namespace Auxiliaries {
 
                 if (Utils::floatCompare(max_gpp_value, gpp_value.first)) {
 
+                    max_gpp_idx.first = gpp_idx;
                     max_gpp_idx.second = false;
 
                 } else if (max_gpp_value < gpp_value.first) {
@@ -589,6 +593,10 @@ namespace Auxiliaries {
 
                     max_gpp_value = gpp_value.first;
                 }
+            
+            } else {
+
+                return make_pair(-1, false);
             }
         }
 
@@ -605,28 +613,35 @@ namespace Auxiliaries {
 
             auto max_gpp_idx = getMaxGenotypePosteriorIndex(*sample);
 
-            if (max_gpp_idx.second) {
+            if (max_gpp_idx.first >= 0) {
 
-                assert(sample->ploidy() != Sample::Ploidy::Zeroploid);
-                assert(sample->ploidy() != Sample::Ploidy::Polyploid);
+                if (max_gpp_idx.second) {
 
-                if (sample->ploidy() == Sample::Ploidy::Diploid) {
+                    assert(sample->ploidy() != Sample::Ploidy::Zeroploid);
+                    assert(sample->ploidy() != Sample::Ploidy::Polyploid);
 
-                    sample->newGenotypeEstimate(sample->oneToTwoDimIdx(max_gpp_idx.first));
+                    if (sample->ploidy() == Sample::Ploidy::Diploid) {
 
-                } else if (sample->ploidy() == Sample::Ploidy::Haploid) {
+                        sample->newGenotypeEstimate(sample->oneToTwoDimIdx(max_gpp_idx.first));
 
-                    sample->newGenotypeEstimate(vector<ushort>(1, max_gpp_idx.first));
-                }                 
+                    } else if (sample->ploidy() == Sample::Ploidy::Haploid) {
+
+                        sample->newGenotypeEstimate(vector<ushort>(1, max_gpp_idx.first));
+                    }                 
+                
+                } else {
+
+                    sample->newGenotypeEstimate(vector<ushort>());
+                }
+            
+                for (uint allele_idx = 0; allele_idx < sample->alleleInfo().size(); allele_idx++) {
+
+                    sample->alleleInfo().at(allele_idx).setValue<string>("SAF", "P");
+                }
             
             } else {
 
-                sample->newGenotypeEstimate(vector<ushort>());
-            }
-
-            for (uint allele_idx = 0; allele_idx < sample->alleleInfo().size(); allele_idx++) {
-
-                sample->alleleInfo().at(allele_idx).setValue<string>("SAF", "P");
+                sample->newGenotypeEstimate(vector<ushort>());                
             }
         }
     }
@@ -870,6 +885,49 @@ namespace Auxiliaries {
         }
 
         return homopolymer_alleles;
+    }
+
+    vector<Contig> mergeContigs(const vector<Contig> & contigs_1, const vector<Contig> & contigs_2) {
+
+        vector<Contig> contigs_merged;
+        contigs_merged.reserve(contigs_1.size() + contigs_2.size());
+
+        auto contigs_1_it = contigs_1.begin();
+        auto contigs_2_bit = contigs_2.begin();
+
+        while (contigs_1_it != contigs_1.end()) {
+
+            assert(find(contigs_merged.begin(), contigs_merged.end(), *contigs_1_it) == contigs_merged.end());
+
+            auto contigs_2_eit = find(contigs_2.begin(), contigs_2.end(), *contigs_1_it);
+
+            if (contigs_2_eit != contigs_2.end()) {
+
+                while (contigs_2_bit != contigs_2_eit) {
+
+                    assert(find(contigs_merged.begin(), contigs_merged.end(), *contigs_2_bit) == contigs_merged.end());
+                    
+                    contigs_merged.push_back(*contigs_2_bit);
+                    contigs_2_bit++;
+                }
+
+                contigs_2_bit++;
+            }
+
+            contigs_merged.push_back(*contigs_1_it);
+            contigs_1_it++;
+        }
+
+        while (contigs_2_bit != contigs_2.end()) {
+
+            assert(find(contigs_merged.begin(), contigs_merged.end(), *contigs_2_bit) == contigs_merged.end());
+            
+            contigs_merged.push_back(*contigs_2_bit);
+            contigs_2_bit++;
+        }
+
+        assert(contigs_merged.size() <= (contigs_1.size() + contigs_2.size()));
+        return contigs_merged;
     }
 }
 

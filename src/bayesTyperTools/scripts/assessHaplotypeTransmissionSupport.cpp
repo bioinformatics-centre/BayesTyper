@@ -97,7 +97,7 @@ int main(int argc, char const *argv[]) {
 
 	if (argc != 4) {
 
-		std::cout << "USAGE: assessHaplotypeTransmissionSupport <input> <haplotype_transmissions> <output_prefix>" << std::endl;
+		std::cout << "USAGE: assessHaplotypeTransmissionSupport <variant_file> <haplotype_transmissions_file> <output_prefix>" << std::endl;
 		return 1;
 	}
 
@@ -111,7 +111,7 @@ int main(int argc, char const *argv[]) {
 	vector<pair<string, string> > htv_descriptor_elems({make_pair("ID","HTV"), make_pair("Number","1"), make_pair("Type","String"), make_pair("Description","Variant validated by haplotype transmission (TRUE, MULTI-TRUE, FALSE, NA).")});
 	output_meta_data.infoDescriptors().emplace("HTV", Attribute::DetailedDescriptor(htv_descriptor_elems));
 
-	VcfFileWriter output_vcf(string(argv[3]) + ".vcf", output_meta_data, false);
+	VcfFileWriter output_vcf(string(argv[3]) + ".vcf.gz", output_meta_data, false);
 
 	Variant * cur_callset_var;
 	cout << "\n[" << Utils::getLocalTime() << "] Building index of haplotype transmissions ...\n" << endl;

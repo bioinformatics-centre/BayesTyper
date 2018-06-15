@@ -27,13 +27,16 @@ THE SOFTWARE.
 */
 
 
-#ifndef VCF_FILE
-#define VCF_FILE
+#ifndef __vcf__VcfFile_hpp
+#define __vcf__VcfFile_hpp
 
 #include <iostream>
 #include <fstream>
 #include <string>
 #include <unordered_set>
+
+#include "boost/iostreams/filtering_stream.hpp"
+#include "boost/iostreams/filter/gzip.hpp"
 
 #include "Variant.hpp"
 #include "VcfMetaData.hpp"
@@ -69,13 +72,13 @@ class VcfFileReaderBase : public VcfFile {
   public:
 
     VcfFileReaderBase(string, const bool);
-    ~VcfFileReaderBase();
 
     virtual bool getNextVariant(Variant **) = 0;
 
   protected:
 
-    ifstream vcf_file;
+    ifstream vcf_infile;
+    boost::iostreams::filtering_istream vcf_infile_fstream;
 
     uint num_cols;
 
@@ -114,7 +117,6 @@ class VcfFileWriter : public VcfFile {
   public:
 
     VcfFileWriter(string, const VcfMetaData &, const bool);
-    ~VcfFileWriter();
     
     const VcfMetaData & metaData() const;
 
@@ -122,7 +124,8 @@ class VcfFileWriter : public VcfFile {
 
   protected:
 
-      ofstream vcf_file;
+    ofstream vcf_outfile;
+    boost::iostreams::filtering_ostream vcf_outfile_fstream;
 };
 
 #endif

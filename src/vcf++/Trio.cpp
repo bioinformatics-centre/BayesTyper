@@ -46,8 +46,7 @@ Trio::Trio(Variant & cur_var, const TrioInfo & trio_info) {
 
     is_informative = true;
     is_concordant = false;
-    is_exclusively_child_heterozygote = true;
-    is_parents_bi_allelelic_heterozygote = false;
+    is_simple_heterozygote = false;
     is_reference_call = true;
     has_called_missing = false;
 
@@ -62,119 +61,62 @@ Trio::Trio(Variant & cur_var, const TrioInfo & trio_info) {
         bool first_child_allele_in_mother = false;
         bool second_child_allele_in_mother = false;
 
-        if (child_genotype.size() > 0) {
+        if (child.ploidy() != Sample::Ploidy::Zeroploid) {
 
-            assert(child.ploidy() != Sample::Ploidy::Zeroploid);
+            assert(!(child_genotype.empty()));
 
             first_child_allele_in_father = (find(father_genotype.begin(), father_genotype.end(), child_genotype.front()) != father_genotype.end());
             second_child_allele_in_father = (find(father_genotype.begin(), father_genotype.end(), child_genotype.back()) != father_genotype.end());
             first_child_allele_in_mother = (find(mother_genotype.begin(), mother_genotype.end(), child_genotype.front()) != mother_genotype.end());
             second_child_allele_in_mother = (find(mother_genotype.begin(), mother_genotype.end(), child_genotype.back()) != mother_genotype.end());
-        }
-
-        if (cur_var.chrom() == "chrX") {
-
-            if (!is_diploid) {
-
-                assert(father.ploidy() == Sample::Ploidy::Haploid);
-                assert(father_genotype.size() == 1);
-
-                assert(mother.ploidy() == Sample::Ploidy::Diploid);
-                assert(mother_genotype.size() == 2);
-
-                if (child.ploidy() == Sample::Ploidy::Diploid) {
-
-                    assert(child_genotype.size() == 2);
-
-                    is_concordant = ((first_child_allele_in_father and second_child_allele_in_mother) or (second_child_allele_in_father and first_child_allele_in_mother));
-
-                } else {
-
-                    assert(child.ploidy() == Sample::Ploidy::Haploid);
-                    assert(child_genotype.size() == 1);
-
-                    assert(first_child_allele_in_mother == second_child_allele_in_mother);
-
-                    is_concordant = first_child_allele_in_mother;
-                }
-
-            } else {
-
-                is_informative = false;
-                is_concordant = false;
-            }
-
-        } else if (cur_var.chrom() == "chrY") {
-
-            if (!is_diploid) {
-
-                assert(father.ploidy() == Sample::Ploidy::Haploid);
-                assert(father_genotype.size() == 1);
-
-                assert(mother.ploidy() == Sample::Ploidy::Zeroploid);
-                assert(mother_genotype.size() == 0);
-
-                assert(!first_child_allele_in_mother and !second_child_allele_in_mother);
-                assert(first_child_allele_in_father == second_child_allele_in_father);
-
-                if (child.ploidy() == Sample::Ploidy::Haploid) {
-
-                    assert(child_genotype.size() == 1);
-
-                    is_concordant = first_child_allele_in_father;
-
-                } else {
-
-                    assert(child.ploidy() == Sample::Ploidy::Zeroploid);
-                    assert(child_genotype.size() == 0);
-
-                    assert(!first_child_allele_in_father);
-
-                    is_informative = false;
-                    is_concordant = false;
-                }
-
-            } else {
-
-                is_informative = false;
-                is_concordant = false;
-            }
-
-        } else {
-
-            assert(is_diploid);
-
-            assert(father_genotype.size() == 2);
-            assert(mother_genotype.size() == 2);
-            assert(child_genotype.size() == 2);
 
             is_concordant = ((first_child_allele_in_father and second_child_allele_in_mother) or (second_child_allele_in_father and first_child_allele_in_mother));
 
-            if (cur_var.numAlls() == 2) {
+            if ((cur_var.numAlls() == 2) and !(father_genotype.empty()) and !(father_genotype.empty())) {
 
                 if ((father_genotype.front() != father_genotype.back()) and (mother_genotype.front() != mother_genotype.back())) {
 
-                    is_parents_bi_allelelic_heterozygote = true;
+                    is_simple_heterozygote = true;
                 }
             }
+        
+        } else {
+
+            is_informative = false;
+            is_concordant = false;
         }
+
+        bool is_exclusively_child_heterozygote = true;
 
         if (child.ploidy() != Sample::Ploidy::Diploid) {
 
             is_exclusively_child_heterozygote = false;
 
-        } else if ((father.ploidy() == Sample::Ploidy::Zeroploid) or (mother.ploidy() == Sample::Ploidy::Zeroploid)) {
+        } else {
 
-            is_exclusively_child_heterozygote = false;
+            assert(!(child_genotype.empty()));
 
-        } else if ((father_genotype.front() != father_genotype.back()) or (mother_genotype.front() != mother_genotype.back())) {
+            if (child_genotype.front() == child_genotype.back()) {
 
-            is_exclusively_child_heterozygote = false;
-
-        } else if (child_genotype.front() == child_genotype.back()) {
-
-            is_exclusively_child_heterozygote = false;
+                is_exclusively_child_heterozygote = false;
+            }
         }
+
+        if ((father.ploidy() == Sample::Ploidy::Zeroploid) or (mother.ploidy() == Sample::Ploidy::Zeroploid)) {
+
+            is_exclusively_child_heterozygote = false;
+
+        } else {
+
+            assert(!(father_genotype.empty()));
+            assert(!(mother_genotype.empty()));
+
+            if ((father_genotype.front() != father_genotype.back()) or (mother_genotype.front() != mother_genotype.back())) {
+
+                is_exclusively_child_heterozygote = false;
+            }
+        }
+       
 
         auto all_called_alleles = father_genotype;
         all_called_alleles.insert(all_called_alleles.end(), mother_genotype.begin(), mother_genotype.end());
@@ -258,18 +200,11 @@ bool Trio::isConcordant() {
     return is_concordant;
 }
 
-bool Trio::isExclusivelyChildHeterozygote() {
+bool Trio::isSimpleHeterozygote() {
 
     assert(!is_filtered);
 
-    return is_exclusively_child_heterozygote;
-}
-
-bool Trio::isParentsBiAllelicHeterozygote() {
-
-    assert(!is_filtered);
-
-    return is_parents_bi_allelelic_heterozygote;
+    return is_simple_heterozygote;
 }
 
 bool Trio::isReferenceCall() {

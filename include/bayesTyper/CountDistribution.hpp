@@ -43,25 +43,23 @@ THE SOFTWARE.
 #include "Sample.hpp"
 #include "OptionsContainer.hpp"
 #include "NegativeBinomialDistribution.hpp"
+#include "KmerStats.hpp"
 
 
 class CountDistribution {
 
 	public:
 
-		CountDistribution(const ushort, const vector<vector<NegativeBinomialDistribution> > &, const OptionsContainer &);
+		CountDistribution(const vector<Sample> &, const OptionsContainer &);
 
-		const vector<vector<NegativeBinomialDistribution> > & genomicCountDistributions() const;
-		const vector<double> & noiseRates() const;
-
-		const vector<vector<double> > & noiseRateEstimates() const;
-
-		void setGenomicCountDistributions(const vector<vector<NegativeBinomialDistribution> > &);
+		const vector<vector<NegativeBinomialDistribution> > & getGenomicCountDistributions() const;
+		void setGenomicCountDistributions(const vector<vector<KmerStats> > &, const string &);
+		
+		const vector<double> & getNoiseRates() const;
 		void setNoiseRates(const vector<double> &);
+		void resetNoiseRates();
 
-		void writeNoiseParameterEstimates(const string &, const vector<Sample> &) const;
 		void sampleNoiseParameters(const CountAllocation &);
-
 		double calcCountLogProb(const ushort, const uchar, const uchar, const uchar) const;
 
 	private:
@@ -77,7 +75,7 @@ class CountDistribution {
 
 		double poissonLogProb(const uint, const double) const;
 
-		const ushort num_samples;
+		const vector<Sample> samples;	
 		const uchar num_genomic_rate_gc_bias_bins;
 		
 		const uchar max_multiplicity = Utils::uchar_overflow;
@@ -87,7 +85,6 @@ class CountDistribution {
 
 		const vector<pair<double,double> > noise_rate_priors;
 		vector<double> noise_rates;
-		vector<vector<double> > noise_rate_estimates;
 
 		vector<vector<vector<vector<double> > > > genomic_count_log_pmf_cache;
 		vector<vector<double> > noise_count_log_pmf_cache;

@@ -62,31 +62,41 @@ void VcfFile::checkChromosomeAndPositionOrder(const string & cur_var_chrom, cons
 
 VcfMetaData & VcfFile::metaData() {
 
-    return meta_data;
+  return meta_data;
 }
 
 
 VcfFileReaderBase::VcfFileReaderBase(string vcf_filename, const bool is_sorted_in) : VcfFile(is_sorted_in) {
 
-      vcf_file.open(vcf_filename);
-      assert(vcf_file.is_open());
+  assert(!(vcf_infile.is_open()));
+  assert(vcf_infile_fstream.empty());
+  
+  if (vcf_filename.substr(vcf_filename.size() - 7, 7) == ".vcf.gz") {
 
-      last_line_read = false;
+      vcf_infile_fstream.push(boost::iostreams::gzip_decompressor());      
+      vcf_infile.open(vcf_filename, ios::binary);
+  
+  } else {
+
+      assert((vcf_filename.substr(vcf_filename.size() - 4, 4) == ".vcf"));
+      vcf_infile.open(vcf_filename);
+  }
+
+  assert(vcf_infile.is_open());
+  
+  vcf_infile_fstream.push(boost::ref(vcf_infile));
+  assert(vcf_infile_fstream.is_complete());   
+
+  last_line_read = false;
 }
 
-
-
-VcfFileReaderBase::~VcfFileReaderBase() {
-
-      vcf_file.close();
-}
 
 VcfFileReader::VcfFileReader(string vcf_filename, const bool is_sorted_in) : VcfFileReaderBase(vcf_filename, is_sorted_in) {
 
   // Forward file to first variant line
   string cur_meta_line;
 
-  while (std::getline(vcf_file, cur_meta_line)) {
+  while (std::getline(vcf_infile_fstream, cur_meta_line)) {
 
 	  if (cur_meta_line.front() == '#') {
 
@@ -108,7 +118,7 @@ void VcfFileReader::updateVariantLine() {
 
   for (uchar i = 0; i < 7; i++) {
 
-    if (!getline(vcf_file, cur_var_line.at(i), '\t')) {
+    if (!getline(vcf_infile_fstream, cur_var_line.at(i), '\t')) {
 
       last_line_read = true;
     }
@@ -118,12 +128,12 @@ void VcfFileReader::updateVariantLine() {
 
     if (num_cols == 8) {
 
-      assert(getline(vcf_file, cur_var_line.at(7), '\n'));
+      assert(getline(vcf_infile_fstream, cur_var_line.at(7), '\n'));
 
     } else {
 
-      assert(getline(vcf_file, cur_var_line.at(7), '\t'));
-      vcf_file.ignore(numeric_limits<streamsize>::max(), '\n');
+      assert(getline(vcf_infile_fstream, cur_var_line.at(7), '\t'));
+      vcf_infile_fstream.ignore(numeric_limits<streamsize>::max(), '\n');
     }
   }
 
@@ -148,12 +158,13 @@ bool VcfFileReader::getNextVariant(Variant ** variant) {
   return true;
 }
 
+
 GenotypedVcfFileReader::GenotypedVcfFileReader(string vcf_filename, const bool is_sorted_in) : VcfFileReaderBase(vcf_filename, is_sorted_in) {
 
     // Forward file to first variant line
     string cur_meta_line;
 
-    while (std::getline(vcf_file, cur_meta_line)) {
+    while (std::getline(vcf_infile_fstream, cur_meta_line)) {
 
       if (meta_data.addLine(cur_meta_line)) {
 
@@ -172,7 +183,7 @@ void GenotypedVcfFileReader::updateVariantLine() {
 
   for (uint i = 0; i < num_cols - 1; i++) {
 
-    if (!getline(vcf_file, cur_var_line.at(i), '\t')) {
+    if (!getline(vcf_infile_fstream, cur_var_line.at(i), '\t')) {
 
         last_line_read = true;
     }
@@ -180,7 +191,7 @@ void GenotypedVcfFileReader::updateVariantLine() {
 
   if (!last_line_read) {
 
-    assert(getline(vcf_file, cur_var_line.at(num_cols - 1), '\n'));
+    assert(getline(vcf_infile_fstream, cur_var_line.at(num_cols - 1), '\n'));
   }
 
   assert(cur_var_line.at(num_cols - 1).find('\t') == string::npos);
@@ -204,19 +215,30 @@ bool GenotypedVcfFileReader::getNextVariant(Variant ** variant) {
   return true;
 }
 
+
 VcfFileWriter::VcfFileWriter(string vcf_filename, const VcfMetaData & meta_data_in, const bool is_sorted_in) : VcfFile(is_sorted_in) {
 
-  vcf_file.open(vcf_filename);
-  assert(vcf_file.is_open());
+  assert(!(vcf_outfile.is_open()));
+  assert(vcf_outfile_fstream.empty());
+  
+  if (vcf_filename.substr(vcf_filename.size() - 7, 7) == ".vcf.gz") {
+
+      vcf_outfile_fstream.push(boost::iostreams::gzip_compressor());      
+      vcf_outfile.open(vcf_filename, ios::binary);
+  
+  } else {
+
+      assert((vcf_filename.substr(vcf_filename.size() - 4, 4) == ".vcf"));
+      vcf_outfile.open(vcf_filename);  
+  }
+
+  assert(vcf_outfile.is_open());
+  
+  vcf_outfile_fstream.push(boost::ref(vcf_outfile));
+  assert(vcf_outfile_fstream.is_complete());   
 
   meta_data = meta_data_in;
-
-  vcf_file << meta_data.vcf() << "\n";
-}
-
-VcfFileWriter::~VcfFileWriter() {
-
-  vcf_file.close();
+  vcf_outfile_fstream << meta_data.vcf() << "\n";
 }
 
 const VcfMetaData & VcfFileWriter::metaData() const {
@@ -226,7 +248,6 @@ const VcfMetaData & VcfFileWriter::metaData() const {
 
 void VcfFileWriter::write(Variant * variant) {
 
-  vcf_file << variant->vcf(meta_data) << "\n";
-
+  vcf_outfile_fstream << variant->vcf(meta_data) << "\n";
   checkChromosomeAndPositionOrder(variant->chrom(), variant->pos());
 }

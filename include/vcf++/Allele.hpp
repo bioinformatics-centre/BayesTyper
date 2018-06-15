@@ -27,8 +27,8 @@ THE SOFTWARE.
 */
 
 
-#ifndef ALLELE
-#define ALLELE
+#ifndef __vcf__Allele_hpp
+#define __vcf__Allele_hpp
 
 #include <string>
 

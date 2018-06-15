@@ -27,8 +27,8 @@ THE SOFTWARE.
 */
 
 
-#ifndef ATTRIBUTE_FILTER
-#define ATTRIBUTE_FILTER
+#ifndef __vcf__AttributeFilter_hpp
+#define __vcf__AttributeFilter_hpp
 
 #include <string>
 

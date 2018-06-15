@@ -30,12 +30,12 @@ THE SOFTWARE.
 #include <functional>
 
 #include "VariantClusterGraphPath.hpp"
-#include "Sequence.hpp"
+#include "Nucleotide.hpp"
+
 
 static const uchar min_observed_kmers = 2;
 
-template <uchar kmer_size>
-VariantClusterGraphPath<kmer_size>::VariantClusterGraphPath(const ushort num_variants) {
+VariantClusterGraphPath::VariantClusterGraphPath(const ushort num_variants) {
 
 	path.reserve(num_variants * 2);
 
@@ -43,8 +43,7 @@ VariantClusterGraphPath<kmer_size>::VariantClusterGraphPath(const ushort num_var
 	kmer_score.second = 0;
 }
 
-template <uchar kmer_size>
-void VariantClusterGraphPath<kmer_size>::addVertex(const uint vertex_idx, const VariantClusterGraphVertex & vertex, KmerBloom * kmer_bloom) {
+void VariantClusterGraphPath::addVertex(const uint vertex_idx, const VariantClusterGraphVertex & vertex, KmerBloom<Utils::kmer_size> * kmer_bloom) {
 
 	if (path.empty()) {
 
@@ -80,15 +79,14 @@ void VariantClusterGraphPath<kmer_size>::addVertex(const uint vertex_idx, const 
         nt_bits.set(1, *sequence_it);
         sequence_it++;
 
-        if (kmer_pair.move(nt_bits)) {
+        if (kmer_pair.move(make_pair(nt_bits, true))) {
 
-            updateScore(static_cast<BasicKmerBloom<kmer_size> *>(kmer_bloom)->lookup(kmer_pair.getLexicographicalLowestKmer()), (sequence_it - vertex.sequence.begin()) / 2);
+            updateScore(kmer_bloom->lookup(kmer_pair.getLexicographicalLowestKmer()), (sequence_it - vertex.sequence.begin()) / 2);
         }
     }
 }
 
-template <uchar kmer_size>
-void VariantClusterGraphPath<kmer_size>::updateScore(const bool is_kmer_observed, uint cur_sequence_length) {
+void VariantClusterGraphPath::updateScore(const bool is_kmer_observed, uint cur_sequence_length) {
 
 	assert(cur_sequence_length > 0);
 	assert(!(path.empty()));
@@ -112,7 +110,7 @@ void VariantClusterGraphPath<kmer_size>::updateScore(const bool is_kmer_observed
 
 		while (path_rit != path.rend()) {
 
-	        if ((kmer_size <= cur_sequence_length) or (path_rit->num_observed_kmers == min_observed_kmers)) {
+	        if ((Utils::kmer_size <= cur_sequence_length) or (path_rit->num_observed_kmers == min_observed_kmers)) {
 
 	            break;
 	        }
@@ -131,14 +129,12 @@ void VariantClusterGraphPath<kmer_size>::updateScore(const bool is_kmer_observed
 	kmer_score.second++;
 }
 
-template <uchar kmer_size>
-const vector<typename VariantClusterGraphPath<kmer_size>::PathVertexInfo> & VariantClusterGraphPath<kmer_size>::getPath() const {
+const vector<typename VariantClusterGraphPath::PathVertexInfo> & VariantClusterGraphPath::getPath() const {
 
 	return path;
 }
 
-template <uchar kmer_size>
-double VariantClusterGraphPath<kmer_size>::getKmerScore() const {
+double VariantClusterGraphPath::getKmerScore() const {
 
 	assert(kmer_score.first <= kmer_score.second);
 
@@ -152,8 +148,7 @@ double VariantClusterGraphPath<kmer_size>::getKmerScore() const {
 	} 
 }
 
-template <uchar kmer_size>
-uint VariantClusterGraphPath<kmer_size>::getVertexScore(const vector<bool> & covered_observed_vertices, const bool is_complete) const {
+uint VariantClusterGraphPath::getVertexScore(const vector<bool> & covered_observed_vertices, const bool is_complete) const {
 
 	uint observed_vertex_score = 0;
 
@@ -176,7 +171,7 @@ uint VariantClusterGraphPath<kmer_size>::getVertexScore(const vector<bool> & cov
 
 		while (path_rit != path.rend()) {
 
-	        if (((kmer_size - 1) <= cur_sequence_length) or (path_rit->num_observed_kmers == min_observed_kmers)) {
+	        if (((Utils::kmer_size - 1) <= cur_sequence_length) or (path_rit->num_observed_kmers == min_observed_kmers)) {
 
 	            break;
 	        }
@@ -195,8 +190,7 @@ uint VariantClusterGraphPath<kmer_size>::getVertexScore(const vector<bool> & cov
 	return observed_vertex_score;
 }
 
-template <uchar kmer_size>
-void VariantClusterGraphPath<kmer_size>::updateObservedCoveredVertices(vector<bool> * covered_observed_vertices, const bool is_complete) const {
+void VariantClusterGraphPath::updateObservedCoveredVertices(vector<bool> * covered_observed_vertices, const bool is_complete) const {
 
 	for (auto & vertex: path) {
 
@@ -217,7 +211,7 @@ void VariantClusterGraphPath<kmer_size>::updateObservedCoveredVertices(vector<bo
 
 		while (path_rit != path.rend()) {
 
-	        if (((kmer_size - 1) <= cur_sequence_length) or (path_rit->num_observed_kmers == min_observed_kmers)) {
+	        if (((Utils::kmer_size - 1) <= cur_sequence_length) or (path_rit->num_observed_kmers == min_observed_kmers)) {
 
 	            break;
 	        }
@@ -229,11 +223,4 @@ void VariantClusterGraphPath<kmer_size>::updateObservedCoveredVertices(vector<bo
 		}
 	}
 }
-
-
-template class VariantClusterGraphPath<31>;
-template class VariantClusterGraphPath<39>;
-template class VariantClusterGraphPath<47>;
-template class VariantClusterGraphPath<55>;
-template class VariantClusterGraphPath<63>;
 

@@ -27,8 +27,8 @@ THE SOFTWARE.
 */
 
 
-#ifndef FASTA_READER
-#define FASTA_READER
+#ifndef __vcf__FastaReader_hpp
+#define __vcf__FastaReader_hpp
 
 #include <string>
 #include <fstream>
@@ -49,7 +49,7 @@ private:
 
     bool last_line_read;
     string cur_line;
-    ifstream fasta_file;
+    ifstream fasta_infile;
 };
 
 

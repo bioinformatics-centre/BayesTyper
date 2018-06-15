@@ -30,7 +30,6 @@ THE SOFTWARE.
 #include <string>
 #include <vector>
 #include <sstream>
-#include <unordered_map>
 
 #include "boost/algorithm/string/split.hpp"
 #include "boost/algorithm/string.hpp"
@@ -38,7 +37,7 @@ THE SOFTWARE.
 #include "Utils.hpp"
 #include "Regions.hpp"
 
-OptionsContainer::OptionsContainer(const std::string & version_in, const std::string & start_time_in) : version(version_in), start_time(start_time_in) {}
+OptionsContainer::OptionsContainer(const std::string & type_in, const std::string & version_in, const std::string & start_time_in) : type(type_in), version(version_in), start_time(start_time_in) {}
 
 
 OptionsContainer::~OptionsContainer() {
@@ -130,24 +129,21 @@ void OptionsContainer::updateValue(std::string option, ValueType new_value) {
 }
 
 
-std::string OptionsContainer::writeHeader() {
+std::string OptionsContainer::getHeader() const {
 
     std::stringstream header_stream;
 
-    header_stream << "##CommandLine=<ID=BayesTyper,Version=\"" << version << "\",Time=\"" << start_time << "\",Options=\"";
+    header_stream << "##BayesTyperOptions=command:\"" << type << "\", version:\"" << version << "\", time:\"" << start_time << "\", kmer-size:\"" << Utils::kmer_size << "\"";
 
-    auto oit = options.cbegin();
+    auto options_it = options.cbegin();
 
-    header_stream << oit->first << "=" << oit->second.second;
-    oit++;
+    while (options_it != options.cend()) {
 
-    while (oit != options.cend()) {
-
-        header_stream << ", " << oit->first << "=" << oit->second.second;
-        oit++;
+        header_stream << ", " << options_it->first << ":\"" << options_it->second.second << "\"";
+        options_it++;
     }
 
-    header_stream << "\">\n";
+    header_stream << "\n";
 
     return header_stream.str();
 }

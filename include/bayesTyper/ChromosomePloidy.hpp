@@ -40,7 +40,7 @@ class ChromosomePloidy {
 	public:
 
 		ChromosomePloidy(const vector<Sample> &);
-		const vector<Utils::Ploidy> & getPloidy(const Utils::ChromosomeClass) const;
+		const vector<Utils::Ploidy> & getPloidy(const Utils::ChromClass) const;
 
 	private:
 

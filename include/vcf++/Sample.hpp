@@ -27,8 +27,8 @@ THE SOFTWARE.
 */
 
 
-#ifndef SAMPLE
-#define SAMPLE
+#ifndef __vcf__Sample_hpp
+#define __vcf__Sample_hpp
 
 #include <unordered_set>
 #include <vector>
@@ -76,7 +76,8 @@ public:
 
 private:
 
-    string joinVectorAttribute(const vector<AttributeSet> &, const string &, const bool);
+    void parseFormatAttributeVector(vector<AttributeSet> *, const Attribute::DetailedDescriptor &, const vector<string> &, const uint);
+    string writeFormatAttributeVector(const vector<AttributeSet> &, const string &, const uint);
 
     CallStatus call_status_;
     Ploidy ploidy_;

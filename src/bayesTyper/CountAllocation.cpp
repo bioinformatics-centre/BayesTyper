@@ -33,30 +33,30 @@ THE SOFTWARE.
 
 CountAllocation::CountAllocation(const ushort num_samples) {
 
-	sample_noise_counts = vector<vector<ulong> >(num_samples, vector<ulong>(Utils::uchar_overflow + 1, 0));
+	sample_counts = vector<vector<ulong> >(num_samples, vector<ulong>(Utils::uchar_overflow + 1, 0));
 }
 
 void CountAllocation::addCount(const ushort sample_idx, const uchar count) {
 
-	sample_noise_counts.at(sample_idx).at(count)++;
+	sample_counts.at(sample_idx).at(count)++;
 }
 
 void CountAllocation::mergeInCountAllocations(const CountAllocation & count_allocation_in) {
 
-	assert(sample_noise_counts.size() == count_allocation_in.getCounts().size());
+	assert(sample_counts.size() == count_allocation_in.getCounts().size());
 	
-	for (uint sample_idx = 0; sample_idx < sample_noise_counts.size(); sample_idx++) {
+	for (uint sample_idx = 0; sample_idx < sample_counts.size(); sample_idx++) {
 
-		assert(sample_noise_counts.at(sample_idx).size() == count_allocation_in.getCounts().at(sample_idx).size());
+		assert(sample_counts.at(sample_idx).size() == count_allocation_in.getCounts().at(sample_idx).size());
 
-		for (uint i = 0; i < sample_noise_counts.at(sample_idx).size(); i++) {
+		for (uint i = 0; i < sample_counts.at(sample_idx).size(); i++) {
 
-			sample_noise_counts.at(sample_idx).at(i) += count_allocation_in.getCounts().at(sample_idx).at(i);
+			sample_counts.at(sample_idx).at(i) += count_allocation_in.getCounts().at(sample_idx).at(i);
 		}
 	}
 } 
 
 const vector<vector<ulong> > & CountAllocation::getCounts() const {
 
-	return sample_noise_counts;
+	return sample_counts;
 }

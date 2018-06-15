@@ -43,13 +43,13 @@ int main(int argc, char const *argv[]) {
 
 	if (argc != 4) {
 
-		std::cout << "USAGE: collapseSummaryTable <input> <output_prefix> <num_count_columns (assume first columns)>" << std::endl;
+		std::cout << "USAGE: collapseSummaryTable <variant_file> <output_prefix> <num_count_columns (assume first columns)>" << std::endl;
 		return 1;
 	}
 
     cout << "\n[" << Utils::getLocalTime() << "] Running BayesTyperTools (" << BT_VERSION << ") collapseSummaryTable script ...\n" << endl;
 
-    ifstream reader(argv[1]);
+    ifstream summary_infile(argv[1]);
 
     auto num_count_columns = stoi(argv[3]);
     assert(num_count_columns > 0);
@@ -60,7 +60,7 @@ int main(int argc, char const *argv[]) {
     string header;
     unordered_map<string, vector<ulong> > collapsed_lines;
 
-    while (getline(reader, line)) {
+    while (getline(summary_infile, line)) {
 
         line_count++;
 
@@ -89,26 +89,26 @@ int main(int argc, char const *argv[]) {
         }
     }
 
-    reader.close();
+    summary_infile.close();
 
     assert(!(header.empty()));
 
     cout << "\n[" << Utils::getLocalTime() << "] Writing collapsed file ..." << endl;
 
-    ofstream writer(string(argv[2]) + ".txt");
-    writer << header << "\n";
+    ofstream summary_outfile(string(argv[2]) + ".txt");
+    summary_outfile << header << "\n";
 
     for (auto & line: collapsed_lines) {
 
         for (auto & count: line.second) {
 
-            writer << count << "\t";
+            summary_outfile << count << "\t";
         }
 
-        writer << line.first << "\n";
+        summary_outfile << line.first << "\n";
     }
 
-    writer.close();
+    summary_outfile.close();
 
 	cout << "[" << Utils::getLocalTime() << "] Collapsed " << line_count << " lines down to " << collapsed_lines.size() + 1 << endl;
 	cout << endl;

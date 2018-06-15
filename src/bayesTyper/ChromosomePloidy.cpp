@@ -59,19 +59,19 @@ ChromosomePloidy::ChromosomePloidy(const vector<Sample> & samples) {
 }
 
 
-const vector<Utils::Ploidy> & ChromosomePloidy::getPloidy(const Utils::ChromosomeClass chromosome_class) const {
+const vector<Utils::Ploidy> & ChromosomePloidy::getPloidy(const Utils::ChromClass chrom_class) const {
 
-	if (chromosome_class == Utils::ChromosomeClass::Autosomal) {
+	if (chrom_class == Utils::ChromClass::Autosomal) {
 
 		return autosomal;
 	
-	} else if (chromosome_class == Utils::ChromosomeClass::X) {
+	} else if (chrom_class == Utils::ChromClass::X) {
 
 		return chrX;
 	
 	} else {
 
-		assert(chromosome_class == Utils::ChromosomeClass::Y);
+		assert(chrom_class == Utils::ChromClass::Y);
 
 		return chrY;
 	}

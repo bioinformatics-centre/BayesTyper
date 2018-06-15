@@ -27,8 +27,8 @@ THE SOFTWARE.
 */
 
 
-#ifndef __bayesTyper__KmerBloom_hpp
-#define __bayesTyper__KmerBloom_hpp
+#ifndef __KmerBloom__KmerBloom_hpp
+#define __KmerBloom__KmerBloom_hpp
 
 #include <string>
 #include <iostream>
@@ -36,76 +36,75 @@ THE SOFTWARE.
 #include <array>
 #include <assert.h>
 #include <mutex>
+#include <vector>
 
+#include "ntHash/BloomFilter.hpp"
 
-#include "libbf/bf/bloom_filter/basic.hpp"
 
 typedef unsigned char uchar;
 typedef unsigned short int ushort;
 typedef unsigned int uint;
 
+template <uchar kmer_size>
 class KmerBloom {
 
-public:
+	public:
 
-	KmerBloom() {};
-	virtual ~KmerBloom() {};
+		KmerBloom(const uint64_t, const float);
+		KmerBloom(const std::string &);
+		~KmerBloom();
+
+		void addKmer(const char *);
+		void addKmer(const std::string &);
+		void addKmer(const std::bitset<kmer_size*2> &);
+
+		bool lookup(const char *) const;
+		bool lookup(const std::bitset<kmer_size*2> &) const;
+		bool lookup(const std::string &) const;
+
+		void save(const std::string &) const;
+
+		static std::string bitToNt(const std::bitset<kmer_size * 2> &);
+		static uint64_t calcOptNumBloomBits(const float, const uint64_t);
+		static uint calcOptNumHashes(const uint64_t, const uint64_t);
+
+	private:
+
+		uint64_t num_kmers;
+		uint64_t num_bloom_bits;
+		
+		BloomFilter * bloom;
 };
 
 template <uchar kmer_size>
-class BasicKmerBloom : public KmerBloom {
+class ThreadedKmerBloom {
 
-public:
+	public:
 
-	BasicKmerBloom(uint64_t, float);
-	BasicKmerBloom(const std::string &);
-	~BasicKmerBloom();
+		ThreadedKmerBloom(const uint64_t, const float);
+		// ThreadedKmerBloom(const std::string &);
+		~ThreadedKmerBloom();
 
-	void addKmer(const std::bitset<kmer_size*2> &);
-	void addKmer(const std::string &);
+		void addKmer(const char *);
+		void addKmer(const std::string &);
+		void addKmer(const std::bitset<kmer_size*2> &);
 
-	bool lookup(const std::bitset<kmer_size*2> &) const;
-	bool lookup(const std::string &) const;
+		bool lookup(const char *) const;
+		bool lookup(const std::string &) const;
+		bool lookup(const std::bitset<kmer_size*2> &) const;
 
-	void save(const std::string &) const;
+		// void save(const std::string &) const;
 
-	static uint64_t ntPrehash(const std::bitset<kmer_size*2> &);
-	static uint64_t ntPrehash(const std::string &);
+		std::unique_lock<std::mutex> getKmerLock(const string & kmer);
+		std::unique_lock<std::mutex> getKmerLock(const std::bitset<kmer_size*2> & kmer);
 
-private:
+	private:
 
-	static void writeBloomBitvector(const bf::bitvector &, std::ofstream &);
-	static bf::bitvector readBloomBitvector(std::ifstream &, uint64_t);
+		uint rootIndex(const char *) const;
+		uint rootIndex(const string &) const;
 
-	static void processReadBuffer(bf::bitvector *, uint64_t, char *, uint, uchar);
-
-	uint64_t num_kmers;
-	const uint seed = 0;
-	const bool double_hashing = true;
-	const bool partition = false;
-	
-	bf::basic_bloom_filter * bloom;
-};
-
-template <uchar kmer_size>
-class ThreadedBasicKmerBloom : public KmerBloom {
-
-public:
-
-	ThreadedBasicKmerBloom(const uint, const uint64_t, const float);
-	~ThreadedBasicKmerBloom();
-
-	void addKmer(const std::bitset<kmer_size*2> &);
-	bool lookup(const std::bitset<kmer_size*2> &) const;
-
-	std::unique_lock<std::mutex> lockBloom(const std::bitset<kmer_size*2> & kmer);
-
-private:
-
-	uint64_t rootIndex(const std::string &) const;
-
-	std::vector<BasicKmerBloom<kmer_size> *> blooms;
-	std::vector<std::mutex> mutexes;
+		std::vector<KmerBloom<kmer_size> *> blooms;
+		std::vector<std::mutex> mutexes;
 };
 
 #endif

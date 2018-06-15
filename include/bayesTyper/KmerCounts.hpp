@@ -41,17 +41,20 @@ class KmerCounts {
 
         bool hasClusterOccurrence();
         bool hasMulticlusterOccurrence();
+        bool hasMultigroupOccurrence();
 
         bool hasDecoyOccurrence();
         bool hasMaxMultiplicity();
-        bool hasMulticlusterGroupOccurrence();
+
+        bool isParameter();
+        void isParameter(const bool);
 
         bool isExcluded();
 
-        void addInterclusterMultiplicity(const Utils::ChromosomeClass);
+        void addInterclusterMultiplicity(const Utils::ChromClass);
         uchar getInterclusterMultiplicity(const Utils::Gender);
 
-        void addClusterMultiplicity(const uchar, const uint);
+        void addClusterMultiplicity(const uchar, const bool);
 
         virtual void addSampleCount(const ushort, const uchar) = 0;
         virtual uchar getSampleCount(const ushort) = 0;
@@ -63,14 +66,12 @@ class KmerCounts {
         
     protected:
 
-        uchar has_cluster_occ : 1, has_multicluster_occ : 1, has_decoy_occ : 1, has_max_multiplicity : 1, has_multicluster_group_occ : 1;
+        uchar has_cluster_occ : 1, has_multicluster_occ : 1, has_multigroup_occ : 1, has_decoy_occ : 1, has_max_multiplicity : 1, is_parameter : 1;
 
         uchar max_multiplicity;
 
         uchar male_intercluster_multiplicity;
         uchar female_intercluster_multiplicity;
-
-        uint variant_cluster_group_index;
 
         uchar updateMultiplicity(const uchar, const uchar);
 };

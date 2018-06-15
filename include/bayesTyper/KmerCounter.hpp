@@ -32,6 +32,7 @@ THE SOFTWARE.
 
 #include <map>
 #include <mutex>
+#include <unordered_set>
 
 #include "kmc_api/kmer_api.h"
 #include "boost/graph/adjacency_list.hpp"
@@ -40,26 +41,36 @@ THE SOFTWARE.
 
 #include "Utils.hpp"
 #include "KmerHash.hpp"
-#include "PerfectSet.hpp"
 #include "Sample.hpp"
 #include "VariantClusterGraph.hpp"
 #include "VariantFileParser.hpp"
+#include "InferenceUnit.hpp"
+#include "OptionsContainer.hpp"
+#include "Chromosomes.hpp"
 
 
-template <uchar kmer_size>
 class KmerCounter {
 
 	public:
 
-		KmerCounter(const ushort, const ulong, const uchar);
-		~KmerCounter();
+		KmerCounter(const vector<Sample> &, const OptionsContainer &);
 
-		void findVariantClusterPaths(vector<VariantClusterGraph *> *, const vector<Sample> &, const uint, const ushort);
-		void countInterclusterKmers(KmerHash *, const vector<VariantFileParser::InterClusterRegion> &, const uchar);
-		void parseSampleKmers(KmerHash *, const vector<Sample> &);
-		void countVariantClusterKmers(KmerHash *, vector<VariantClusterGroup *> *);
+		void findVariantClusterPaths(InferenceUnit *, const ushort);	
+		void countPathMultigroupKmers(BooleanKmerHash *, ThreadedKmerBloom<Utils::kmer_size> *, InferenceUnit *);
+		void countInterclusterParameterKmers(BooleanKmerHash *, const vector<VariantFileParser::InterClusterRegion> &, const float, const Chromosomes &, const ThreadedKmerBloom<Utils::kmer_size> &);
+
+		void countPathKmers(ThreadedKmerBloom<Utils::kmer_size> *, InferenceUnit *);
+		void countInterclusterKmers(KmerCountsHash *, ThreadedKmerBloom<Utils::kmer_size> *, const string &, const Chromosomes &);
+		
+		void parseSampleKmers(KmerCountsHash *, ThreadedKmerBloom<Utils::kmer_size> *);
+		void classifyPathKmers(KmerCountsHash *, InferenceUnit *, const string & );
 
 	private:
+
+		const vector<Sample> samples;
+
+		const ushort num_threads;
+		const uint prng_seed;
 
 		typedef vector<pair<CKmerAPI, uint32> > KmerBatch;
 
@@ -72,16 +83,16 @@ class KmerCounter {
 			KmerBatchInfo(const ushort sample_idx_in, const KmerBatch::iterator begin_it_in, const KmerBatch::iterator end_it_in) : sample_idx(sample_idx_in), begin_it(begin_it_in), end_it(end_it_in) {}
 		};
 
-		const ushort num_threads;
-		const uint max_intercluster_kmers;
+		void findVariantClusterPathsCallback(vector<VariantClusterGroup *> *, KmerBloom<Utils::kmer_size> *, const ushort, const ushort, const ushort);
+		void countPathMultigroupKmersCallback(BooleanKmerHash *, ThreadedKmerBloom<Utils::kmer_size> *, vector<VariantClusterGroup *> *, mutex *, ulong *, const ushort);
+		void countInterclusterParameterKmersCallback(BooleanKmerHash *, const vector<VariantFileParser::InterClusterRegion> &, const float, const Chromosomes &, const ThreadedKmerBloom<Utils::kmer_size> &, const ushort);
 
-		ThreadedBasicKmerBloom<kmer_size> * path_bloom;
+		void countPathKmersCallback(ThreadedKmerBloom<Utils::kmer_size> *, vector<VariantClusterGroup *> *, const ushort);
+		void countInterclusterKmersCallback(KmerCountsHash *, ThreadedKmerBloom<Utils::kmer_size> *, const vector<VariantFileParser::InterClusterRegion> &, const Chromosomes &, const ushort);
 
-		void findVariantClusterPathsCallback(vector<VariantClusterGraph *> *, KmerBloom *, const ushort, const uint, const ushort, const ushort);
-		void selectParameterInterclusterKmersCallback(const vector<VariantFileParser::InterClusterRegion> &, const ushort, const uint);
-		void countInterclusterKmersCallback(KmerHash *, const vector<VariantFileParser::InterClusterRegion> &, const ushort);
-		void parseSampleKmersCallBack(KmerHash *, ProducerConsumerQueue<KmerBatchInfo *> *, ProducerConsumerQueue<KmerBatchInfo *> *);
-		void countVariantClusterKmersCallback(KmerHash *, vector<VariantClusterGroup *> *, const ushort);
+		void parseSampleKmersCallBack(KmerCountsHash *, ThreadedKmerBloom<Utils::kmer_size> *, ProducerConsumerQueue<KmerBatchInfo *> *, ProducerConsumerQueue<KmerBatchInfo *> *);
+		void classifyPathKmersCallback(KmerCountsHash *, KmerBloom<Utils::kmer_size> *, vector<VariantClusterGroup *> *, const ushort);
 };
+
 
 #endif

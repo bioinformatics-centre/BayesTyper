@@ -71,14 +71,16 @@ Regions::Regions(const string & regions_string) {
     }
 }
 
-bool Regions::overlaps(const string & chrom, const uint start_pos, const uint end_pos) const {
+bool Regions::overlaps(const string & chrom_name, const uint start_pos, const uint end_pos) const {
+
+    assert(start_pos <= end_pos);
 
     if (regions.empty()) {
 
         return true;
     }
 
-    auto regions_it = regions.find(chrom);
+    auto regions_it = regions.find(chrom_name);
 
     if (regions_it != regions.end()) {
 

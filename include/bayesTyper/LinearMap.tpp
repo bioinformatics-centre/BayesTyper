@@ -200,4 +200,13 @@ void PartialSortedLinearMap<KeyType, ValueType, KeyComparator>::sort() {
 	sorted_segment_length = LinearMap<KeyType, ValueType, KeyComparator>::map.size();
 }
 
+template<typename KeyType, typename ValueType, typename KeyComparator>
+void PartialSortedLinearMap<KeyType, ValueType, KeyComparator>::shuffle(std::mt19937 * prng) {
+
+	std::shuffle(LinearMap<KeyType, ValueType, KeyComparator>::map.begin(), LinearMap<KeyType, ValueType, KeyComparator>::map.end(), *prng);
+	sorted_segment_length = 0;
+}
+
+
+
 

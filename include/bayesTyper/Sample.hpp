@@ -35,11 +35,16 @@ THE SOFTWARE.
 
 #include "Utils.hpp"
 
-struct Sample {
+class Sample {
 
-	string name;
-	Utils::Gender gender;
-	string file;
+	public:
+
+		Sample(const string &);
+
+		string name;
+		Utils::Gender gender;
+		string file;
 };
+
 
 #endif

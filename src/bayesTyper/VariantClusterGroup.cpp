@@ -44,21 +44,24 @@ THE SOFTWARE.
 #include "VariantInfo.hpp"
 
 
-VariantClusterGroup::VariantClusterGroup(const vector<VariantCluster *> & variant_clusters, const vector<VariantClusterGraph *> & variant_cluster_graphs, const unordered_map<uint, uint> & variant_cluster_depedencies, const Utils::ChromosomeClass chromosome_class_in, const string & chromosome_id_in) : chromosome_class(chromosome_class_in), chromosome_id(chromosome_id_in) {
+VariantClusterGroup::VariantClusterGroup(const vector<VariantCluster *> & variant_clusters, const vector<VariantClusterGraph *> & variant_cluster_graphs, const unordered_map<uint, uint> & variant_cluster_depedencies) {
 
 	assert(!(variant_clusters.empty()));
 	assert(variant_clusters.size() < Utils::uint_overflow);
 	assert(variant_clusters.size() == variant_cluster_graphs.size());
     assert(variant_cluster_depedencies.size() < variant_clusters.size());
 
+    chrom_name = variant_clusters.front()->chrom_name;
+    chrom_class = variant_clusters.front()->chrom_class;
+
 	start_position = Utils::uint_overflow;
 	end_position = 0;
 
- 	number_of_variants = 0;
+ 	num_variants = 0;
 
 	is_snv = false;
 
-	if ((variant_clusters.size() == 1) and (variant_clusters.front()->variants.size() == 1) and (variant_clusters.front()->variants.begin()->second.type == Utils::VariantType::SNP)) {
+	if ((variant_clusters.size() == 1) and (variant_clusters.front()->variants.size() == 1) and (variant_clusters.front()->variants.begin()->second.type == VariantCluster::VariantType::SNP)) {
 
 		is_snv = true;
 	}
@@ -75,20 +78,27 @@ VariantClusterGroup::VariantClusterGroup(const vector<VariantCluster *> & varian
 
 		assert(variant_cluster_idx_to_vertex_id.emplace(variant_clusters.at(i)->cluster_idx, vertices.size()).second);
 
-		vertices.emplace_back(variant_clusters.at(i)->cluster_idx, variant_clusters.at(i)->variants.begin()->first + 1, variant_clusters.at(i)->variants.rbegin()->first + 1);
-
+		vertices.emplace_back(variant_clusters.at(i)->cluster_idx);
 		vertices.back().graph = variant_cluster_graphs.at(i);
-		vertices.back().genotyper = nullptr;
+
+		assert(vertices.back().graph != nullptr);
+		assert(vertices.back().genotyper == nullptr);
 
 		assert(variant_clusters.at(i)->contained_clusters.empty());
+
+		assert(chrom_name == variant_clusters.at(i)->chrom_name);
+		assert(chrom_class == variant_clusters.at(i)->chrom_class);
+
 		assert(variant_clusters.at(i)->left_flank == variant_clusters.at(i)->variants.begin()->first);
 		assert(variant_clusters.at(i)->right_flank >= variant_clusters.at(i)->variants.rbegin()->first);
 
-		start_position = min(start_position, vertices.back().start_position);
-		end_position = max(end_position, vertices.back().end_position);
+		start_position = min(start_position, variant_clusters.at(i)->left_flank + 1);
+		end_position = max(end_position, variant_clusters.at(i)->right_flank + 1);
 
-		number_of_variants += variant_cluster_graphs.at(i)->getInfo().size();
+		num_variants += variant_cluster_graphs.at(i)->getInfo().size();
 	}
+
+	assert(start_position <= end_position);
 
 	out_edges = vector<vector<uint> >(vertices.size());
 
@@ -105,7 +115,6 @@ VariantClusterGroup::VariantClusterGroup(const vector<VariantCluster *> & varian
 	assert(source_vertices.size() <= vertices.size());
 }
 
-
 VariantClusterGroup::~VariantClusterGroup() {
 
 	for (auto & vertex: vertices) {
@@ -115,44 +124,48 @@ VariantClusterGroup::~VariantClusterGroup() {
 	}
 }
 
-
 uint VariantClusterGroup::numberOfVariants() const {
 
-	return number_of_variants;
+	return num_variants;
 }
-
 
 uint VariantClusterGroup::numberOfVariantClusters() const {
 
 	return vertices.size();
 }
 
-
 uint VariantClusterGroup::numberOfVariantClusterGroupTrees() const {
 
 	return source_vertices.size();
 }
 
-
-
-bool VariantClusterGroup::isInChromosomeRegions(const Regions & chromosome_regions) {
-
-	return chromosome_regions.overlaps(chromosome_id, start_position, end_position);
-}
-
-
-void VariantClusterGroup::countKmers(KmerHash * kmer_hash, const uint variant_cluster_group_idx) {
+void VariantClusterGroup::findSamplePaths(KmerBloom<Utils::kmer_size> * sample_kmer_bloom, const uint prng_seed, const ushort max_sample_haplotype_candidates) {
 
 	for (auto & vertex: vertices) {
 
-		vertex.graph->countPathKmers(kmer_hash, variant_cluster_group_idx);
+		vertex.graph->findSamplePaths(sample_kmer_bloom, prng_seed + vertex.variant_cluster_idx, max_sample_haplotype_candidates);
 	}
 }
 
+void VariantClusterGroup::countPathKmers(unordered_set<bitset<Utils::kmer_size * 2> > * path_kmers) {
 
-bool VariantClusterGroup::isAutosomalSimpleSNV(KmerHash * kmer_hash) const {
+	for (auto & vertex: vertices) {
 
-	if (!is_snv or (chromosome_class != Utils::ChromosomeClass::Autosomal)) {
+		vertex.graph->countPathKmers(path_kmers);
+	}
+}
+
+void VariantClusterGroup::classifyPathKmers(KmerCountsHash * kmer_hash, KmerBloom<Utils::kmer_size> * multigroup_kmer_bloom) {
+
+	for (auto & vertex: vertices) {
+
+		vertex.graph->classifyPathKmers(kmer_hash, multigroup_kmer_bloom);
+	}
+}
+
+bool VariantClusterGroup::isAutosomalSimpleSNV() const {
+
+	if (!is_snv or (chrom_class != Utils::ChromClass::Autosomal)) {
 
 		return false;
 	}
@@ -161,109 +174,109 @@ bool VariantClusterGroup::isAutosomalSimpleSNV(KmerHash * kmer_hash) const {
 	assert(numberOfVariantClusters() == 1);
 	assert(numberOfVariantClusterGroupTrees() == 1);
 
-	assert(vertices.front().graph);
-	assert(!(vertices.front().genotyper));
-
-	return vertices.front().graph->isSimpleCluster(kmer_hash);
+	return vertices.front().graph->isSimpleCluster();
 }
 
-
-void VariantClusterGroup::initialise(KmerHash * kmer_hash, const vector<Sample> & samples, const uint prng_seed, const uchar num_genomic_rate_gc_bias_bins, const float kmer_subsampling_rate, const uint max_haplotype_variant_kmers) {
+void VariantClusterGroup::initGenotyper(KmerCountsHash * kmer_hash, const vector<Sample> & samples, const uint prng_seed, const uchar num_genomic_rate_gc_bias_bins, const float kmer_subsampling_rate, const uint max_haplotype_variant_kmers) {
 
 	for (auto & vertex: vertices) {
 
-		if (vertex.genotyper) {
+		assert(!(vertex.genotyper));
 
-			assert(!(vertex.graph));
-			vertex.genotyper->restart(kmer_subsampling_rate, max_haplotype_variant_kmers);
-			
-		} else {	
-
-			assert(vertex.graph);
-
-			vertex.genotyper = new VariantClusterGenotyper(vertex.graph, kmer_hash, samples, prng_seed + vertex.variant_cluster_idx, num_genomic_rate_gc_bias_bins);
-			vertex.genotyper->restart(kmer_subsampling_rate, max_haplotype_variant_kmers);
-			
-			delete vertex.graph;
-			vertex.graph = nullptr;
-		}
+		vertex.genotyper = new VariantClusterGenotyper(vertex.graph, kmer_hash, samples, prng_seed + vertex.variant_cluster_idx, num_genomic_rate_gc_bias_bins);
+		vertex.genotyper->reset(kmer_subsampling_rate, max_haplotype_variant_kmers);
 	}
 }
 
+void VariantClusterGroup::resetGenotyper(const float kmer_subsampling_rate, const uint max_haplotype_variant_kmers) {
 
-void VariantClusterGroup::shuffleBranchOrder(mt19937 * prng) {
+	for (auto & vertex: vertices) {
 
-	shuffle(source_vertices.begin(), source_vertices.end(), *prng);
+		assert(vertex.genotyper);
+		vertex.genotyper->reset(kmer_subsampling_rate, max_haplotype_variant_kmers);
+	}
+}
+
+void VariantClusterGroup::resetGroup() {
+
+	for (auto & vertex: vertices) {
+
+		assert(vertex.genotyper);
+		
+		delete vertex.genotyper;
+		vertex.genotyper = nullptr;
+	}
+}
+
+void VariantClusterGroup::shuffleBranchOrdering(const uint prng_seed) {
+
+    mt19937 prng = mt19937(prng_seed);
+
+	shuffle(source_vertices.begin(), source_vertices.end(), prng);
 
 	for (auto & vertex_out_edges: out_edges) {
 		
-		shuffle(vertex_out_edges.begin(), vertex_out_edges.end(), *prng);		
+		shuffle(vertex_out_edges.begin(), vertex_out_edges.end(), prng);		
 	}
 }
 
+void VariantClusterGroup::estimateGenotypes(const CountDistribution & count_distribution, const ChromosomePloidy & chrom_ploidy, const bool collect_samples) {
 
-void VariantClusterGroup::estimateGenotypes(const CountDistribution & count_distribution, const ChromosomePloidy & chromosome_ploidy, const bool collect_samples) {
+	vector<VariantClusterHaplotypes::NestedVariantClusterInfo> nested_variant_cluster_info;
+	nested_variant_cluster_info.reserve(chrom_ploidy.getPloidy(chrom_class).size());
+	
+	for (auto & ploidy: chrom_ploidy.getPloidy(chrom_class)) {
+
+		nested_variant_cluster_info.emplace_back(ploidy);
+	}
 
 	for (auto & source_vertex: source_vertices) {
 
-		runGibbsSample(source_vertex, count_distribution, chromosome_ploidy.getPloidy(chromosome_class), collect_samples);
+		runGibbsSample(source_vertex, count_distribution, nested_variant_cluster_info, collect_samples);
 	}
 }
 
+void VariantClusterGroup::runGibbsSample(const uint vertex_idx, const CountDistribution & count_distribution, const vector<VariantClusterHaplotypes::NestedVariantClusterInfo> & nested_variant_cluster_info, const bool collect_samples) {
 
-void VariantClusterGroup::runGibbsSample(const uint vertex_idx, const CountDistribution & count_distribution, const vector<Utils::Ploidy> & variant_cluster_ploidy, const bool collect_samples) {
-
-	assert(!(vertices.at(vertex_idx).graph));
 	assert(vertices.at(vertex_idx).genotyper);
 
-	vertices.at(vertex_idx).genotyper->sampleGenotypes(count_distribution, variant_cluster_ploidy, collect_samples);
+	vertices.at(vertex_idx).genotyper->sampleDiplotypes(count_distribution, nested_variant_cluster_info, collect_samples);
 	vertices.at(vertex_idx).genotyper->sampleHaplotypeFrequencies();
 		
 	for (auto & target_vertex_idx: out_edges.at(vertex_idx)) {
 
-		auto target_variant_cluster_ploidy = vertices.at(vertex_idx).genotyper->getVariantClusterPloidy(vertices.at(target_vertex_idx).variant_cluster_idx);
-		assert(target_variant_cluster_ploidy.size() == variant_cluster_ploidy.size());
+		auto target_nested_variant_cluster_info = nested_variant_cluster_info;
+		vertices.at(vertex_idx).genotyper->updateNestedVariantClusterInfo(&target_nested_variant_cluster_info, vertices.at(target_vertex_idx).variant_cluster_idx);
 
-		runGibbsSample(target_vertex_idx, count_distribution, target_variant_cluster_ploidy, collect_samples);
+		runGibbsSample(target_vertex_idx, count_distribution, target_nested_variant_cluster_info, collect_samples);
 	}
 }
 
-
-void VariantClusterGroup::getCountAllocations(CountAllocation * count_allocation, const CountDistribution & count_distribution) {
+void VariantClusterGroup::getNoiseCounts(CountAllocation * noise_counts, const CountDistribution & count_distribution) {
 
 	assert(vertices.size() == 1);
 	assert(source_vertices.size() == 1);
 
-	assert(!(vertices.front().graph));
 	assert(vertices.front().genotyper);
-
-	vertices.front().genotyper->getCountAllocations(count_allocation, count_distribution);	
+	vertices.front().genotyper->getNoiseCounts(noise_counts, count_distribution);	
 }
 
-
-void VariantClusterGroup::collectGenotypes(vector<Genotypes*> * variant_genotypes, const ChromosomePloidy & chromosome_ploidy) {
+void VariantClusterGroup::collectGenotypes(vector<Genotypes*> * variant_genotypes, const ChromosomePloidy & chrom_ploidy, const Filters & filters) {
 
 	for (auto & vertex: vertices) {	
 
-		assert(!(vertex.graph));
 		assert(vertex.genotyper);
-
-		auto vertex_genotypes = vertex.genotyper->getGenotypes(chromosome_ploidy.getPloidy(chromosome_class));			
+		auto vertex_genotypes = vertex.genotyper->getGenotypes(chrom_name, chrom_ploidy.getPloidy(chrom_class), filters);
 
 		for (auto & genotypes: vertex_genotypes) {
 
-			assert(vertex.start_position <= vertex.end_position);
-			assert(start_position <= end_position);
-
-			genotypes->variant_cluster_id = chromosome_id + ":" + to_string(vertex.start_position) + "-" + to_string(vertex.end_position);
-			genotypes->variant_cluster_group_id = chromosome_id + ":" + to_string(start_position) + "-" + to_string(end_position);
 			genotypes->variant_cluster_group_size = vertices.size();
+			genotypes->variant_cluster_group_region = chrom_name + ":" + to_string(start_position) + "-" + to_string(end_position);
 
 			variant_genotypes->push_back(genotypes);
 		}
 	}
 }
-
 
 bool VariantClusterGroupCompare(VariantClusterGroup * first_variant_cluster_group, VariantClusterGroup * second_variant_cluster_group) { 
 

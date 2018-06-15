@@ -41,17 +41,17 @@ KmerCounts::KmerCounts() {
 
     has_cluster_occ = false;
     has_multicluster_occ = false;
+    has_multigroup_occ = false;
 
     has_decoy_occ = false;
     has_max_multiplicity = false;
-    has_multicluster_group_occ = false;
+
+    is_parameter = false;
 
     max_multiplicity = 0;
 
     male_intercluster_multiplicity = 0;
     female_intercluster_multiplicity = 0;
-
-    variant_cluster_group_index = Utils::uint_overflow;
 }
 
 
@@ -65,6 +65,11 @@ bool KmerCounts::hasMulticlusterOccurrence() {
     return has_multicluster_occ;
 }
 
+bool KmerCounts::hasMultigroupOccurrence() {
+
+    return has_multigroup_occ;
+}
+
 bool KmerCounts::hasDecoyOccurrence() {
 
     return has_decoy_occ;
@@ -75,39 +80,48 @@ bool KmerCounts::hasMaxMultiplicity() {
     return has_max_multiplicity;
 }
 
-bool KmerCounts::hasMulticlusterGroupOccurrence() {
+bool KmerCounts::isParameter() {
 
-    return has_multicluster_group_occ;
+    return is_parameter;
+}
+
+void KmerCounts::isParameter(const bool is_parameter_in) {
+
+    is_parameter = is_parameter_in;
 }
 
 bool KmerCounts::isExcluded() {
 
-    assert(has_cluster_occ);
-    return (has_decoy_occ or has_max_multiplicity or has_multicluster_group_occ);
+    return (has_decoy_occ or has_max_multiplicity or has_multigroup_occ);
 }
 
-void KmerCounts::addInterclusterMultiplicity(const Utils::ChromosomeClass chromosome_class) {
+void KmerCounts::addInterclusterMultiplicity(const Utils::ChromClass chrom_class) {
 
     max_multiplicity = updateMultiplicity(max_multiplicity, 1);
 
-    if (chromosome_class == Utils::ChromosomeClass::Autosomal) {
+    if (chrom_class == Utils::ChromClass::Autosomal) {
 
         male_intercluster_multiplicity = updateMultiplicity(male_intercluster_multiplicity, 2);
         female_intercluster_multiplicity = updateMultiplicity(female_intercluster_multiplicity, 2);
     
-    } else if (chromosome_class == Utils::ChromosomeClass::X) {
+    } else if (chrom_class == Utils::ChromClass::X) {
 
         male_intercluster_multiplicity = updateMultiplicity(male_intercluster_multiplicity, 1);
         female_intercluster_multiplicity = updateMultiplicity(female_intercluster_multiplicity, 2);
 
-    } else if (chromosome_class == Utils::ChromosomeClass::Y) {
+    } else if (chrom_class == Utils::ChromClass::Y) {
 
         male_intercluster_multiplicity = updateMultiplicity(male_intercluster_multiplicity, 1);
     
     } else {
 
-        assert(chromosome_class == Utils::ChromosomeClass::Decoy);  
+        assert(chrom_class == Utils::ChromClass::Decoy);  
         has_decoy_occ = true;
+    }
+
+    if (max_multiplicity > Utils::bit7_overflow) {
+
+        has_max_multiplicity = true;
     }
 }
 
@@ -123,34 +137,22 @@ uchar KmerCounts::getInterclusterMultiplicity(const Utils::Gender gender) {
     }
 }
 
-void KmerCounts::addClusterMultiplicity(const uchar multiplicity, const uint variant_cluster_group_index_in) {
+void KmerCounts::addClusterMultiplicity(const uchar multiplicity, const bool is_multigroup_kmer) {
 
     if (has_cluster_occ) {
 
         has_multicluster_occ = true;
+        assert(has_multigroup_occ == is_multigroup_kmer);
     }
 
     has_cluster_occ = true;
+    has_multigroup_occ = is_multigroup_kmer;
 
     max_multiplicity = updateMultiplicity(max_multiplicity, multiplicity);     
 
     if (max_multiplicity > Utils::bit7_overflow) {
 
         has_max_multiplicity = true;
-    }
-
-    if (variant_cluster_group_index == Utils::uint_overflow) {
-
-        variant_cluster_group_index = variant_cluster_group_index_in;
-
-    } else {
-
-        assert(has_multicluster_occ);
-
-        if (variant_cluster_group_index != variant_cluster_group_index_in) {
-
-            has_multicluster_group_occ = true;
-        }         
     }
 }
 
@@ -218,8 +220,6 @@ void ObservedKmerCounts<sample_bin>::addSampleMultiplicity(const ushort sample_i
     multiplicities[sample_idx] += multiplicity;
 }
 
-
-template class ObservedKmerCounts<1>;
 template class ObservedKmerCounts<3>;
 template class ObservedKmerCounts<10>;
 template class ObservedKmerCounts<20>;

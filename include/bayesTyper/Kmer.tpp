@@ -42,25 +42,32 @@ KmerForward<size>::KmerForward() : end_position(size * 2 - 2) {
 }
 
 template<uchar size>
-bool KmerForward<size>::move(bitset<2> nt_bits) {
+bool KmerForward<size>::move(const pair<bitset<2>, bool> nt_bits) {
 
-	if (is_complete) {
+	if (nt_bits.second) {
 
-		(this->bitmer)>>=2;
-		update(nt_bits);
+		if (is_complete) {
+
+			(this->bitmer)>>=2;
+			update(nt_bits.first);
+
+		} else {
+
+			if (cur_position != end_position) {	
+
+				update(nt_bits.first);			
+				cur_position += 2;
+			
+			} else {
+
+				update(nt_bits.first);			
+				is_complete = true;
+			} 
+		}
 
 	} else {
 
-		if (cur_position != end_position) {	
-
-			update(nt_bits);			
-			cur_position += 2;
-		
-		} else {
-
-			update(nt_bits);			
-			is_complete = true;
-		} 
+		reset();
 	}
 
 	return is_complete;		
@@ -74,7 +81,7 @@ void KmerForward<size>::update(bitset<2> nt_bits) {
 }
 
 template<uchar size>
-void KmerForward<size>::shrink(const uchar new_size) {
+void KmerForward<size>::shrink(const ushort new_size) {
 	
 	if (is_complete) {
 		
@@ -83,7 +90,7 @@ void KmerForward<size>::shrink(const uchar new_size) {
 	}
 
 	assert(cur_position >= new_size * 2);
-	uchar shift = cur_position - new_size * 2 + 2;
+	const ushort shift = cur_position - new_size * 2 + 2;
 
 	(this->bitmer) >>= shift;		
 	cur_position -= shift;
@@ -107,25 +114,32 @@ KmerReverseComplement<size>::KmerReverseComplement() : end_position(0) {
 }
 
 template<uchar size>
-bool KmerReverseComplement<size>::move(bitset<2> nt_bits) {
+bool KmerReverseComplement<size>::move(const pair<bitset<2>, bool> nt_bits) {
 
-	if (is_complete) {
+	if (nt_bits.second) {
 
-		(this->bitmer)<<=2;
-		update(nt_bits);
+		if (is_complete) {
+
+			(this->bitmer)<<=2;
+			update(nt_bits.first);
+
+		} else {
+
+			if (cur_position != end_position) {	
+
+				update(nt_bits.first);			
+				cur_position -= 2;
+			
+			} else {
+
+				update(nt_bits.first);			
+				is_complete = true;
+			} 
+		}
 
 	} else {
 
-		if (cur_position != end_position) {	
-
-			update(nt_bits);			
-			cur_position -= 2;
-		
-		} else {
-
-			update(nt_bits);			
-			is_complete = true;
-		} 
+		reset();
 	}
 
 	return is_complete;		
@@ -139,7 +153,7 @@ void KmerReverseComplement<size>::update(bitset<2> nt_bits) {
 }
 
 template<uchar size>
-void KmerReverseComplement<size>::shrink(const uchar new_size) {
+void KmerReverseComplement<size>::shrink(const ushort new_size) {
 
 	if (is_complete) {
 		
@@ -148,7 +162,7 @@ void KmerReverseComplement<size>::shrink(const uchar new_size) {
 	}
 
 	assert((size * 2 - 2 - cur_position) >= new_size * 2);
-	uchar shift = size * 2 - 2 - cur_position - new_size * 2 + 2;
+	const ushort shift = size * 2 - 2 - cur_position - new_size * 2 + 2;
 
 	(this->bitmer) <<= shift;		
 	cur_position += shift;
@@ -165,7 +179,7 @@ void KmerReverseComplement<size>::reset() {
 
 
 template<uchar size>
-bool KmerPair<size>::move(bitset<2> nt_bits) {
+bool KmerPair<size>::move(const pair<bitset<2>, bool> nt_bits) {
 
 	auto is_complete_fw = KmerForward<size>::move(nt_bits);
 	auto is_complete_rc = KmerReverseComplement<size>::move(nt_bits);
@@ -211,8 +225,8 @@ const bitset<size*2> & KmerPair<size>::getReverseComplementKmer() {
 template<uchar size>
 const bitset<size*2> & KmerPair<size>::getLexicographicalLowestKmer() {
 
-	uchar start_position = 0;
-	uchar end_position = size * 2 - 2;
+	ushort start_position = 0;
+	const ushort end_position = size * 2 - 2;
 
 	while (start_position <= end_position) {
 
@@ -248,7 +262,7 @@ bool KmerPair<size>::operator == (const KmerPair<size> & rhs) const {
 		return false;
 	}
 
-	uchar cur_end_position = this->KmerForward<size>::cur_position;
+	ushort cur_end_position = this->KmerForward<size>::cur_position;
 
 	if (this->KmerForward<size>::is_complete) {
 

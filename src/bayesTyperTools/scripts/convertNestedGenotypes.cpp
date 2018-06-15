@@ -43,14 +43,14 @@ int main(int argc, char const *argv[]) {
 
 	if (argc != 3) {
 
-		std::cout << "USAGE: convertNestedGenotypes <input> <output_prefix>" << std::endl;
+		std::cout << "USAGE: convertNestedGenotypes <variant_file> <output_prefix>" << std::endl;
 		return 1;
 	}
 
     cout << "\n[" << Utils::getLocalTime() << "] Running BayesTyperTools (" << BT_VERSION << ") convertNestedGenotypes script ...\n" << endl;
 
 	GenotypedVcfFileReader vcf_reader(string(argv[1]), true);
-	VcfFileWriter vcf_writer(string(argv[2]) + ".vcf", vcf_reader.metaData(), true);
+	VcfFileWriter vcf_writer(string(argv[2]) + ".vcf.gz", vcf_reader.metaData(), true);
 
 	const vector<string> sample_ids = vcf_reader.metaData().sampleIds();
 	vector<vector<uint> > max_allele_end_pos(sample_ids.size(), vector<uint>(2, 0));

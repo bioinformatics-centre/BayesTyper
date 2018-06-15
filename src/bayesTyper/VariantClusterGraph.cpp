@@ -50,7 +50,7 @@ THE SOFTWARE.
 #include "KmerBloom.hpp"
 #include "VariantClusterGraphPath.hpp"
 #include "Kmer.hpp"
-#include "Sequence.hpp"
+#include "Nucleotide.hpp"
 #include "KmerCounts.hpp"
 #include "VariantClusterHaplotypes.hpp"
 #include "VariantInfo.hpp"
@@ -59,8 +59,10 @@ THE SOFTWARE.
 
 static const ushort min_num_sample_paths = 1;
 
+VariantClusterGraph::VariantClusterGraph(VariantCluster * variant_cluster, const string & chrom_sequence) {
 
-VariantClusterGraph::VariantClusterGraph(VariantCluster * variant_cluster, const string & chromosome_sequence, const uchar kmer_size) {
+    num_path_kmers = 0;
+    is_simple_cluster = true;
 
     assert(variant_cluster->variants.size() < Utils::ushort_overflow);
     
@@ -70,63 +72,62 @@ VariantClusterGraph::VariantClusterGraph(VariantCluster * variant_cluster, const
     map<uint, pair<vector<vertex_t>, vector<ushort> > > added_vertices;
     unordered_set<ushort> reference_variant_indices;
 
-    auto lit = variant_cluster->variants.begin();
-    auto cit = chromosome_sequence.begin();
+    auto variants_it = variant_cluster->variants.begin();
+    auto chrom_sequence_it = chrom_sequence.begin();
 
     vertex_t cur_vertex = boost::add_vertex(graph);    
 
-    addVertices(&cur_vertex, vector<StringItPair>(1, StringItPair(cit + lit->first - (kmer_size - 1), cit + lit->first)), make_pair(Utils::ushort_overflow, Utils::ushort_overflow), reference_variant_indices, vector<uint>(), false);
+    addVertices(&cur_vertex, vector<StringItPair>(1, StringItPair(chrom_sequence_it + variants_it->first - (Utils::kmer_size - 1), chrom_sequence_it + variants_it->first)), make_pair(Utils::ushort_overflow, Utils::ushort_overflow), reference_variant_indices, vector<uint>(), false);
 
     vertex_t prev_vertex = cur_vertex;
 
-    assert(added_vertices.insert({lit->first, make_pair(vector<vertex_t>(1, cur_vertex), vector<ushort>())}).second);
+    assert(added_vertices.insert({variants_it->first, make_pair(vector<vertex_t>(1, cur_vertex), vector<ushort>())}).second);
 
     uint cur_last_position = 0;
     uint next_position = 0;
 
     ushort variant_counter = 0;
 
-    while (lit != variant_cluster->variants.end()) {
+    while (variants_it != variant_cluster->variants.end()) {
 
-        variant_cluster_info.emplace_back(VariantInfo());
-        variant_cluster_info.back().variant_id = lit->second.id;
-        variant_cluster_info.back().num_alleles = lit->second.alternative_alleles.size() + 1 + lit->second.excluded_alt_alleles.size() + lit->second.has_dependency;
-        variant_cluster_info.back().excluded_alt_alleles = lit->second.excluded_alt_alleles;
-        variant_cluster_info.back().has_dependency = lit->second.has_dependency;
+        variant_cluster_info.emplace_back(variants_it->first + 1, variants_it->second.id, variants_it->second.has_dependency, variants_it->second.alt_alleles);
 
-        const bool is_first_nucleotides_redundant = (lit->second.num_redundant_nucleotides > 0);
+        const bool is_first_nucleotides_redundant = (variants_it->second.num_redundant_nucleotides > 0);
+        uint max_reference_length = 0;
 
-        for (auto & ait: lit->second.alternative_alleles) {
+        for (ushort alt_allele_idx = 0; alt_allele_idx < variants_it->second.alt_alleles.size(); alt_allele_idx++) {
 
-            assert(count(lit->second.excluded_alt_alleles.begin(), lit->second.excluded_alt_alleles.end(), ait.first) == 0);
+            max_reference_length = max(max_reference_length, variants_it->second.alt_alleles.at(alt_allele_idx).ref_length);
 
             vertex_t next_vertex = boost::add_vertex(graph);
             assert(boost::add_edge(cur_vertex, next_vertex, graph).second);
 
-            assert(lit->second.num_redundant_nucleotides <= ait.second.first);
-            assert(lit->second.num_redundant_nucleotides <= ait.second.second.size());
+            assert(variants_it->second.num_redundant_nucleotides <= variants_it->second.alt_alleles.at(alt_allele_idx).ref_length);
+            assert(variants_it->second.num_redundant_nucleotides <= variants_it->second.alt_alleles.at(alt_allele_idx).sequence.size());
 
-            addVertices(&next_vertex, vector<StringItPair>(1, StringItPair(ait.second.second.begin(), ait.second.second.end())), make_pair(variant_counter, ait.first), reference_variant_indices, vector<uint>(), is_first_nucleotides_redundant);
+            addVertices(&next_vertex, vector<StringItPair>(1, StringItPair(variants_it->second.alt_alleles.at(alt_allele_idx).sequence.begin(), variants_it->second.alt_alleles.at(alt_allele_idx).sequence.end())), make_pair(variant_counter, alt_allele_idx + 1), reference_variant_indices, vector<uint>(), is_first_nucleotides_redundant);
 
-            auto added_vertices_insert = added_vertices.insert({lit->first + ait.second.first, make_pair(vector<vertex_t>(), vector<ushort>())});
+            auto added_vertices_insert = added_vertices.insert({variants_it->first + variants_it->second.alt_alleles.at(alt_allele_idx).ref_length, make_pair(vector<vertex_t>(), vector<ushort>())});
             added_vertices_insert.first->second.first.push_back(next_vertex);
         }
 
-        auto avit = added_vertices.find(lit->first + lit->second.max_reference_length);
-        assert(avit != added_vertices.end());
+        assert(max_reference_length > 0);
 
-        avit->second.second.push_back(variant_counter);
+        auto added_vertices_it = added_vertices.find(variants_it->first + max_reference_length);
+        assert(added_vertices_it != added_vertices.end());
+
+        added_vertices_it->second.second.push_back(variant_counter);
         reference_variant_indices.insert(variant_counter);
 
-        lit++;
+        variants_it++;
 
-        auto added_vertices_it = added_vertices.begin();
+        added_vertices_it = added_vertices.begin();
         bool more_edges = true;
         bool last_variant = false;
 
-        if (lit != variant_cluster->variants.end()) {
+        if (variants_it != variant_cluster->variants.end()) {
 
-            next_position = lit->first;    
+            next_position = variants_it->first;    
 
         } else {
 
@@ -139,9 +140,9 @@ VariantClusterGraph::VariantClusterGraph(VariantCluster * variant_cluster, const
             auto cur_position = added_vertices_it->first;
             auto next_vertices = added_vertices_it->second.first;
 
-            for (auto &variant_id: added_vertices_it->second.second) {
+            for (auto & variant_idx: added_vertices_it->second.second) {
                 
-                reference_variant_indices.erase(variant_id);
+                reference_variant_indices.erase(variant_idx);
             }
 
             added_vertices.erase(added_vertices_it);
@@ -152,7 +153,7 @@ VariantClusterGraph::VariantClusterGraph(VariantCluster * variant_cluster, const
 
                 if (last_variant) {
 
-                    cur_last_position = cur_position + kmer_size - 1;
+                    cur_last_position = cur_position + Utils::kmer_size - 1;
 
                 } else {
 
@@ -182,14 +183,14 @@ VariantClusterGraph::VariantClusterGraph(VariantCluster * variant_cluster, const
             while ((contained_cluster_it != variant_cluster->contained_clusters.end()) and (contained_cluster_it->left_flank < cur_last_position)) {
 
                 assert(cur_position <= contained_cluster_it->left_flank);                
-                assert(contained_cluster_it->right_flank <= (cur_last_position - kmer_size));
+                assert(contained_cluster_it->right_flank <= (cur_last_position - Utils::kmer_size));
 
                 if (prev_contained_edge < Utils::uint_overflow) {
 
                     nested_variant_cluster_indices.emplace_back(prev_contained_edge);
                 }
 
-                contained_vertices.emplace_back(cit + cur_position, cit + contained_cluster_it->left_flank);
+                contained_vertices.emplace_back(chrom_sequence_it + cur_position, chrom_sequence_it + contained_cluster_it->left_flank);
 
                 prev_contained_edge = contained_cluster_it->cluster_idx;
                 cur_position = contained_cluster_it->right_flank + 1;
@@ -201,7 +202,7 @@ VariantClusterGraph::VariantClusterGraph(VariantCluster * variant_cluster, const
                 nested_variant_cluster_indices.emplace_back(prev_contained_edge);
             }
 
-            contained_vertices.emplace_back(cit + cur_position, cit + cur_last_position);
+            contained_vertices.emplace_back(chrom_sequence_it + cur_position, chrom_sequence_it + cur_last_position);
             cur_vertex = boost::add_vertex(graph);
 
             bool is_reference_allele = false;
@@ -234,7 +235,7 @@ VariantClusterGraph::VariantClusterGraph(VariantCluster * variant_cluster, const
         prev_vertex = cur_vertex; 
     }
 
-    // if (variant_cluster->left_flank == 205878 - 1) {
+    // if (variant_cluster->left_flank == 13294446 - 1) {
 
     //     auto vit = boost::vertices(graph);
 
@@ -322,6 +323,7 @@ void VariantClusterGraph::initVertex(vertex_t * cur_vertex, StringItPair vertex_
 
     if (nested_variant_cluster_index != Utils::uint_overflow) {
 
+        assert((variant_allele_idx.second == 0) or (variant_allele_idx.second == Utils::ushort_overflow));
         graph[*cur_vertex].is_disconnected = true;
 
     } else {
@@ -335,7 +337,7 @@ void VariantClusterGraph::initVertex(vertex_t * cur_vertex, StringItPair vertex_
 
     while (vertex_sequence.first != vertex_sequence.second) {
 
-        auto nt_bits = Sequence::ntToBit<1>(*vertex_sequence.first);
+        auto nt_bits = Nucleotide::ntToBit<1>(*vertex_sequence.first);
 
         if (!nt_bits.second) {
 
@@ -351,7 +353,7 @@ void VariantClusterGraph::initVertex(vertex_t * cur_vertex, StringItPair vertex_
 
                 graph[*cur_vertex].variant_allele_idx = variant_allele_idx;
                 graph[*cur_vertex].reference_variant_indices = vertex_reference_variant_indices;
-                graph[*cur_vertex].nested_variant_cluster_index = nested_variant_cluster_index;
+                graph[*cur_vertex].nested_variant_cluster_index = Utils::uint_overflow;
                 graph[*cur_vertex].is_first_nucleotides_redundant = false;
                 graph[*cur_vertex].is_disconnected = true;
                 graph[*cur_vertex].sequence.reserve((vertex_sequence.second - vertex_sequence.first) * 2);
@@ -379,15 +381,12 @@ const vector<VariantInfo> & VariantClusterGraph::getInfo() const {
     return variant_cluster_info;  
 }
 
+bool VariantClusterGraph::isSimpleCluster() {
 
-template <uchar kmer_size>
-VariantClusterKmerGraph<kmer_size>::VariantClusterKmerGraph(VariantCluster * variant_cluster, const string & chromosome_sequence) : VariantClusterGraph(variant_cluster, chromosome_sequence, kmer_size) {
-
-    num_path_kmers = 0;
+    return is_simple_cluster;
 }
 
-template <uchar kmer_size>
-void VariantClusterKmerGraph<kmer_size>::findSamplePaths(KmerBloom * path_bloom, KmerBloom * kmer_bloom, const uint prng_seed, const ushort max_sample_haplotype_candidates) {
+void VariantClusterGraph::findSamplePaths(KmerBloom<Utils::kmer_size> * sample_kmer_bloom, const uint prng_seed, const ushort max_sample_haplotype_candidates) {
     
     mt19937 prng = mt19937(prng_seed);
 
@@ -399,14 +398,14 @@ void VariantClusterKmerGraph<kmer_size>::findSamplePaths(KmerBloom * path_bloom,
     assert(eit_in.first == eit_in.second);
     assert(eit_out.first != eit_out.second);
 
-    unordered_map<vertex_t, vector<VariantClusterGraphPath<kmer_size> *> > vertex_best_sample_paths;
-    typename unordered_map<vertex_t, vector<VariantClusterGraphPath<kmer_size> *> >::iterator vertex_best_sample_paths_it = vertex_best_sample_paths.end();
+    unordered_map<vertex_t, vector<VariantClusterGraphPath *> > vertex_best_sample_paths;
+    typename unordered_map<vertex_t, vector<VariantClusterGraphPath *> >::iterator vertex_best_sample_paths_it = vertex_best_sample_paths.end();
 
     unordered_map<vertex_t, vertex_t> visited_vertices;
 
     while (vit.first != vit.second) {
 
-        auto vertex_best_sample_paths_emplace = vertex_best_sample_paths.emplace(*vit.first, vector<VariantClusterGraphPath<kmer_size> *>());
+        auto vertex_best_sample_paths_emplace = vertex_best_sample_paths.emplace(*vit.first, vector<VariantClusterGraphPath *>());
         assert(vertex_best_sample_paths_emplace.second);
 
         vertex_best_sample_paths_it = vertex_best_sample_paths_emplace.first;
@@ -423,7 +422,7 @@ void VariantClusterKmerGraph<kmer_size>::findSamplePaths(KmerBloom * path_bloom,
             assert(graph[*vit.first].reference_variant_indices.empty());
             assert(graph[*vit.first].nested_variant_cluster_index == Utils::uint_overflow);
 
-            vertex_best_sample_paths_it->second.emplace_back(new VariantClusterGraphPath<kmer_size>(variant_cluster_info.size()));
+            vertex_best_sample_paths_it->second.emplace_back(new VariantClusterGraphPath(variant_cluster_info.size()));
 
         } else {
          
@@ -449,7 +448,7 @@ void VariantClusterKmerGraph<kmer_size>::findSamplePaths(KmerBloom * path_bloom,
 
         for (auto & path: vertex_best_sample_paths_it->second) {
 
-            path->addVertex(*vit.first, graph[*vit.first], kmer_bloom);
+            path->addVertex(*vit.first, graph[*vit.first], sample_kmer_bloom);
         }
 
         filterPaths(&(vertex_best_sample_paths_it->second), max_sample_haplotype_candidates, false);
@@ -479,11 +478,10 @@ void VariantClusterKmerGraph<kmer_size>::findSamplePaths(KmerBloom * path_bloom,
     filterPaths(&(vertex_best_sample_paths_it->second), max_sample_haplotype_candidates, true);
     assert(!(vertex_best_sample_paths_it->second.empty()) and (vertex_best_sample_paths_it->second.size() <= max_sample_haplotype_candidates));  
 
-    addPathIndices(path_bloom, &(vertex_best_sample_paths_it->second));
+    addPathIndices(&(vertex_best_sample_paths_it->second));
 }
 
-template <uchar kmer_size>
-void VariantClusterKmerGraph<kmer_size>::mergePaths(vector<VariantClusterGraphPath<kmer_size> *> * main_paths, vector<VariantClusterGraphPath<kmer_size> *> * input_paths, const bool is_last_edge) {
+void VariantClusterGraph::mergePaths(vector<VariantClusterGraphPath *> * main_paths, vector<VariantClusterGraphPath *> * input_paths, const bool is_last_edge) {
 
     const uint main_path_size = main_paths->size();
     main_paths->reserve(main_path_size + input_paths->size());
@@ -506,7 +504,7 @@ void VariantClusterKmerGraph<kmer_size>::mergePaths(vector<VariantClusterGraphPa
 
                     } else {
 
-                        main_paths->at(main_path_idx) = new VariantClusterGraphPath<kmer_size>(*input_path);
+                        main_paths->at(main_path_idx) = new VariantClusterGraphPath(*input_path);
                     }
                 
                 } else {
@@ -527,14 +525,13 @@ void VariantClusterKmerGraph<kmer_size>::mergePaths(vector<VariantClusterGraphPa
 
             } else {
 
-                main_paths->emplace_back(new VariantClusterGraphPath<kmer_size>(*input_path));
+                main_paths->emplace_back(new VariantClusterGraphPath(*input_path));
             }
         } 
     } 
 }
 
-template <uchar kmer_size>
-bool VariantClusterKmerGraph<kmer_size>::isPathsRedundant(const vector<typename VariantClusterGraphPath<kmer_size>::PathVertexInfo> & path_1, const vector<typename VariantClusterGraphPath<kmer_size>::PathVertexInfo> & path_2) const {
+bool VariantClusterGraph::isPathsRedundant(const vector<typename VariantClusterGraphPath::PathVertexInfo> & path_1, const vector<typename VariantClusterGraphPath::PathVertexInfo> & path_2) const {
 
     auto path_it_1 = path_1.crbegin();
     auto path_it_2 = path_2.crbegin();
@@ -631,8 +628,7 @@ bool VariantClusterKmerGraph<kmer_size>::isPathsRedundant(const vector<typename 
     return true;
 }
 
-template <uchar kmer_size>
-void VariantClusterKmerGraph<kmer_size>::filterPaths(vector<VariantClusterGraphPath<kmer_size> *> * paths, const uint max_paths, const bool is_complete) {
+void VariantClusterGraph::filterPaths(vector<VariantClusterGraphPath *> * paths, const uint max_paths, const bool is_complete) {
 
     assert(!(paths->empty()));
 
@@ -727,8 +723,7 @@ void VariantClusterKmerGraph<kmer_size>::filterPaths(vector<VariantClusterGraphP
     }
 }
 
-template <uchar kmer_size>
-void VariantClusterKmerGraph<kmer_size>::addPathIndices(KmerBloom * path_bloom, vector<VariantClusterGraphPath<kmer_size> *> * paths) {
+void VariantClusterGraph::addPathIndices(vector<VariantClusterGraphPath *> * paths) {
 
     const uint num_vertices = boost::num_vertices(graph);
 
@@ -742,7 +737,7 @@ void VariantClusterKmerGraph<kmer_size>::addPathIndices(KmerBloom * path_bloom, 
 
     for (uint best_paths_idx = 0; best_paths_idx < num_best_paths; best_paths_idx++) {
 
-        vector<typename VariantClusterGraphPath<kmer_size>::PathVertexInfo> cur_best_path;
+        vector<typename VariantClusterGraphPath::PathVertexInfo> cur_best_path;
         cur_best_path.reserve(num_vertices / 2);
 
         for (uint vertex_idx = 0; vertex_idx < num_vertices; vertex_idx++) {
@@ -787,38 +782,10 @@ void VariantClusterKmerGraph<kmer_size>::addPathIndices(KmerBloom * path_bloom, 
 
             vector<bool> path_indices(num_vertices, false);
 
-            KmerPair<kmer_size> kmer_pair;
-            bitset<2> nt_bits;
-
             for (auto & vertex: paths->at(path_idx)->getPath()) {
 
                 assert(!(path_indices.at(vertex.index)));
                 path_indices.at(vertex.index) = true;
-
-                if (vertex.vertex->is_disconnected) {
-
-                    kmer_pair.reset();
-                }
-
-                assert((vertex.vertex->sequence.size() % 2) == 0);
-                auto sequence_it = vertex.vertex->sequence.begin();
-
-                while (sequence_it != vertex.vertex->sequence.end()) {
-
-                    nt_bits.set(0, *sequence_it);
-                    sequence_it++;
-
-                    nt_bits.set(1, *sequence_it);
-                    sequence_it++;
-
-                    if (kmer_pair.move(nt_bits)) {     
-
-                        auto lowest_kmer = kmer_pair.getLexicographicalLowestKmer();
-
-                        auto bloom_lock = static_cast<ThreadedBasicKmerBloom<kmer_size> *>(path_bloom)->lockBloom(lowest_kmer);
-                        static_cast<ThreadedBasicKmerBloom<kmer_size> *>(path_bloom)->addKmer(lowest_kmer);
-                    }
-                }
             }
 
             best_paths_indices.insert(best_paths_indices.end(), path_indices.begin(), path_indices.end());
@@ -830,8 +797,7 @@ void VariantClusterKmerGraph<kmer_size>::addPathIndices(KmerBloom * path_bloom, 
     best_paths_indices.shrink_to_fit();
 } 
 
-template <uchar kmer_size>
-void VariantClusterKmerGraph<kmer_size>::countPathKmers(KmerHash * kmer_hash, const uint variant_cluster_group_idx) {
+void VariantClusterGraph::countPathKmers(unordered_set<bitset<Utils::kmer_size * 2> > * path_kmers) {
     
     const uint num_vertices = boost::num_vertices(graph);
 
@@ -840,9 +806,9 @@ void VariantClusterKmerGraph<kmer_size>::countPathKmers(KmerHash * kmer_hash, co
 
     const ushort num_best_paths = best_paths_indices.size() / num_vertices;
 
-    unordered_map<bitset<kmer_size * 2>, vector<uchar> > kmer_multiplicities;
+    unordered_map<bitset<Utils::kmer_size * 2>, vector<uchar> > kmer_multiplicities;
     
-    KmerPair<kmer_size> kmer_pair;
+    KmerPair<Utils::kmer_size> kmer_pair;
     bitset<2> nt_bits;
 
     for (ushort best_paths_idx = 0; best_paths_idx < num_best_paths; best_paths_idx++) {
@@ -869,7 +835,55 @@ void VariantClusterKmerGraph<kmer_size>::countPathKmers(KmerHash * kmer_hash, co
                     nt_bits.set(1, *sequence_it);
                     sequence_it++;
 
-                    if (kmer_pair.move(nt_bits)) {
+                    if (kmer_pair.move(make_pair(nt_bits, true))) {
+
+                        path_kmers->emplace(kmer_pair.getLexicographicalLowestKmer());
+                    }
+                }
+            }
+        }
+    }
+}
+
+void VariantClusterGraph::classifyPathKmers(KmerCountsHash * kmer_hash, KmerBloom<Utils::kmer_size> * multigroup_kmer_bloom) {
+    
+    const uint num_vertices = boost::num_vertices(graph);
+
+    assert(!(best_paths_indices.empty()));
+    assert((best_paths_indices.size() % num_vertices) == 0);
+
+    const ushort num_best_paths = best_paths_indices.size() / num_vertices;
+
+    unordered_map<bitset<Utils::kmer_size * 2>, vector<uchar> > kmer_multiplicities;
+    
+    KmerPair<Utils::kmer_size> kmer_pair;
+    bitset<2> nt_bits;
+
+    for (ushort best_paths_idx = 0; best_paths_idx < num_best_paths; best_paths_idx++) {
+
+        kmer_pair.reset();
+
+        for (uint vertex_idx = 0; vertex_idx < num_vertices; vertex_idx++) {
+
+            if (best_paths_indices.at((best_paths_idx * num_vertices) + vertex_idx)) {
+
+                if (graph[vertex_idx].is_disconnected) {
+
+                    kmer_pair.reset();
+                }
+
+                assert((graph[vertex_idx].sequence.size() % 2) == 0);
+                auto sequence_it = graph[vertex_idx].sequence.begin();
+
+                while (sequence_it != graph[vertex_idx].sequence.end()) {
+
+                    nt_bits.set(0, *sequence_it);
+                    sequence_it++;
+
+                    nt_bits.set(1, *sequence_it);
+                    sequence_it++;
+
+                    if (kmer_pair.move(make_pair(nt_bits, true))) {
                     
                         auto kmer_multiplicities_it = kmer_multiplicities.emplace(kmer_pair.getLexicographicalLowestKmer(), vector<uchar>(num_best_paths, 0));
 
@@ -884,7 +898,9 @@ void VariantClusterKmerGraph<kmer_size>::countPathKmers(KmerHash * kmer_hash, co
     }
 
     assert(num_path_kmers == 0);
-    num_path_kmers = kmer_multiplicities.size();
+    num_path_kmers += kmer_multiplicities.size();
+
+    assert(is_simple_cluster == true);
 
     auto kmer_multiplicities_it = kmer_multiplicities.begin();
 
@@ -895,88 +911,37 @@ void VariantClusterKmerGraph<kmer_size>::countPathKmers(KmerHash * kmer_hash, co
         uchar max_multiplicity = *max_element(kmer_multiplicities_it->second.begin(), kmer_multiplicities_it->second.end());
         assert(max_multiplicity > 0); 
 
-        auto hash_lock = static_cast<BasicKmerHash<kmer_size> *>(kmer_hash)->getKmerLock(kmer_multiplicities_it->first);
-        auto kmer_counts = static_cast<BasicKmerHash<kmer_size> *>(kmer_hash)->findKmer(kmer_multiplicities_it->first);    
+        auto hash_lock = kmer_hash->getKmerLock(kmer_multiplicities_it->first);
+        auto kmer_counts = kmer_hash->findKmer(kmer_multiplicities_it->first);    
+
+        if (!kmer_counts and (max_multiplicity > Utils::bit7_overflow)) {
+
+            auto kmer_added = kmer_hash->addKmer(kmer_multiplicities_it->first, true);
+           
+            assert(kmer_added.first);
+            assert(kmer_added.second);
+
+            kmer_counts = kmer_added.first;
+        }
 
         if (kmer_counts) {
-        
-            kmer_counts->addClusterMultiplicity(max_multiplicity, variant_cluster_group_idx);
 
-        } else if (max_multiplicity > Utils::bit7_overflow) {
+            kmer_counts->addClusterMultiplicity(max_multiplicity, multigroup_kmer_bloom->lookup(kmer_multiplicities_it->first));
 
-            auto kmer_added = static_cast<BasicKmerHash<kmer_size> *>(kmer_hash)->addKmer(kmer_multiplicities_it->first, true);
-            assert(kmer_added.first);
+            if (is_simple_cluster) {
 
-            assert(kmer_added.second);
-            kmer_added.first->addClusterMultiplicity(max_multiplicity, variant_cluster_group_idx);
-        } 
+                if (kmer_counts->hasDecoyOccurrence() or kmer_counts->hasMultigroupOccurrence() or (kmer_counts->getInterclusterMultiplicity(Utils::Gender::Female) > 0) or (kmer_counts->getInterclusterMultiplicity(Utils::Gender::Male) > 0)) {
+
+                    is_simple_cluster = false;
+                }
+            }
+        }
 
         kmer_multiplicities_it++;
     }
 }
 
-template <uchar kmer_size>
-bool VariantClusterKmerGraph<kmer_size>::isSimpleCluster(KmerHash * kmer_hash) {
-
-    const uint num_vertices = boost::num_vertices(graph);
-
-    assert(!(best_paths_indices.empty()));
-    assert((best_paths_indices.size() % num_vertices) == 0);
-
-    const ushort num_best_paths = best_paths_indices.size() / num_vertices;
-    
-    KmerPair<kmer_size> kmer_pair;
-    bitset<2> nt_bits;
-
-    for (ushort best_paths_idx = 0; best_paths_idx < num_best_paths; best_paths_idx++) {
-
-        kmer_pair.reset();
-
-        for (uint vertex_idx = 0; vertex_idx < num_vertices; vertex_idx++) {
-
-            if (best_paths_indices.at((best_paths_idx * num_vertices) + vertex_idx)) {
-
-                if (graph[vertex_idx].is_disconnected) {
-
-                    return false;
-                }
-
-                assert((graph[vertex_idx].sequence.size() % 2) == 0);
-                auto sequence_it = graph[vertex_idx].sequence.begin();
-
-                while (sequence_it != graph[vertex_idx].sequence.end()) {
-
-                    nt_bits.set(0, *sequence_it);
-                    sequence_it++;
-
-                    nt_bits.set(1, *sequence_it);
-                    sequence_it++;
-
-                    if (kmer_pair.move(nt_bits)) {     
-
-                        auto lowest_kmer = kmer_pair.getLexicographicalLowestKmer();
-                        auto kmer_counts = static_cast<BasicKmerHash<kmer_size> *>(kmer_hash)->findKmer(lowest_kmer);
-
-                        if (kmer_counts) {
-                            
-                            assert(kmer_counts->hasClusterOccurrence());
-
-                            if (kmer_counts->isExcluded() or (kmer_counts->getInterclusterMultiplicity(Utils::Gender::Male) > 0) or kmer_counts->hasMulticlusterOccurrence()) {
-
-                                return false;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    return true;
-}
-
-template <uchar kmer_size>
-VariantClusterHaplotypes VariantClusterKmerGraph<kmer_size>::getHaplotypeCandidates(KmerHash * kmer_hash, const uchar num_genomic_rate_gc_bias_bins) {
+VariantClusterHaplotypes VariantClusterGraph::getHaplotypeCandidates(KmerCountsHash * kmer_hash, const uchar num_genomic_rate_gc_bias_bins) {
 
     VariantClusterHaplotypes variant_cluster_haplotypes;
 
@@ -989,16 +954,15 @@ VariantClusterHaplotypes VariantClusterKmerGraph<kmer_size>::getHaplotypeCandida
 
     variant_cluster_haplotypes.haplotypes.reserve(best_paths_indices.size());
 
-    variant_cluster_haplotypes.haplotype_unique_kmer_multiplicities = Eigen::MatrixXuchar::Zero(num_path_kmers, num_best_paths); 
-    variant_cluster_haplotypes.haplotype_multicluster_kmer_multiplicities = Eigen::MatrixXuchar::Zero(num_path_kmers, num_best_paths); 
+    variant_cluster_haplotypes.haplotype_kmer_multiplicities = Utils::MatrixXuchar::Zero(num_path_kmers, num_best_paths); 
+    
+    variant_cluster_haplotypes.kmers.reserve(num_path_kmers);
+    variant_cluster_haplotypes.unique_kmer_indices.reserve(num_path_kmers);
+    variant_cluster_haplotypes.multicluster_kmer_indices.reserve(num_path_kmers);
 
-    variant_cluster_haplotypes.unique_kmers.reserve(num_path_kmers);
-    variant_cluster_haplotypes.multicluster_kmers.reserve(num_path_kmers);
+    unordered_map<bitset<Utils::kmer_size * 2>, uint> kmer_row_indices;
 
-    unordered_map<bitset<kmer_size * 2>, uint> kmer_unique_row_indices;
-    unordered_map<bitset<kmer_size * 2>, uint> kmer_multicluster_row_indices;
-
-    KmerPair<kmer_size> kmer_pair;
+    KmerPair<Utils::kmer_size> kmer_pair;
     bitset<2> nt_bits;
 
     uint num_nucleotides = 0;
@@ -1029,8 +993,8 @@ VariantClusterHaplotypes VariantClusterKmerGraph<kmer_size>::getHaplotypeCandida
 
                     assert(variant_cluster_haplotypes.haplotypes.back().variant_allele_indices.at(graph[vertex_idx].variant_allele_idx.first) == graph[vertex_idx].variant_allele_idx.second);
                     
-                    auto running_variants_it = running_variants.emplace(graph[vertex_idx].variant_allele_idx, make_pair(num_nucleotides + static_cast<uint>(graph[vertex_idx].is_first_nucleotides_redundant), num_nucleotides + kmer_size - 1));
-                    assert((running_variants_it.first->second.second - kmer_size + 1) == num_nucleotides);
+                    auto running_variants_it = running_variants.emplace(graph[vertex_idx].variant_allele_idx, make_pair(num_nucleotides + static_cast<uint>(graph[vertex_idx].is_first_nucleotides_redundant), num_nucleotides + Utils::kmer_size - 1));
+                    assert((running_variants_it.first->second.second - Utils::kmer_size + 1) == num_nucleotides);
 
                     running_variants_it.first->second.second += (graph[vertex_idx].sequence.size() / 2);
                 }
@@ -1043,7 +1007,7 @@ VariantClusterHaplotypes VariantClusterKmerGraph<kmer_size>::getHaplotypeCandida
 
                     if (running_variants_it != running_variants.end()) {
 
-                        assert((running_variants_it->second.second - kmer_size + 1) == num_nucleotides);
+                        assert((running_variants_it->second.second - Utils::kmer_size + 1) == num_nucleotides);
                         running_variants_it->second.second += (graph[vertex_idx].sequence.size() / 2);
                     }
                 }
@@ -1070,12 +1034,12 @@ VariantClusterHaplotypes VariantClusterKmerGraph<kmer_size>::getHaplotypeCandida
                     nt_bits.set(1, *sequence_it);
                     sequence_it++;
 
-                    if (kmer_pair.move(nt_bits)) {     
+                    if (kmer_pair.move(make_pair(nt_bits, true))) {     
 
                         auto lowest_kmer = kmer_pair.getLexicographicalLowestKmer();
-                        auto kmer_counts = static_cast<BasicKmerHash<kmer_size> *>(kmer_hash)->findKmer(lowest_kmer);
+                        auto kmer_counts = kmer_hash->findKmer(lowest_kmer);
 
-                        bool is_multi = false;
+                        bool is_multicluster = false;
 
                         if (kmer_counts) {
 
@@ -1087,46 +1051,30 @@ VariantClusterHaplotypes VariantClusterKmerGraph<kmer_size>::getHaplotypeCandida
                                 continue;
                             }
 
-                            if (kmer_counts->hasMulticlusterOccurrence()) {
+                            is_multicluster = kmer_counts->hasMulticlusterOccurrence();
+                        }
 
-                                is_multi = true;
+                        auto kmer_row_indices_it = kmer_row_indices.emplace(lowest_kmer, kmer_row_indices.size());
+                        assert(kmer_row_indices_it.first->second < num_path_kmers);
+
+                        variant_cluster_haplotypes.haplotype_kmer_multiplicities(kmer_row_indices_it.first->second, best_paths_idx)++;
+                        assert(variant_cluster_haplotypes.haplotype_kmer_multiplicities(kmer_row_indices_it.first->second, best_paths_idx) <= Utils::bit7_overflow);
+
+                        if (kmer_row_indices_it.second) {
+
+                            variant_cluster_haplotypes.kmers.emplace_back(kmer_counts, Nucleotide::gcBiasBin<Utils::kmer_size>(lowest_kmer, num_genomic_rate_gc_bias_bins));
+
+                            if (is_multicluster) {
+
+                                variant_cluster_haplotypes.multicluster_kmer_indices.emplace_back(kmer_row_indices_it.first->second);
+
+                            } else {
+
+                                variant_cluster_haplotypes.unique_kmer_indices.emplace_back(kmer_row_indices_it.first->second);
                             }
                         }
 
-                        if (is_multi) { 
-
-                            assert(kmer_counts);
-
-                            auto kmer_multicluster_row_indices_it = kmer_multicluster_row_indices.emplace(lowest_kmer, kmer_multicluster_row_indices.size());
-
-                            assert(kmer_multicluster_row_indices_it.first->second < num_path_kmers);
-
-                            variant_cluster_haplotypes.haplotype_multicluster_kmer_multiplicities(kmer_multicluster_row_indices_it.first->second, best_paths_idx)++;
-                            assert(variant_cluster_haplotypes.haplotype_multicluster_kmer_multiplicities(kmer_multicluster_row_indices_it.first->second, best_paths_idx) <= Utils::bit7_overflow);
-
-                            if (kmer_multicluster_row_indices_it.second) {
-
-                                variant_cluster_haplotypes.multicluster_kmers.emplace_back(kmer_counts, Sequence::gcBiasBin<kmer_size>(lowest_kmer, num_genomic_rate_gc_bias_bins));
-                            }
-
-                            updateVariantPathIndices(&(variant_cluster_haplotypes.multicluster_kmers.at(kmer_multicluster_row_indices_it.first->second).variant_haplotype_indices), &running_variants, num_nucleotides, num_best_paths, best_paths_idx);
-
-                        } else {
-
-                            auto kmer_unique_row_indices_it = kmer_unique_row_indices.emplace(lowest_kmer, kmer_unique_row_indices.size());
-
-                            assert(kmer_unique_row_indices_it.first->second < num_path_kmers);
-
-                            variant_cluster_haplotypes.haplotype_unique_kmer_multiplicities(kmer_unique_row_indices_it.first->second, best_paths_idx)++;
-                            assert(variant_cluster_haplotypes.haplotype_unique_kmer_multiplicities(kmer_unique_row_indices_it.first->second, best_paths_idx) <= Utils::bit7_overflow);
-
-                            if (kmer_unique_row_indices_it.second) {
-
-                                variant_cluster_haplotypes.unique_kmers.emplace_back(kmer_counts, Sequence::gcBiasBin<kmer_size>(lowest_kmer, num_genomic_rate_gc_bias_bins));
-                            }
-
-                            updateVariantPathIndices(&(variant_cluster_haplotypes.unique_kmers.at(kmer_unique_row_indices_it.first->second).variant_haplotype_indices), &running_variants, num_nucleotides, num_best_paths, best_paths_idx);
-                        }  
+                        updateVariantPathIndices(&(variant_cluster_haplotypes.kmers.at(kmer_row_indices_it.first->second).variant_haplotype_indices), &running_variants, num_nucleotides, num_best_paths, best_paths_idx);
                     }
 
                     num_nucleotides++;
@@ -1141,37 +1089,53 @@ VariantClusterHaplotypes VariantClusterKmerGraph<kmer_size>::getHaplotypeCandida
             if (variant_cluster_haplotypes.haplotypes.back().variant_allele_indices.at(variant_idx) == Utils::ushort_overflow) {
 
                 assert(variant_cluster_info.at(variant_idx).has_dependency);
-                variant_cluster_haplotypes.haplotypes.back().variant_allele_indices.at(variant_idx) = variant_cluster_info.at(variant_idx).num_alleles - 1;
+                variant_cluster_haplotypes.haplotypes.back().variant_allele_indices.at(variant_idx) = variant_cluster_info.at(variant_idx).numberOfAlleles() - 1;
             }
         }  
     }
 
-    if (kmer_unique_row_indices.size() < static_cast<uint>(variant_cluster_haplotypes.haplotype_unique_kmer_multiplicities.rows())) {
+    if (kmer_row_indices.size() < static_cast<uint>(variant_cluster_haplotypes.haplotype_kmer_multiplicities.rows())) {
 
         Eigen::NoChange_t no_change_t;
-        variant_cluster_haplotypes.haplotype_unique_kmer_multiplicities.conservativeResize(kmer_unique_row_indices.size(), no_change_t);
+        variant_cluster_haplotypes.haplotype_kmer_multiplicities.conservativeResize(kmer_row_indices.size(), no_change_t);
     }
 
-    if (kmer_multicluster_row_indices.size() < static_cast<uint>(variant_cluster_haplotypes.haplotype_multicluster_kmer_multiplicities.rows())) {
+    variant_cluster_haplotypes.kmers.shrink_to_fit();
+    variant_cluster_haplotypes.unique_kmer_indices.shrink_to_fit();
+    variant_cluster_haplotypes.multicluster_kmer_indices.shrink_to_fit();
 
-        Eigen::NoChange_t no_change_t;
-        variant_cluster_haplotypes.haplotype_multicluster_kmer_multiplicities.conservativeResize(kmer_multicluster_row_indices.size(), no_change_t);
+    assert(kmer_row_indices.size() == static_cast<uint>(variant_cluster_haplotypes.haplotype_kmer_multiplicities.rows()));
+    assert(kmer_row_indices.size() == variant_cluster_haplotypes.kmers.size());
+    assert(kmer_row_indices.size() == (variant_cluster_haplotypes.unique_kmer_indices.size() + variant_cluster_haplotypes.multicluster_kmer_indices.size()));
+
+    assert(variant_cluster_haplotypes.nested_variant_cluster_dependency.empty());
+
+    for (uint vertex_idx = 0; vertex_idx < num_vertices; vertex_idx++) {
+
+        if (graph[vertex_idx].nested_variant_cluster_index != Utils::uint_overflow) {
+
+            auto nested_variant_cluster_dependency_it = variant_cluster_haplotypes.nested_variant_cluster_dependency.emplace(graph[vertex_idx].nested_variant_cluster_index, vector<ushort>());
+            assert(nested_variant_cluster_dependency_it.second);
+
+            if (graph[vertex_idx].variant_allele_idx.first != Utils::ushort_overflow) {
+
+                nested_variant_cluster_dependency_it.first->second.push_back(graph[vertex_idx].variant_allele_idx.first);
+            }
+
+            for (auto & reference_variant_idx: graph[vertex_idx].reference_variant_indices) {
+
+                assert(reference_variant_idx != graph[vertex_idx].variant_allele_idx.first);
+                nested_variant_cluster_dependency_it.first->second.push_back(reference_variant_idx);
+            }
+
+            sort(nested_variant_cluster_dependency_it.first->second.begin(), nested_variant_cluster_dependency_it.first->second.end(), greater<ushort>());
+        }
     }
-
-    variant_cluster_haplotypes.unique_kmers.shrink_to_fit(); 
-    variant_cluster_haplotypes.multicluster_kmers.shrink_to_fit();
-
-    assert(kmer_unique_row_indices.size() == static_cast<uint>(variant_cluster_haplotypes.haplotype_unique_kmer_multiplicities.rows()));
-    assert(kmer_unique_row_indices.size() == variant_cluster_haplotypes.unique_kmers.size());
-
-    assert(kmer_multicluster_row_indices.size() == static_cast<uint>(variant_cluster_haplotypes.haplotype_multicluster_kmer_multiplicities.rows()));
-    assert(kmer_multicluster_row_indices.size() == variant_cluster_haplotypes.multicluster_kmers.size());
 
     return variant_cluster_haplotypes;
 }
 
-template <uchar kmer_size>
-void VariantClusterKmerGraph<kmer_size>::updateVariantPathIndices(vector<pair<ushort, vector<bool> > > * variant_path_indices, unordered_map<pair<ushort, ushort>, pair<uint, uint>, boost::hash<pair<ushort, ushort> > > * running_variants, const uint num_nucleotides, const ushort num_best_paths, const ushort best_paths_idx) {
+void VariantClusterGraph::updateVariantPathIndices(vector<pair<ushort, vector<bool> > > * variant_path_indices, unordered_map<pair<ushort, ushort>, pair<uint, uint>, boost::hash<pair<ushort, ushort> > > * running_variants, const uint num_nucleotides, const ushort num_best_paths, const ushort best_paths_idx) {
 
     auto running_variants_it = running_variants->begin();
 
@@ -1220,7 +1184,6 @@ void VariantClusterKmerGraph<kmer_size>::updateVariantPathIndices(vector<pair<us
     } 
 }
 
-
 bool VariantClusterGraphCompare(VariantClusterGraph * first_variant_cluster_graph, VariantClusterGraph * second_variant_cluster_graph) { 
 
     assert(first_variant_cluster_graph);
@@ -1228,12 +1191,5 @@ bool VariantClusterGraphCompare(VariantClusterGraph * first_variant_cluster_grap
 
     return (first_variant_cluster_graph->getInfo().size() > second_variant_cluster_graph->getInfo().size());
 }
-
-
-template class VariantClusterKmerGraph<31>;
-template class VariantClusterKmerGraph<39>;
-template class VariantClusterKmerGraph<47>;
-template class VariantClusterKmerGraph<55>;
-template class VariantClusterKmerGraph<63>;
 
 

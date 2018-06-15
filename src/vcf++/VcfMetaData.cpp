@@ -321,6 +321,17 @@ const vector<Contig> & VcfMetaData::contigs() {
     return _contigs;
 }
 
+void VcfMetaData::setContigs(const vector<Contig> & contigs_in) {
+
+    _contigs = contigs_in;
+    contig_id_to_idx.clear();
+
+    for (uint i = 0; i < _contigs.size(); i++) {
+
+        assert(contig_id_to_idx.emplace(_contigs.at(i).id(), i).second);
+    }
+}
+
 uint VcfMetaData::getContigIndex(const string & id) {
 
     auto contig_id_to_idx_it = contig_id_to_idx.find(id);
@@ -333,6 +344,14 @@ uint VcfMetaData::getContigIndex(const string & id) {
 const Contig & VcfMetaData::getContig(const string & id) {
 
     return _contigs.at(getContigIndex(id));
+}
+
+void VcfMetaData::addContig(const Contig & contig_in) {
+
+    _contigs.push_back(contig_in);
+
+    assert(contig_id_to_idx.find(_contigs.back().id()) == contig_id_to_idx.end());
+    assert(contig_id_to_idx.emplace(_contigs.back().id(), _contigs.size() - 1).second);
 }
 
 multimap<string,string> & VcfMetaData::miscMeta() {

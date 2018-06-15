@@ -27,8 +27,8 @@ THE SOFTWARE.
 */
 
 
-#ifndef REDUCTION_OPERATOR
-#define REDUCTION_OPERATOR
+#ifndef __vcf__ReductionOperator_hpp
+#define __vcf__ReductionOperator_hpp
 
 #include <functional>
 

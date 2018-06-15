@@ -33,14 +33,15 @@ THE SOFTWARE.
 
 FastaReader::FastaReader(const string & fasta_filename) {
 
-    fasta_file.open(fasta_filename);
-    assert(fasta_file.is_open());
-    last_line_read = !getline(fasta_file, cur_line);
+    fasta_infile.open(fasta_filename);
+    assert(fasta_infile.is_open());
+    
+    last_line_read = !getline(fasta_infile, cur_line);
 }
 
 FastaReader::~FastaReader() {
 
-    fasta_file.close();
+    fasta_infile.close();
 }
 
 bool FastaReader::getNextRecord(FastaRecord ** fasta_rec) {
@@ -54,7 +55,7 @@ bool FastaReader::getNextRecord(FastaRecord ** fasta_rec) {
         assert(cur_line.at(0) == '>');
         *fasta_rec = new FastaRecord(cur_line.substr(1), 300000000);
 
-        while (last_line_read = !getline(fasta_file, cur_line), !last_line_read) {
+        while (last_line_read = !getline(fasta_infile, cur_line), !last_line_read) {
 
             assert(!cur_line.empty());
             if (cur_line.at(0) == '>') {

@@ -42,7 +42,7 @@ int main(int argc, char const *argv[]) {
 
     if (argc != 4) {
 
-        std::cout << "USAGE: writeIndels <input> <output_prefix> <min_indel_length>" << std::endl;
+        std::cout << "USAGE: writeIndels <variant_file> <output_prefix> <min_indel_length>" << std::endl;
         return 1;
     }
 
@@ -50,7 +50,7 @@ int main(int argc, char const *argv[]) {
 
 
     VcfFileReader in_vcf(argv[1], true);
-    ofstream output_file(string(argv[2]) + ".fa");
+    ofstream indels_outfile(string(argv[2]) + ".fa");
 
     const uint min_indel_length = stoi(argv[3]); 
 
@@ -97,7 +97,7 @@ int main(int argc, char const *argv[]) {
 
                 string alt_id = cur_var->chrom() + "_" + to_string(cur_var->pos()) + "_" + to_string(alt_idx);
                 FastaRecord alt_rec(alt_id, out_seq);
-                output_file << alt_rec.str();
+                indels_outfile << alt_rec.str();
             }
 
             if (num_variants % 100000 == 0) {
@@ -108,6 +108,8 @@ int main(int argc, char const *argv[]) {
 
         delete cur_var;
     }
+
+    indels_outfile.close();
 
     cout << "[" << Utils::getLocalTime() << "] Completed BayesTyperTools writeIndelFasta\n" << endl;
     cout << "[" << Utils::getLocalTime() << "] " << num_variants << " variant(s) were parsed in total\n" << endl;

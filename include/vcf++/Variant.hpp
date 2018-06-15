@@ -27,8 +27,8 @@ THE SOFTWARE.
 */
 
 
-#ifndef VARIANT
-#define VARIANT
+#ifndef __vcf__Variant_hpp
+#define __vcf__Variant_hpp
 
 #include <string>
 #include <vector>
@@ -123,6 +123,9 @@ protected:
     bool samples_parsed;
     DelayedSampleParsingInfo sample_info;
     unordered_map<string, Sample> _samples;
+
+    void parseInfoAlleleAttribute(const Attribute::DetailedDescriptor &, const vector<string> &, const uint);
+    string writeInfoAlleleAttribute(const string &, const uint);
 };
 
 #endif

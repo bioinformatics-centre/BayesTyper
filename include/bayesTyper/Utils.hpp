@@ -47,9 +47,6 @@ THE SOFTWARE.
 
 #include "Eigen/Dense"
 
-#include "PerfectSet.hpp"
-#include "HybridHash.hpp"
-
 using namespace std; 
 
 typedef unsigned char uchar;
@@ -57,24 +54,18 @@ typedef unsigned short ushort;
 typedef unsigned int uint;
 typedef unsigned long ulong;
 
-namespace Eigen {
+namespace Utils {
+
+    static const uint kmer_size = BT_KMER_SIZE;
 
     typedef Eigen::Matrix<uchar,Eigen::Dynamic,Eigen::Dynamic, Eigen::RowMajor> MatrixXuchar;
     typedef Eigen::Matrix<bool,Eigen::Dynamic,Eigen::Dynamic> MatrixXbool;
-    typedef Eigen::Matrix<uint,1,Eigen::Dynamic,Eigen::RowMajor> RowVectorXuint;
-    typedef Eigen::Matrix<ushort,Eigen::Dynamic,1> ColVectorXushort;
-    typedef Eigen::Matrix<uchar,1,Eigen::Dynamic,Eigen::RowMajor> RowVectorXuchar;
-    typedef Eigen::Matrix<uchar,Eigen::Dynamic,1> ColVectorXuchar;
     typedef Eigen::Matrix<bool,1,Eigen::Dynamic,Eigen::RowMajor> RowVectorXbool;
     typedef Eigen::Matrix<bool,Eigen::Dynamic,1> ColVectorXbool;
-}
-
-namespace Utils {
 
     static const double double_precision = numeric_limits<double>::epsilon();
     static const float float_precision = numeric_limits<float>::epsilon();
 
-    static const char char_overflow = numeric_limits<char>::max();
     static const uchar uchar_overflow = numeric_limits<uchar>::max();
     static const ushort ushort_overflow = numeric_limits<ushort>::max();
     static const uint uint_overflow = numeric_limits<uint>::max();  
@@ -84,12 +75,7 @@ namespace Utils {
 
     static const ushort queue_size_thread_scaling = 2;
 
-    enum class VariantType : uchar {SNP = 0, Insertion, Deletion, Complex, Mixture, Unsupported, VARIANT_TYPE_SIZE};
-    static const vector<string> variant_type_strings = {"SNP", "Insertion", "Deletion", "Complex", "Mixture", "Unsupported"};
-
-    enum class ChromosomeClass : uchar {Autosomal = 0, X, Y, Decoy, CHROMOSOME_CLASS_SIZE};
-    static const vector<string> chromosome_class_strings = {"autosomal", "X", "Y", "decoy"};
-
+    enum class ChromClass : uchar {Autosomal = 0, X, Y, Decoy, CHROM_CLASS_SIZE};
     enum class Ploidy : uchar {Null = 0, Haploid, Diploid, PLOIDY_SIZE};
     enum class Gender : uchar {Male = 0, Female, GENDER_SIZE};
 
@@ -101,7 +87,6 @@ namespace Utils {
 
         return ((a == b) or (abs(a - b) < abs(min(a, b)) * double_precision * 100));
     }
- 
 
     inline bool floatCompare(const float a, const float b) {
 
@@ -111,14 +96,13 @@ namespace Utils {
         return ((a == b) or (abs(a - b) < abs(min(a, b)) * float_precision * 100));
     }
 
+    inline bool floatLess(const float a, const float b) {
 
-    template <typename T>
-    inline void hash_combine(size_t & seed, const T value) {
+        assert(std::isfinite(a));
+        assert(std::isfinite(b));
 
-        hash<T> hasher;
-        seed ^= hasher(value) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+        return ((a < b) and !(floatCompare(a, b)));
     }
-
 
     inline double logAddition(const double log_summand1, const double log_summand2) {
 
@@ -141,7 +125,6 @@ namespace Utils {
         }
     }
  
-
     inline string getMaxMemoryUsage() {
 
         stringstream output_string;
@@ -152,7 +135,6 @@ namespace Utils {
         
         return output_string.str();
     }
-
 
     inline string getLocalTime () {
     
@@ -218,65 +200,40 @@ namespace Utils {
 
 
 // pairs flush capability
-template < typename T, typename T2 >
-std::ostream& operator << (std::ostream& os, typename std::pair<T, T2>& v) {
+template<typename T, typename T2>
+std::ostream & operator << (std::ostream & os, const std::pair<T, T2> & std_pair) {
             
-    os << "(" << to_string(v.first) << ", " << to_string(v.second) << ")";
+    os << "(" << to_string(std_pair.first) << ", " << to_string(std_pair.second) << ")";
     
     return os;
 }
 
-
 // Vector flush capability
-template < typename T, typename T2 >
-std::ostream& operator << (std::ostream& os, typename std::vector<std::pair<T, T2> >& v) {
+template<typename T>
+std::ostream & operator << (std::ostream & os, const std::vector<T> & std_vector) {
     
-    for (typename vector<std::pair<T, T2> >::const_iterator ii = v.begin(); ii != v.end(); ++ii) {
+    for (typename std::vector<T>::const_iterator it = std_vector.cbegin(); it != std_vector.cend(); ++it) {
         
-        os << "(" << to_string(ii->first) << ", " << to_string(ii->second) << ") ";
-    }
+        if (it != std_vector.cbegin()) {
 
-    return os;
-}
+            os << "\t";
+        }
 
-// Vector flush capability
-template < typename T >
-std::ostream& operator << (std::ostream& os, typename std::vector<T>& v) {
-    
-    for (typename vector<T>::const_iterator ii = v.begin(); ii != v.end(); ++ii) {
-        
-		os << *ii << "  ";
+		os << *it;
 	}
 
     return os;
 }
-
 
 // 2D-vector flush capability
-template < typename T >
-std::ostream& operator << (std::ostream& os, typename std::vector<std::vector<T> >& v) {
+template<typename T>
+std::ostream & operator << (std::ostream & os, const std::vector<std::vector<T> > & std_vector) {
     
-    for (typename vector<vector<T> >:: iterator ii = v.begin(); ii != v.end(); ++ii) {
+    for (typename std::vector<std::vector<T> >::const_iterator it = std_vector.cbegin(); it != std_vector.cend(); ++it) {
 		
-		os << *ii << "\n";
+		os << *it << "\n";
 	}
 	
-    return os;
-}
-
-
-// VariantType flush capability
-inline std::ostream& operator << (std::ostream& os, const Utils::VariantType& vt) {
-            
-    os << Utils::variant_type_strings.at(static_cast<uchar>(vt));
-    return os;
-}
-
-
-// ChromosomeClass flush capability
-inline std::ostream& operator << (std::ostream& os, const Utils::ChromosomeClass& cc) {
-            
-    os << Utils::chromosome_class_strings.at(static_cast<uchar>(cc));
     return os;
 }
 

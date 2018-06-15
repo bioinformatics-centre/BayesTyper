@@ -27,8 +27,8 @@ THE SOFTWARE.
 */
 
 
-#ifndef ATTRIBUTE
-#define ATTRIBUTE
+#ifndef __vcf__Attribute_hpp
+#define __vcf__Attribute_hpp
 
 #include <vector>
 #include <string>

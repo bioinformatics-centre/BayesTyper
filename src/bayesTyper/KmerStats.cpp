@@ -37,6 +37,7 @@ KmerStats::KmerStats() {
     count = 0;
     fraction = 0;
     mean = 0;
+    M2 = 0;
 }
 
 void KmerStats::reset() {
@@ -44,15 +45,20 @@ void KmerStats::reset() {
     count = 0;
     fraction = 0;
     mean = 0;
+    M2 = 0;
 }
 
-void KmerStats::addValue(const pair<float, bool> & value) {
+void KmerStats::addValue(const pair<double, bool> & value) {
 
     if (value.second) {
 
         count++;
-        fraction += (static_cast<float>(!(Utils::floatCompare(value.first, 0))) - fraction) / count;
-        mean += (value.first - mean) / count;
+        fraction += (static_cast<double>(!(Utils::doubleCompare(value.first, 0))) - fraction) / count;
+        
+        double delta = (value.first - mean);
+        mean += delta / count;
+
+        M2 += delta * (value.first - mean);
     }
 }
 
@@ -61,7 +67,7 @@ uint KmerStats::getCount() const {
     return count;
 }
 
-pair<float, bool> KmerStats::getFraction() const {
+pair<double, bool> KmerStats::getFraction() const {
 
     if (count == 0) {
 
@@ -73,7 +79,7 @@ pair<float, bool> KmerStats::getFraction() const {
     }
 }
 
-pair<float, bool> KmerStats::getMean() const {
+pair<double, bool> KmerStats::getMean() const {
 
     if (count == 0) {
 
@@ -82,6 +88,18 @@ pair<float, bool> KmerStats::getMean() const {
     } else {
 
         return make_pair(mean, true);
+    }
+}
+
+pair<double, bool> KmerStats::getVariance() const {
+
+    if (count < 2) {
+
+        return make_pair(-1, false);
+
+    } else {
+
+        return make_pair(M2 / (count - 1), true);
     }
 }
 
@@ -100,7 +118,6 @@ void AlleleKmerStats::addKmerStats(const KmerStats & kmer_stats, const ushort al
     count_stats.at(allele_idx).addValue(make_pair(kmer_stats.getCount(), true));
     fraction_stats.at(allele_idx).addValue(kmer_stats.getFraction());
     mean_stats.at(allele_idx).addValue(kmer_stats.getMean());
-
 }
 
 

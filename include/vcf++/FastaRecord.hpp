@@ -27,8 +27,8 @@ THE SOFTWARE.
 */
 
 
-#ifndef FASTA_RECORD
-#define FASTA_RECORD
+#ifndef __vcf__FastaRecord_hpp
+#define __vcf__FastaRecord_hpp
 
 #include <string>
 #include <vector>

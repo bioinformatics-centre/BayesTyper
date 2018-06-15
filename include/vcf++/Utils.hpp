@@ -27,8 +27,8 @@ THE SOFTWARE.
 */
 
 
-#ifndef UTILS
-#define UTILS
+#ifndef __vcf__Utils_hpp
+#define __vcf__Utils_hpp
 
 #include <vector>
 #include <iostream>
@@ -38,6 +38,7 @@ THE SOFTWARE.
 #include <iomanip>
 #include <limits>
 #include <cmath>
+#include <assert.h>
 
 typedef unsigned char uchar;
 typedef unsigned short ushort;
@@ -51,21 +52,36 @@ namespace Utils {
   static const double double_precision = numeric_limits<double>::epsilon();
   static const float float_precision = numeric_limits<float>::epsilon();
 
-  static const char char_overflow = numeric_limits<char>::max();
   static const uchar uchar_overflow = numeric_limits<uchar>::max();
   static const ushort ushort_overflow = numeric_limits<ushort>::max();
   static const uint uint_overflow = numeric_limits<uint>::max();  
   static const ulong ulong_overflow = numeric_limits<ulong>::max();
 
+
   inline bool doubleCompare(const double a, const double b) {
+
+      assert(std::isfinite(a));
+      assert(std::isfinite(b));
 
       return ((a == b) or (abs(a - b) < abs(min(a, b)) * double_precision * 100));
   }
 
   inline bool floatCompare(const float a, const float b) {
 
+      assert(std::isfinite(a));
+      assert(std::isfinite(b));
+
       return ((a == b) or (abs(a - b) < abs(min(a, b)) * float_precision * 100));
   }
+
+  inline bool floatLess(const float a, const float b) {
+
+      assert(std::isfinite(a));
+      assert(std::isfinite(b));
+
+      return ((a < b) and !(floatCompare(a, b)));
+  }
+
 
   string boolToString(const bool);
   string floatToString(const float, const uint);

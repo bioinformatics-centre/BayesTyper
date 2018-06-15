@@ -53,6 +53,7 @@ THE SOFTWARE.
 #include "ChromosomePloidy.hpp"
 #include "Sample.hpp"
 #include "KmerStats.hpp"
+#include "Filters.hpp"
 
 
 using namespace std;
@@ -64,30 +65,31 @@ class VariantClusterGenotyper {
 
 	public: 
 
-		VariantClusterGenotyper(VariantClusterGraph *, KmerHash *, const vector<Sample> &, const uint, const uchar);
+		VariantClusterGenotyper(VariantClusterGraph *, KmerCountsHash *, const vector<Sample> &, const uint, const uchar);
 		~VariantClusterGenotyper();
 
-		void restart(const float, const uint);
+		void reset(const float, const uint);
 
-		void sampleGenotypes(const CountDistribution &, const vector<Utils::Ploidy> &, const bool);
-		void getCountAllocations(CountAllocation *, const CountDistribution &);
+		void sampleDiplotypes(const CountDistribution &, const vector<VariantClusterHaplotypes::NestedVariantClusterInfo> &, const bool);
+		void getNoiseCounts(CountAllocation *, const CountDistribution &);
 		void sampleHaplotypeFrequencies();
 
-		vector<Utils::Ploidy> getVariantClusterPloidy(const uint);
-		vector<Genotypes*> getGenotypes(const vector<Utils::Ploidy> &);
+		void updateNestedVariantClusterInfo(vector<VariantClusterHaplotypes::NestedVariantClusterInfo> *, const uint);
+		vector<Genotypes*> getGenotypes(const string &, const vector<Utils::Ploidy> &, const Filters & filters);
 		
 	private: 
 
-		void reduceSamplePloidy(Utils::Ploidy *);
-		
+		void updateNestedPloidy(Utils::Ploidy *);
+		void addNestedKmerStats(vector<KmerStats> *, const uint, const ushort, const vector<KmerStats> &);
+
 		void updateMulticlusterDiplotypeLogProb(const CountDistribution &, const ushort);
 		double calcDiplotypeLogProb(const CountDistribution &, const ushort, const pair<ushort, ushort> &);
 
-		void sampleGenotype(const CountDistribution &, const ushort, const Utils::Ploidy);
+		void sampleDiplotype(const CountDistribution &, const ushort, const Utils::Ploidy);
 
 		ushort haplotypeToAlleleIndex(const ushort, const ushort);
 		vector<ushort> getNonCoveredAlleles(const ushort);
-		vector<Genotypes::SampleStats> getGenotypeSampleStats(const uint, const vector<Utils::Ploidy> &);
+		vector<Genotypes::SampleStats> getGenotypeSampleStats(const uint, const vector<Utils::Ploidy> &, const Filters & filters);
 		Genotypes::VariantStats getGenotypeVariantStats(const uint, const vector<Genotypes::SampleStats> &);
 
 		const vector<Sample> & samples;
@@ -104,7 +106,7 @@ class VariantClusterGenotyper {
 		vector<unordered_map<pair<ushort, ushort>, double, boost::hash<pair<ushort, ushort> > > > unique_diplotype_log_probabilities;
 		vector<unordered_map<pair<ushort, ushort>, double, boost::hash<pair<ushort, ushort> > > > multicluster_diplotype_log_probabilities;
 
-		vector<pair<ushort,ushort> > diplotype_sample;
+		vector<pair<ushort,ushort> > diplotypes;
 		unordered_map<pair<ushort,ushort>, vector<uint>, boost::hash<pair<ushort, ushort> > > diplotype_sampling_frequencies;
 
 		HaplotypeFrequencyDistribution * haplotype_frequency_distribution;

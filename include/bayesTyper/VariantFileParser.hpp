@@ -39,97 +39,107 @@ THE SOFTWARE.
 #include <thread>
 #include <set>
 
-#include "boost/graph/adjacency_list.hpp"
-#include "ProducerConsumerQueue.hpp"
+#include "boost/iostreams/filtering_stream.hpp"
+#include "boost/iostreams/filter/gzip.hpp"
 
 #include "Utils.hpp"
 #include "VariantCluster.hpp"
 #include "VariantClusterGraph.hpp"
 #include "VariantClusterGroup.hpp"
+#include "InferenceUnit.hpp"
+#include "OptionsContainer.hpp"
+#include "Chromosomes.hpp"
+#include "ProducerConsumerQueue.hpp"
+
 
 using namespace std;
-
 
 class VariantFileParser {
   
 	public:
 
-		VariantFileParser(const string, const uint, const double, const ushort);
-		~VariantFileParser();
+		VariantFileParser(const OptionsContainer &);
 
-		void addDecoys(const string, const uchar);
-
-		template <uchar kmer_size>
-		void readVariantFile(const string, vector<VariantClusterGraph*> *, vector<VariantClusterGroup*> *, const uint);
+		bool constructVariantClusterGroups(InferenceUnit *, const uint, const Chromosomes &);
 
 		struct InterClusterRegion {
 
-			string::const_iterator start;
-			string::const_iterator end;
-			Utils::ChromosomeClass chromosome_class;
+			string chrom_name;
+			Utils::ChromClass chrom_class;
 
-			InterClusterRegion() {}
-			InterClusterRegion(string::const_iterator start_in, string::const_iterator end_in, Utils::ChromosomeClass chromosome_class_in) : start(start_in), end(end_in), chromosome_class(chromosome_class_in) {}
+			uint start;
+			uint end;
+
+			InterClusterRegion(const string & chrom_name_in, const Utils::ChromClass & chrom_class_in, const uint start_in, const uint end_in) : chrom_name(chrom_name_in), chrom_class(chrom_class_in), start(start_in), end(end_in) {}
 		};
-		
-		const vector<InterClusterRegion> & getInterclusterRegions();
-		
-		ulong getNumberOfVariants();
-		ushort getMaxAlternativeAlleles();
-		ulong getVariableRegionLength();
 
-		static string simplifyChromosomeId(const string & chromosome);
-		static Utils::ChromosomeClass classifyGenomeChromosome(const string & chromosome);
+		string getVariantStatsString(const uint);
+		
+		void sortInterclusterRegions();
+		void writeInterclusterRegions(const string &); 
+
+		const vector<InterClusterRegion> & getInterclusterRegions();
+		ulong getInterclusterRegionLength();
+		ulong getNumberOfInterclusterRegionKmers();
+				
+		uint getNumberOfVariants();
 
 	private:
 
-		enum class AlleleCount : uchar {Total = 0, Excluded_genome, Excluded_match, Excluded_end, Excluded_length, ALLELE_COUNT_SIZE};
-
+		const ushort num_threads;
 		const uint max_allele_length;
 		const double copy_number_variant_threshold;
-		const ushort num_threads;
 
-		ulong number_of_variants;
-		ushort max_alternative_alleles;
-		ulong variable_region_length;
+		enum class AlleleCount : uchar {Total = 0, Excluded_decoy, Excluded_genome, Excluded_match, Excluded_end, Excluded_length, ALLELE_COUNT_SIZE};
 
-		unordered_map<string, string *> genome_sequences;
-		unordered_map<string, string *> decoy_sequences;
+    	vector<uint> allele_type_counter;
+    	vector<uint> variant_type_counter;
+
+		uint num_variants;
+		uint num_variant_clusters;
+	    uint num_variant_cluster_groups;
 
 		vector<InterClusterRegion> intercluster_regions;
+		ulong intercluster_regions_length;
 
-	    map<uint, ulong> variant_cluster_size_stats;
-	    map<uint, ulong> variant_cluster_group_size_stats;
+	    unordered_set<string> intercluster_chromosomes;
 
-		ulong parseFasta(const string, unordered_map<string, string *> *);
+    	string prev_chrom_name;
 
-		void addSequenceToInterclusterRegions(const string, string::const_iterator, string::const_iterator, const uchar);
+	    int prev_position;
+	    int prev_var_end_position;
 
-		template <typename FileType, uchar kmer_size>
-		pair<vector<uint>, vector<uint> > parseVariants(FileType *, ProducerConsumerQueue<vector<unordered_map<uint, VariantCluster*> * > * > *);
+		ifstream variants_infile;
+		boost::iostreams::filtering_istream variants_infile_fstream;
 
+		uint total_num_variants;
+	    
+	    bool has_format;
+	    vector<string> variant_line;
+
+		void openVariantFile(const string &);
+		void updateVariantLine();
+
+		void addSequenceToInterclusterRegions(const string &, const Utils::ChromClass &, const uint, const uint);
+
+		void parseVariants(ProducerConsumerQueue<vector<unordered_map<uint, VariantCluster*> * > * > *, const uint, const Chromosomes &);
+
+		pair<string, bool> getInfoAttributeString(const string &, const string &);
 		void rightTrimAllele(string *, string *);
-		void parseAllele(const string &, const string &, const ushort, VariantCluster::Variant *);
-		Utils::VariantType classifyAllele(const int, const int);		
 
-		template <uchar kmer_size>
-		uint copyNumberVariantLength(const string &, const uint, const string &, const uint);
+		void addAlternativeAllele(VariantCluster::Variant *, const string &, const string &, const string &);
+		VariantCluster::VariantType classifyAllele(const int, const int);		
 
-		template <uchar kmer_size>
-		void clusterVariants(VariantCluster::Variant &, const uint, const set<uint>, const string &, const string &, uint *, map<uint, VariantCluster*> *, unordered_map<uint, VariantCluster*> *, list<unordered_set<uint> > *);
+		uint copyNumberVariantLength(const string &, const string &, const uint);
+		void clusterVariants(VariantCluster::Variant &, const uint, const set<uint>, const string &, const Utils::ChromClass &, map<uint, VariantCluster*> *, unordered_map<uint, VariantCluster*> *, list<unordered_set<uint> > *);
 		
-		void processVariantClusters(ProducerConsumerQueue<vector<unordered_map<uint, VariantCluster*> * > * > *, vector<unordered_map<uint, VariantCluster*> * > **, uint *, unordered_map<uint, VariantCluster*> **, list<unordered_set<uint> > *, map<uint, VariantCluster*> *);
+		void processVariantClusterGroups(ProducerConsumerQueue<vector<unordered_map<uint, VariantCluster*> * > * > *, vector<unordered_map<uint, VariantCluster*> * > **, uint *, unordered_map<uint, VariantCluster*> **, list<unordered_set<uint> > *, map<uint, VariantCluster*> *);
 		void mergeVariantClusters(unordered_map<uint, VariantCluster*> *, list<unordered_set<uint> > &);
 		
-		template <uchar kmer_size>
-		void processVariantClusterGroupsCallback(vector<VariantClusterGraph*> *, vector<VariantClusterGroup*> *, ProducerConsumerQueue<vector<unordered_map<uint, VariantCluster*> * > * > *, mutex *);
+		void processVariantClusterGroupsCallback(vector<VariantClusterGroup*> *, ProducerConsumerQueue<vector<unordered_map<uint, VariantCluster*> * > * > *, mutex *, const Chromosomes &);
 
 		unordered_map<uint, uint> getVariantClusterGroupDependencies(unordered_map<uint, VariantCluster*> *);
-	
-		Utils::ChromosomeClass classifyChromosome(const string & chromosome);
 };
-
-bool InterclusterRegionsCompare(const VariantFileParser::InterClusterRegion &, const VariantFileParser::InterClusterRegion &);
 
 
 #endif

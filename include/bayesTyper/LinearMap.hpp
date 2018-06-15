@@ -34,6 +34,7 @@ THE SOFTWARE.
 #include <algorithm>
 #include <functional>
 #include <iterator>
+#include <random>
 
 typedef unsigned char uchar;
 typedef unsigned int uint;
@@ -105,8 +106,9 @@ class PartialSortedLinearMap : public LinearMap<KeyType, ValueType, KeyComparato
 
 		std::pair<typename LinearMap<KeyType, ValueType, KeyComparator>::iterator, bool> insert(std::pair<KeyType,ValueType>, const bool);
 		typename LinearMap<KeyType, ValueType, KeyComparator>::iterator find(KeyType);
+		
 		void sort();
-
+		void shuffle(std::mt19937 *);
 
 	private:
 

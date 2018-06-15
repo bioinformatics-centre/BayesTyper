@@ -34,56 +34,63 @@ THE SOFTWARE.
 #include <bitset>
 #include <mutex>
 #include <memory>
-#include <unordered_map>
+#include <map>
 
 #include "LinearMap.hpp"
 #include "BitsetCompare.hpp"
+
 
 typedef unsigned char uchar;
 typedef unsigned short ushort;
 typedef unsigned int uint;
 typedef unsigned long ulong;
 
-template<typename ValueType, uchar root_hash_size, uchar leaf_hash_size> class HybridHashIterator;
+template<typename ValueType, uchar key_size> class HybridHashIterator;
 
-template<typename ValueType, uchar root_hash_size, uchar leaf_hash_size>
+template<typename ValueType, uchar key_size>
 class HybridHash {
 	
-	friend class HybridHashIterator<ValueType, root_hash_size, leaf_hash_size>;
+	friend class HybridHashIterator<ValueType, key_size>;
 	
 	public:
 
-		typedef HybridHashIterator<ValueType, root_hash_size, leaf_hash_size> iterator;
+		typedef HybridHashIterator<ValueType, key_size> iterator;
 
-		HybridHash();
-		~HybridHash();
+		HybridHash(const uint, const ulong);
+		virtual ~HybridHash() {};
 
 		iterator begin();
 		iterator end();
 
-		std::pair<iterator, bool> insert(const std::bitset<root_hash_size + leaf_hash_size> &, ValueType, const bool);
+		std::pair<iterator, bool> insert(const std::bitset<key_size> &, ValueType, const bool);
 		// iterator erase(iterator);
 
-		iterator find(const std::bitset<root_hash_size + leaf_hash_size> &);
-		void sort();		
+		iterator find(const std::bitset<key_size> &);
+		
+		void sort();
+		void shuffle(const uint);
+		ulong size();
+
+	 	map<ulong, ulong> getRootSizeDistribution();
 
 	protected:
 		
-		typedef PartialSortedLinearMap<std::bitset<root_hash_size + leaf_hash_size>, ValueType, BitsetLess<root_hash_size + leaf_hash_size> > LeafHash;
+		typedef PartialSortedLinearMap<std::bitset<key_size>, ValueType, BitsetLess<key_size> > LeafHash;
 
-		std::vector<LeafHash*> root_hash;
-		std::vector<std::pair<ushort, ulong> > root_hash_bit_values;
+		std::vector<LeafHash> root_hash;
+		std::hash<std::bitset<key_size> > key_hasher;
 
-		ulong rootHashIndex(const std::bitset<root_hash_size + leaf_hash_size> &);
+		ulong rootHashIndex(const std::bitset<key_size> &);
 };
 
-template<typename ValueType, uchar root_hash_size, uchar leaf_hash_size>
-class ThreadedHybridHash : public HybridHash<ValueType, root_hash_size, leaf_hash_size> {
+
+template<typename ValueType, uchar key_size>
+class ThreadedHybridHash : public HybridHash<ValueType, key_size> {
 	
 	public:
 
-		ThreadedHybridHash(const ushort);
-		std::unique_lock<std::mutex> lockKey(const std::bitset<root_hash_size + leaf_hash_size> &);
+		ThreadedHybridHash(const uint, const ulong, const ushort);
+		std::unique_lock<std::mutex> lockKey(const std::bitset<key_size> &);
 		void sort();		
 
 	private:
@@ -95,30 +102,30 @@ class ThreadedHybridHash : public HybridHash<ValueType, root_hash_size, leaf_has
 };
 
 
-template<typename ValueType, uchar root_hash_size, uchar leaf_hash_size> 
+template<typename ValueType, uchar key_size>
 class HybridHashIterator {
 
-	friend class HybridHash<ValueType, root_hash_size, leaf_hash_size>;
+	friend class HybridHash<ValueType, key_size>;
 
 	public:
 		
-		typedef typename HybridHash<ValueType, root_hash_size, leaf_hash_size>::LeafHash LeafHash;
-		typedef typename std::vector<LeafHash*> RootHash;
+		typedef typename HybridHash<ValueType, key_size>::LeafHash LeafHash;
+		typedef typename std::vector<LeafHash> RootHash;
 
-		HybridHashIterator(HybridHash<ValueType,root_hash_size,leaf_hash_size> *, typename RootHash::iterator, typename LeafHash::iterator);
+		HybridHashIterator(HybridHash<ValueType, key_size> *, typename RootHash::iterator, typename LeafHash::iterator);
 		HybridHashIterator(const HybridHashIterator &);
 		HybridHashIterator & operator=(HybridHashIterator);
-		std::pair<std::bitset<root_hash_size + leaf_hash_size>, ValueType> & operator*();
+		std::pair<std::bitset<key_size>, ValueType> & operator*();
 		HybridHashIterator & operator++();
 		HybridHashIterator operator++(int);
-		bool operator==(HybridHashIterator<ValueType,root_hash_size,leaf_hash_size> const &);
-		bool operator!=(HybridHashIterator<ValueType,root_hash_size,leaf_hash_size> const &);
+		bool operator==(HybridHashIterator<ValueType, key_size> const &);
+		bool operator!=(HybridHashIterator<ValueType, key_size> const &);
 
 	private:
 
 		void swap(HybridHashIterator & first, HybridHashIterator & second);
 
-		HybridHash<ValueType, root_hash_size, leaf_hash_size> * hybrid_hash;
+		HybridHash<ValueType, key_size> * hybrid_hash;
 		typename RootHash::iterator root_element_iter;
 		typename LeafHash::iterator leaf_element_iter;  
 };

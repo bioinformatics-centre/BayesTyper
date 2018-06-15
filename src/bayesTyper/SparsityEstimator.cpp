@@ -37,7 +37,7 @@ SparsityEstimator::SparsityEstimator(const uint prng_seed) {
     prng = mt19937(prng_seed);
 }
 
-uint SparsityEstimator::estimateMinimumSetCover(Eigen::MatrixXuchar const & data_element_map, Eigen::RowVectorXbool * non_zero_counts) {
+uint SparsityEstimator::estimateMinimumSetCover(Utils::MatrixXuchar const & data_element_map, Utils::RowVectorXbool * non_zero_counts) {
     
     assert(data_element_map.rows() == non_zero_counts->size());
     assert(in_minimum_set.empty());
@@ -45,11 +45,11 @@ uint SparsityEstimator::estimateMinimumSetCover(Eigen::MatrixXuchar const & data
     in_minimum_set = std::vector<bool>(data_element_map.cols(), false);
     uint minimum_set_size = 0;
 
-    Eigen::MatrixXbool binary_data_element_map((data_element_map.array() > 0).matrix().cast<bool>());
+    Utils::MatrixXbool binary_data_element_map((data_element_map.array() > 0).matrix().cast<bool>());
 
     while (non_zero_counts->sum() > 0) {
         
-        Eigen::ColVectorXbool covered_data(*non_zero_counts * binary_data_element_map);
+        Utils::ColVectorXbool covered_data(*non_zero_counts * binary_data_element_map);
 
         uint max_val = covered_data.maxCoeff();
         assert(max_val > 0);

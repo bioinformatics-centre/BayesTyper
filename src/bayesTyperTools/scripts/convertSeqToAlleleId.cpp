@@ -45,7 +45,7 @@ int main(int argc, char const *argv[]) {
 
 	if (argc != 5) {
 
-		std::cout << "USAGE: convertSeqToAlleleId <input> <output_prefix> <genome> <min_sv_length>" << std::endl;
+		std::cout << "USAGE: convertSeqToAlleleId <variant_file> <output_prefix> <genome_file> <min_sv_length>" << std::endl;
 		return 1;
 	}
 
@@ -60,7 +60,7 @@ int main(int argc, char const *argv[]) {
 	output_meta_data.infoDescriptors().emplace("CIPOS", Attribute::DetailedDescriptor("CIPOS", Attribute::Number::Two, Attribute::Type::Int, "Confidence interval around POS for imprecise variants"));
 	output_meta_data.infoDescriptors().emplace("CIEND", Attribute::DetailedDescriptor("CIEND", Attribute::Number::Two, Attribute::Type::Int, "Confidence interval around END for imprecise variants"));
 
-	VcfFileWriter vcf_writer(string(argv[2]) + ".vcf", output_meta_data, true);
+	VcfFileWriter vcf_writer(string(argv[2]) + ".vcf.gz", output_meta_data, true);
 
     cout << "[" << Utils::getLocalTime() << "] Parsing reference genome fasta ..." << endl;
 
@@ -81,9 +81,9 @@ int main(int argc, char const *argv[]) {
 	const uint min_sv_length = stoi(argv[4]);
 
     Variant * cur_var;
-    string cur_chromosome = "";
+    string cur_chrom = "";
 
-    auto genome_seqs_it = genome_seqs.find(cur_chromosome);
+    auto genome_seqs_it = genome_seqs.find(cur_chrom);
     assert(genome_seqs_it == genome_seqs.end());
 
 	uint num_variants = 0;
@@ -96,12 +96,12 @@ int main(int argc, char const *argv[]) {
 
         num_variants++;
 
-        if (cur_var->chrom() != cur_chromosome) {
+        if (cur_var->chrom() != cur_chrom) {
 
             genome_seqs_it = genome_seqs.find(cur_var->chrom());
             assert(genome_seqs_it != genome_seqs.end());
 
-            cur_chromosome = cur_var->chrom();
+            cur_chrom = cur_var->chrom();
         }
 
         Auxiliaries::rightTrimVariant(cur_var);
@@ -194,7 +194,7 @@ int main(int argc, char const *argv[]) {
                 cur_info.setValue<string>("CIPOS", "0,0");
                 cur_info.setValue<string>("CIEND", "0,0");
 
-                converted_variants.emplace(cur_pos, Variant(cur_chromosome, cur_pos, cur_ref_allele, vector<Allele>(1, cur_alt_allele), cur_info));
+                converted_variants.emplace(cur_pos, Variant(cur_chrom, cur_pos, cur_ref_allele, vector<Allele>(1, cur_alt_allele), cur_info));
             }
         }
 

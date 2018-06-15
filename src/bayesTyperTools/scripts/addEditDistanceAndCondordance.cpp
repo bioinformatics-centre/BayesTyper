@@ -436,7 +436,7 @@ int main(int argc, char const *argv[]) {
 
     if (argc != 6) {
 
-        std::cout << "USAGE: addEditDistanceAndCondordance <ground_truth> <callset> <ground_truth_output_prefix> <callset_output_prefix> <read_length>" << std::endl;
+        std::cout << "USAGE: addEditDistanceAndCondordance <truth_variant_file> <callset_variant_file> <truth_output_prefix> <callset_output_prefix> <read_length>" << std::endl;
         return 1;
     }
 
@@ -447,7 +447,6 @@ int main(int argc, char const *argv[]) {
 	GenotypedVcfFileReader gt_vcf_reader(argv[1], true);
 	GenotypedVcfFileReader cs_vcf_reader(argv[2], true);
 	
-	assert(gt_vcf_reader.metaData().contigs() == cs_vcf_reader.metaData().contigs());
 	assert(gt_vcf_reader.metaData().sampleIds() == cs_vcf_reader.metaData().sampleIds());
 
 	cout << "[" << Utils::getLocalTime() << "] Adding maximum edit distance (MED) and genotype concordance (GTCO) to " << gt_vcf_reader.metaData().sampleIds().size() << " samples ...\n" << endl;
@@ -457,15 +456,16 @@ int main(int argc, char const *argv[]) {
 
 	const uint read_length = stoi(argv[5]);
 
-	gt_output_meta_data.formatDescriptors().emplace("MED", Attribute::DetailedDescriptor("MED", Attribute::Number::One, Attribute::Type::Float, "Maximum edit distance to reference within a window of size " + to_string(read_length * 2 - 1) + " centered at position"));
+	// gt_output_meta_data.formatDescriptors().emplace("MED", Attribute::DetailedDescriptor("MED", Attribute::Number::One, Attribute::Type::Float, "Maximum edit distance to reference within a window of size " + to_string(read_length * 2 - 1) + " centered at position"));
 	gt_output_meta_data.formatDescriptors().emplace("GTCO", Attribute::DetailedDescriptor("GTCO", Attribute::Number::One, Attribute::Type::String, "Genotype concordance"));
 
-	cs_output_meta_data.formatDescriptors().emplace("MED", Attribute::DetailedDescriptor("MED", Attribute::Number::One, Attribute::Type::Float, "Maximum edit distance to reference within a window of size " + to_string(read_length * 2 - 1) + " centered at position"));
+	// cs_output_meta_data.formatDescriptors().emplace("MED", Attribute::DetailedDescriptor("MED", Attribute::Number::One, Attribute::Type::Float, "Maximum edit distance to reference within a window of size " + to_string(read_length * 2 - 1) + " centered at position"));
 	cs_output_meta_data.formatDescriptors().emplace("GTCO", Attribute::DetailedDescriptor("GTCO", Attribute::Number::One, Attribute::Type::String, "Genotype concordance"));
 
-	VcfFileWriter gt_vcf_writer(string(argv[3]) + ".vcf", gt_output_meta_data, true);
-	VcfFileWriter cs_vcf_writer(string(argv[4]) + ".vcf", cs_output_meta_data, true);
+	VcfFileWriter gt_vcf_writer(string(argv[3]) + ".vcf.gz", gt_output_meta_data, true);
+	VcfFileWriter cs_vcf_writer(string(argv[4]) + ".vcf.gz", cs_output_meta_data, true);
 
+	const vector<Contig> contigs_merged = Auxiliaries::mergeContigs(gt_vcf_reader.metaData().contigs(), cs_vcf_reader.metaData().contigs());
 	const vector<string> sample_ids = gt_vcf_reader.metaData().sampleIds();
 
 	Variant * gt_cur_var;
@@ -482,7 +482,7 @@ int main(int argc, char const *argv[]) {
 
 	uint cluster_end_position = 0;
 
-	for (auto &contig_id: gt_vcf_reader.metaData().contigs()) {
+	for (auto & contig: contigs_merged) {
 
 		cluster_end_position = 0;
 
@@ -490,7 +490,7 @@ int main(int argc, char const *argv[]) {
 
 			assert(!(gt_cur_var->ref().seq().empty()));
 
-			if (gt_cur_var->chrom() != contig_id.id()) {
+			if (gt_cur_var->chrom() != contig.id()) {
 
 				break;
 			}
@@ -499,7 +499,7 @@ int main(int argc, char const *argv[]) {
 
 				assert(!(cs_cur_var->ref().seq().empty()));
 
-				if (cs_cur_var->chrom() != contig_id.id()) { 
+				if (cs_cur_var->chrom() != contig.id()) { 
 
 					break;
 				}
@@ -551,7 +551,7 @@ int main(int argc, char const *argv[]) {
 
 			assert(!(cs_cur_var->ref().seq().empty()));
 
-			if (cs_cur_var->chrom() != contig_id.id()) {
+			if (cs_cur_var->chrom() != contig.id()) {
 
 				break;
 			}
@@ -579,7 +579,7 @@ int main(int argc, char const *argv[]) {
 		gt_variants.clear();
 		cs_variants.clear();
 
-		cout << "[" << Utils::getLocalTime() << "] Finished chromosome " << contig_id.id() << endl;
+		cout << "[" << Utils::getLocalTime() << "] Finished chromosome " << contig.id() << endl;
 	}
 
 	assert(!cs_cur_var);

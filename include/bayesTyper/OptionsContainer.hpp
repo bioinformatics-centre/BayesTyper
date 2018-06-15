@@ -33,7 +33,7 @@ THE SOFTWARE.
 #include <string>
 #include <vector>
 #include <time.h>
-#include <unordered_map>
+#include <map>
 
 typedef unsigned char uchar;
 typedef unsigned int uint;
@@ -56,14 +56,15 @@ class OptionsContainer {
             ValueType value;
         };
 
-        std::unordered_map<std::string, std::pair<OptionValueBase*, std::string> > options;
+        std::map<std::string, std::pair<OptionValueBase*, std::string> > options;
 
+        const string type;
         const string version;
         const string start_time;
 
     public:
 
-        inline OptionsContainer(const std::string &, const std::string &);
+        inline OptionsContainer(const std::string &, const std::string &, const std::string &);
         inline ~OptionsContainer();
 
         template<typename ValueType>
@@ -81,7 +82,7 @@ class OptionsContainer {
         template<typename ValueType>
         void updateValue(std::string, ValueType);
 
-        inline std::string writeHeader();
+        inline std::string getHeader() const;
 };
 
 #include "OptionsContainer.tpp"

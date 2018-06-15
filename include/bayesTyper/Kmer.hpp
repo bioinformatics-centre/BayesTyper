@@ -58,14 +58,14 @@ class KmerForward : public Kmer<size> {
 		KmerForward();
 		~KmerForward() {}
 
-		bool move(bitset<2>);
-		void shrink(const uchar);
+		bool move(const pair<bitset<2>, bool>);
+		void shrink(const ushort);
 		void reset();
 
 	protected:
 
-		uchar cur_position;
-		const uchar end_position;
+		ushort cur_position;
+		const ushort end_position;
 		bool is_complete;
 
 	private:
@@ -82,14 +82,14 @@ class KmerReverseComplement : public Kmer<size> {
 		KmerReverseComplement();
 		~KmerReverseComplement() {}
 
-		bool move(bitset<2>);
-		void shrink(const uchar);
+		bool move(const pair<bitset<2>, bool>);
+		void shrink(const ushort);
 		void reset();	
 
 	protected:
 
-		uchar cur_position;
-		const uchar end_position;
+		ushort cur_position;
+		const ushort end_position;
 		bool is_complete;
 
 	private:
@@ -105,7 +105,7 @@ class KmerPair : public KmerForward<size>, public KmerReverseComplement<size> {
 
 		bool operator == (const KmerPair<size> &) const;
 
-		bool move(bitset<2>);
+		bool move(const pair<bitset<2>, bool>);
 		void shrink(const uchar);
 		void reset();
 		bool isComplete();

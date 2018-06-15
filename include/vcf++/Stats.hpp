@@ -27,8 +27,8 @@ THE SOFTWARE.
 */
 
 
-#ifndef STATS
-#define STATS
+#ifndef __vcf__Stats_hpp
+#define __vcf__Stats_hpp
 
 #include <regex>
 

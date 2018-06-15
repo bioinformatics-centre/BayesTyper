@@ -62,6 +62,13 @@ std::pair<double, double> NegativeBinomialDistribution::methodOfMomentsEst(const
 
     var /= num_obs - 1;
 
+    cout << mean << " " << var << endl;
+
+    return momentsToParameters(mean, var);
+}
+
+std::pair<double, double> NegativeBinomialDistribution::momentsToParameters(const double mean, double var) {
+
     if (max_p < (mean / var)) {
 
         var = mean / max_p;
@@ -79,7 +86,12 @@ NegativeBinomialDistribution::NegativeBinomialDistribution() {
     size_ = p_/(1 - p_);
 }
 
-NegativeBinomialDistribution::NegativeBinomialDistribution(std::pair<double, double> parameters) {
+NegativeBinomialDistribution::NegativeBinomialDistribution(const std::pair<double, double> & parameters) {
+
+    setParameters(parameters);
+}
+
+void NegativeBinomialDistribution::setParameters(const std::pair<double, double> & parameters) {
 
     assert(parameters.first > 0);
     assert(parameters.first < 1);
@@ -106,22 +118,7 @@ double NegativeBinomialDistribution::mean() const {
 
 double NegativeBinomialDistribution::var() const {
 
-    return size_ * (1 - p_)/std::pow(p_,2);
-}
-
-void NegativeBinomialDistribution::p(double p) {
-
-    assert(p > 0);
-    assert(p < 1);
-
-    p_ = p;
-}
-
-void NegativeBinomialDistribution::size(double size) {
-
-    assert(size > 0);
-
-    size_ = size;
+    return size_ * (1 - p_)/std::pow(p_, 2);
 }
 
 double NegativeBinomialDistribution::logBinomialCoefTerm(uint obs, uint size_scale) const {
@@ -137,7 +134,7 @@ double NegativeBinomialDistribution::pmf(uint obs) const {
 double NegativeBinomialDistribution::pmf(uint obs, uint size_scale) const {
 
     assert(size_scale > 0);
-    return std::exp(logBinomialCoefTerm(obs, size_scale)) *  std::pow(p_, size_ * size_scale) * std::pow((1 - p_), obs);
+    return std::exp(logBinomialCoefTerm(obs, size_scale)) * std::pow(p_, size_ * size_scale) * std::pow((1 - p_), obs);
 }
 
 double NegativeBinomialDistribution::logPmf(uint obs) const {

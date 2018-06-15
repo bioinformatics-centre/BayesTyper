@@ -27,8 +27,8 @@ THE SOFTWARE.
 */
 
 
-#ifndef CONTIG
-#define CONTIG
+#ifndef __vcf__Contig_hpp
+#define __vcf__Contig_hpp
 
 #include <string>
 #include <vector>

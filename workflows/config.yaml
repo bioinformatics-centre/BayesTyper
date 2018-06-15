@@ -1,0 +1,15 @@
+samples_file: samples.tsv # Edit this path of samples.tsv is not located in your working directory
+
+bayestyper_data_bundle_dir: <path_to_bayestyper_data_bundle_dir>
+reference_build: <reference-build> # Must be GRCh37 or GRCh38
+
+python2.7_path: <path_to_python_2.7_executable>
+java_path: <path_to_java>
+
+gatk_path: <path_to_GenomeAnalysisTK.jar>
+platypus_path: <path_to_Platypus_executable>
+manta_config_path: <path_to_configManta.py>
+bcftools_path: <path_to_bcftools_executable>
+kmc_path: <path_to_kmc_executable>
+
+bayestyper_bin_dir: <path_to_BayesTyper_bin_dir> # must contain bayesTyper and bayesTyperTools executables

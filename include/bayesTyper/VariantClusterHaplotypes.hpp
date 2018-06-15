@@ -40,6 +40,7 @@ THE SOFTWARE.
 #include "KmerCounts.hpp"
 #include "KmerStats.hpp"
 #include "Sample.hpp"
+#include "VariantInfo.hpp"
 
 
 class VariantClusterHaplotypes {
@@ -58,8 +59,7 @@ class VariantClusterHaplotypes {
 
 		vector<HaplotypeInfo> haplotypes;
 
-		Eigen::MatrixXuchar haplotype_unique_kmer_multiplicities;		
-		Eigen::MatrixXuchar haplotype_multicluster_kmer_multiplicities;		
+		Utils::MatrixXuchar haplotype_kmer_multiplicities;		
 
 		struct KmerInfo {
 
@@ -70,13 +70,15 @@ class VariantClusterHaplotypes {
 			KmerInfo(KmerCounts * const counts_in, const uchar bias_idx_in) : counts(counts_in), bias_idx(bias_idx_in) {}
 		};
 
-		vector<KmerInfo> unique_kmers;
-		vector<KmerInfo> multicluster_kmers;
+		vector<KmerInfo> kmers;
+
+		vector<uint> unique_kmer_indices;
+		vector<uint> multicluster_kmer_indices;
 
 		vector<uint> unique_kmer_subset_indices;
 		vector<uint> multicluster_kmer_subset_indices;
 
-		Eigen::MatrixXuchar sample_multicluster_kmer_multiplicities;
+		Utils::MatrixXuchar sample_multicluster_kmer_multiplicities;
 
 		struct KmerStatsCache {
 
@@ -93,8 +95,18 @@ class VariantClusterHaplotypes {
 				haplotype_2 = vector<KmerStats>(num_variants);
 			}
 		};
-		
+
 		vector<KmerStatsCache> kmer_stats_cache;
+
+		unordered_map<uint, vector<ushort> > nested_variant_cluster_dependency;
+
+		struct NestedVariantClusterInfo {
+
+			Utils::Ploidy nested_ploidy;
+			vector<KmerStats> nested_kmer_stats;
+
+			NestedVariantClusterInfo(const Utils::Ploidy chrom_ploidy_in) : nested_ploidy(chrom_ploidy_in) {}
+		};
 
 		uchar getUniqueKmerMultiplicity(const uint, const pair<ushort,ushort> &, const Utils::Gender);
 		uchar getMulticlusterKmerMultiplicity(const uint, const pair<ushort,ushort> &, const pair<ushort,ushort> &, const ushort, const Utils::Gender);
@@ -104,16 +116,19 @@ class VariantClusterHaplotypes {
 
 		bool isMulticlusterKmerUpdated(const uint, const ushort);
 		void updateMulticlusterKmerMultiplicities(const pair<ushort,ushort> &, const pair<ushort,ushort> &, const ushort);
-		void updateAlleleKmerStats(vector<vector<AlleleKmerStats> > *, const pair<ushort,ushort> &, const ushort, const Utils::Gender);	
+		
+		void updateAlleleKmerStats(vector<vector<AlleleKmerStats> > *, const vector<Sample> &, const vector<VariantInfo> &, const vector<NestedVariantClusterInfo> &, const vector<pair<ushort,ushort> > &); 
 
 	private:
 
-		uchar getDiplotypeUniqueKmerMultiplicity(const uint, const pair<ushort,ushort> &);
-		uchar getDiplotypeMulticlusterKmerMultiplicity(const uint, const pair<ushort,ushort> &);
+		uchar getDiplotypeKmerMultiplicity(const uint, const pair<ushort,ushort> &);
 
 		bool isMaxHaplotypeVariantKmer(vector<vector<uint> > *, const uint, const vector<pair<ushort, vector<bool> > > &);
 
-		void updateKmerStatsCache(KmerInfo &, const pair<ushort,ushort> &, const ushort, const float);
+		void updateKmerStatsCache(KmerInfo &, const pair<ushort,ushort> &, const ushort, const uchar);
+		void addHaplotypeKmerStats(vector<vector<AlleleKmerStats> > *, const vector<KmerStats> &, const vector<VariantInfo> &, const ushort, const vector<ushort> &);
+		void addNestedHaplotypeKmerStats(vector<vector<AlleleKmerStats> > *, const KmerStats &, const vector<VariantInfo> &, const ushort);
 };
+
 
 #endif

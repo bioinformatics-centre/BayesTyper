@@ -43,14 +43,17 @@ THE SOFTWARE.
 #include <deque>
 
 #include "boost/graph/adjacency_list.hpp"
+#include "boost/graph/adj_list_serialize.hpp"
+
 #include "boost/functional/hash.hpp"
 
-#include "KmerBloom.hpp"
+#include <boost/serialization/serialization.hpp>
+#include <boost/serialization/vector.hpp>
 
+#include "KmerBloom.hpp"
 #include "Utils.hpp"
 #include "VariantCluster.hpp"
 #include "KmerHash.hpp"
-#include "PerfectSet.hpp"
 #include "Kmer.hpp"
 #include "KmerCounts.hpp"
 #include "VariantClusterHaplotypes.hpp"
@@ -65,18 +68,21 @@ class VariantClusterGraph {
 
 	public:
 
-		VariantClusterGraph(VariantCluster *, const string &, const uchar);
+		VariantClusterGraph() {};
+		VariantClusterGraph(VariantCluster *, const string &);
 		virtual ~VariantClusterGraph() {};
 
 		const vector<VariantInfo> & getInfo() const;
-		bool hasAmbiguousNucleotide() const;
+		bool isSimpleCluster();
 
-		virtual void findSamplePaths(KmerBloom *, KmerBloom *, const uint, const ushort) = 0;
-		virtual void countPathKmers(KmerHash *, const uint) = 0;
-		virtual bool isSimpleCluster(KmerHash *) = 0;
-		virtual VariantClusterHaplotypes getHaplotypeCandidates(KmerHash *, const uchar) = 0;
+		void findSamplePaths(KmerBloom<Utils::kmer_size> *, const uint, const ushort);
+		
+		void countPathKmers(unordered_set<bitset<Utils::kmer_size * 2> > *);
+		void classifyPathKmers(KmerCountsHash *, KmerBloom<Utils::kmer_size> *);
+		
+		VariantClusterHaplotypes getHaplotypeCandidates(KmerCountsHash *, const uchar);
 
-	protected:
+	private:
 
 		typedef pair<string::const_iterator, string::const_iterator> StringItPair;
 
@@ -85,36 +91,34 @@ class VariantClusterGraph {
 
 		Graph graph;
 
+		ulong num_path_kmers;
+		bool is_simple_cluster;
+
 		vector<VariantInfo> variant_cluster_info;
+		vector<bool> best_paths_indices;
 
 		void addVertices(vertex_t *, const vector<StringItPair> &, const pair<ushort, ushort> &, const unordered_set<ushort> &, const vector<uint> &, const bool);
 		void initVertex(vertex_t *, StringItPair, const pair<ushort, ushort> &, const vector<ushort> &, const uint, const bool);
-};
 
-
-template <uchar kmer_size>
-class VariantClusterKmerGraph : public VariantClusterGraph {
-
-	public:
-
-		VariantClusterKmerGraph(VariantCluster *, const string &);
-
-		void findSamplePaths(KmerBloom *, KmerBloom *, const uint, const ushort);
-		void countPathKmers(KmerHash *, const uint);
-		bool isSimpleCluster(KmerHash *);
-		VariantClusterHaplotypes getHaplotypeCandidates(KmerHash *, const uchar);
-
-	private:
-
-		vector<bool> best_paths_indices;
-		ulong num_path_kmers; 
-
-		void mergePaths(vector<VariantClusterGraphPath<kmer_size> *> *, vector<VariantClusterGraphPath<kmer_size> *> *, const bool);
-		bool isPathsRedundant(const vector<typename VariantClusterGraphPath<kmer_size>::PathVertexInfo> &, const vector<typename VariantClusterGraphPath<kmer_size>::PathVertexInfo> &) const;
-		void filterPaths(vector<VariantClusterGraphPath<kmer_size> *> *, const uint, const bool);		
-		void addPathIndices(KmerBloom *, vector<VariantClusterGraphPath<kmer_size> *> *);
+		void mergePaths(vector<VariantClusterGraphPath *> *, vector<VariantClusterGraphPath *> *, const bool);
+		bool isPathsRedundant(const vector<typename VariantClusterGraphPath::PathVertexInfo> &, const vector<typename VariantClusterGraphPath::PathVertexInfo> &) const;
+		void filterPaths(vector<VariantClusterGraphPath *> *, const uint, const bool);		
+		void addPathIndices(vector<VariantClusterGraphPath *> *);
 
 		void updateVariantPathIndices(vector<pair<ushort, vector<bool> > > *, unordered_map<pair<ushort, ushort>, pair<uint, uint>, boost::hash<pair<ushort, ushort> > > *, const uint, const ushort, const ushort);
+
+		friend class boost::serialization::access;
+
+		template<class Archive>
+    	void serialize(Archive & ar, const unsigned int version) {
+
+    		ar & graph;
+    		ar & num_path_kmers;
+    		ar & is_simple_cluster;
+    		ar & variant_cluster_info;
+    		ar & best_paths_indices;
+    	}
+
 };
 
 bool VariantClusterGraphCompare(VariantClusterGraph *, VariantClusterGraph *);

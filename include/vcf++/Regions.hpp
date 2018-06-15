@@ -27,8 +27,8 @@ THE SOFTWARE.
 */
 
 
-#ifndef REGIONS
-#define REGIONS
+#ifndef __vcf__Regions_hpp
+#define __vcf__Regions_hpp
 
 #include <string>
 #include <vector>

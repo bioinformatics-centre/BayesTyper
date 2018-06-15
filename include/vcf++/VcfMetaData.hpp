@@ -27,8 +27,8 @@ THE SOFTWARE.
 */
 
 
-#ifndef VCFMETADATA
-#define VCFMETADATA
+#ifndef __vcf__VcfMetaData_hpp
+#define __vcf__VcfMetaData_hpp
 
 #include <string>
 #include <vector>
@@ -67,8 +67,12 @@ class VcfMetaData {
     pair<Attribute::DetailedDescriptor, bool> getFormatDescriptor(const string &) const;
 
     const vector<Contig> & contigs();
+    void setContigs(const vector<Contig> &);
+
     uint getContigIndex(const string &);
+
     const Contig & getContig(const string &);
+    void addContig(const Contig &);
 
     multimap<string,string> & miscMeta();
 

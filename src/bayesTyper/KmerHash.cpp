@@ -1,6 +1,6 @@
 
 /*
-KmerHash.cpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
+KmerCountsHash.cpp - This file is part of BayesTyper (https://github.com/bioinformatics-centre/BayesTyper)
 
 
 The MIT License (MIT)
@@ -33,7 +33,9 @@ THE SOFTWARE.
 #include <string>
 #include <math.h>
 
-#include "boost/math/special_functions/gamma.hpp"
+#include "boost/iostreams/filtering_streambuf.hpp"
+#include "boost/iostreams/filtering_stream.hpp"
+#include "boost/iostreams/filter/gzip.hpp"
 
 #include "KmerHash.hpp"
 #include "Utils.hpp"
@@ -41,40 +43,54 @@ THE SOFTWARE.
 #include "HybridHash.hpp"
 #include "Sample.hpp"
 #include "NegativeBinomialDistribution.hpp"
-#include "Sequence.hpp"
+#include "Nucleotide.hpp"
+
 
 using namespace std;
 
+static const uint hash_root_size = pow(4,12);
 
-template<uchar kmer_size, uchar sample_bin>
-HybridKmerHash<kmer_size, sample_bin>::HybridKmerHash(const ushort num_samples_in, const ushort num_threads) : num_samples(num_samples_in) {
 
-    _hash = new ThreadedHybridHash<ObservedKmerCounts<sample_bin>, hash_root_size, kmer_size * 2 - hash_root_size>(num_threads);
+void writeSizeDistribution(const string & distribution_filename, const map<ulong, ulong> & size_distribution) {
+
+    ofstream distribution_outfile(distribution_filename);
+    assert(distribution_outfile.is_open());
+
+    distribution_outfile << "Size\tCount" << endl;
+
+    for (auto & size: size_distribution) {
+
+        distribution_outfile << size.first << "\t" << size.second << endl;
+    }
+
+    distribution_outfile.close();
 }
 
-template<uchar kmer_size, uchar sample_bin>
-HybridKmerHash<kmer_size, sample_bin>::~HybridKmerHash() {
+
+BooleanKmerHash::BooleanKmerHash(const ulong expected_total_size, const ushort num_threads) {
+
+    _hash = new ThreadedHybridHash<bool, Utils::kmer_size * 2>(hash_root_size, expected_total_size, num_threads);
+}
+
+BooleanKmerHash::~BooleanKmerHash() {
 
     delete _hash;
 }
 
-template<uchar kmer_size, uchar sample_bin>
-unique_lock<mutex> HybridKmerHash<kmer_size, sample_bin>::getKmerLock(const bitset<kmer_size * 2> & kmer) {
+unique_lock<mutex> BooleanKmerHash::getKmerLock(const bitset<Utils::kmer_size * 2> & kmer) {
 
     return move(_hash->lockKey(kmer));
 }
 
-template<uchar kmer_size, uchar sample_bin>
-pair<KmerCounts *, bool> HybridKmerHash<kmer_size, sample_bin>::addKmer(const bitset<kmer_size * 2> & kmer, const bool add_sorted) {
+pair<bool *, bool> BooleanKmerHash::addKmer(const bitset<Utils::kmer_size * 2> & kmer) {
 
-    auto hash_insert = _hash->insert(kmer, ObservedKmerCounts<sample_bin>(), add_sorted);
+    auto hash_insert = _hash->insert(kmer, false, true);
     assert(hash_insert.first != _hash->end());
    
     return make_pair(&((*hash_insert.first).second), hash_insert.second);
 }
 
-template<uchar kmer_size, uchar sample_bin>
-KmerCounts * HybridKmerHash<kmer_size, sample_bin>::findKmer(const bitset<kmer_size * 2> & kmer) {
+bool * BooleanKmerHash::findKmer(const bitset<Utils::kmer_size * 2> & kmer) {
 
     auto hash_it = _hash->find(kmer);
 
@@ -88,16 +104,137 @@ KmerCounts * HybridKmerHash<kmer_size, sample_bin>::findKmer(const bitset<kmer_s
     }
 }
 
-template<uchar kmer_size, uchar sample_bin>
-void HybridKmerHash<kmer_size, sample_bin>::sortKmers() {
+void BooleanKmerHash::shuffle(const uint prng_seed) {
+
+    _hash->shuffle(prng_seed);
+}
+
+ulong BooleanKmerHash::size() {
+
+    return _hash->size();
+}
+
+void BooleanKmerHash::writeRootSizeDistribution(const string & output_prefix) {
+
+    writeSizeDistribution(output_prefix + ".txt", _hash->getRootSizeDistribution());
+}
+
+ulong BooleanKmerHash::writeKmersToFasta(const string & output_prefix, const bool value, const uint max_kmers) {
+
+    ulong num_kmers_written = 0;
+
+    ofstream kmers_outfile(output_prefix + ".fa.gz", ios::binary);
+    assert(kmers_outfile.is_open());
+
+    boost::iostreams::filtering_ostream kmers_outfile_fstream;
+
+    kmers_outfile_fstream.push(boost::iostreams::gzip_compressor());
+    kmers_outfile_fstream.push(boost::ref(kmers_outfile));
+
+    assert(kmers_outfile_fstream.is_complete());    
+
+    kmers_outfile_fstream << ">k" << Utils::kmer_size << endl;
+
+    auto hash_it = _hash->begin();
+
+    while (hash_it != _hash->end()) {
+
+        if ((*hash_it).second == value) {
+
+            kmers_outfile_fstream << Nucleotide::bitToNt<Utils::kmer_size>((*hash_it).first) << endl;
+            num_kmers_written++;
+        }
+
+        if (num_kmers_written == max_kmers) {
+
+            break;
+        }
+
+        hash_it++;
+    }
+
+    return num_kmers_written; 
+}
+
+ulong BooleanKmerHash::addKmersToBloomFilter(KmerBloom<Utils::kmer_size> * kmer_bloom_filter, const bool value) {
+
+    ulong num_kmers_added = 0;
+
+    auto hash_it = _hash->begin();
+
+    while (hash_it != _hash->end()) {
+
+        if ((*hash_it).second == value) {
+
+            kmer_bloom_filter->addKmer((*hash_it).first);
+            num_kmers_added++;
+        }
+
+        hash_it++;
+    } 
+
+    return num_kmers_added; 
+}
+
+
+template<uchar sample_bin>
+ObservedKmerCountsHash<sample_bin>::ObservedKmerCountsHash(const ulong expected_total_size, const ushort num_threads) {
+
+    _hash = new ThreadedHybridHash<ObservedKmerCounts<sample_bin>, Utils::kmer_size * 2>(hash_root_size, expected_total_size, num_threads);
+}
+
+template<uchar sample_bin>
+ObservedKmerCountsHash<sample_bin>::~ObservedKmerCountsHash() {
+
+    delete _hash;
+}
+
+template<uchar sample_bin>
+unique_lock<mutex> ObservedKmerCountsHash<sample_bin>::getKmerLock(const bitset<Utils::kmer_size * 2> & kmer) {
+
+    return move(_hash->lockKey(kmer));
+}
+
+template<uchar sample_bin>
+pair<KmerCounts *, bool> ObservedKmerCountsHash<sample_bin>::addKmer(const bitset<Utils::kmer_size * 2> & kmer, const bool add_sorted) {
+
+    auto hash_insert = _hash->insert(kmer, ObservedKmerCounts<sample_bin>(), add_sorted);
+    assert(hash_insert.first != _hash->end());
+   
+    return make_pair(&((*hash_insert.first).second), hash_insert.second);
+}
+
+template<uchar sample_bin>
+KmerCounts * ObservedKmerCountsHash<sample_bin>::findKmer(const bitset<Utils::kmer_size * 2> & kmer) {
+
+    auto hash_it = _hash->find(kmer);
+
+    if (hash_it != _hash->end()) {
+
+        return &((*hash_it).second);
+
+    } else {
+
+        return nullptr;
+    }
+}
+
+template<uchar sample_bin>
+void ObservedKmerCountsHash<sample_bin>::sortKmers() {
 
     _hash->sort();
 }
 
-template<uchar kmer_size, uchar sample_bin>
-vector<vector<vector<ulong> > > HybridKmerHash<kmer_size, sample_bin>::calculateKmerStats(const uchar num_genomic_rate_gc_bias_bins) {
+template<uchar sample_bin>
+void ObservedKmerCountsHash<sample_bin>::writeRootSizeDistribution(const string & output_prefix) {
 
-    vector<vector<vector<ulong> > > diploid_kmer_counts(num_samples, vector<vector<ulong> >(num_genomic_rate_gc_bias_bins, vector<ulong>(Utils::uchar_overflow + 1, 0)));
+    writeSizeDistribution(output_prefix + ".txt", _hash->getRootSizeDistribution());
+}
+
+template<uchar sample_bin>
+vector<vector<KmerStats> > ObservedKmerCountsHash<sample_bin>::calculateKmerStats(const ushort num_samples, const uchar num_genomic_rate_gc_bias_bins) {
+
+    vector<vector<KmerStats> > intercluster_diploid_kmer_stats(num_samples, vector<KmerStats>(num_genomic_rate_gc_bias_bins));
 
     ulong total_count = 0;
 
@@ -105,7 +242,7 @@ vector<vector<vector<ulong> > > HybridKmerHash<kmer_size, sample_bin>::calculate
     ulong multicluster_count = 0;
     ulong decoy_count = 0;
     ulong max_multiplicity_count = 0;
-    ulong multicluster_group_count = 0;
+    ulong multigroup_count = 0;
     ulong non_cluster_count = 0;
     
     auto hash_it = _hash->begin();
@@ -115,6 +252,8 @@ vector<vector<vector<ulong> > > HybridKmerHash<kmer_size, sample_bin>::calculate
         total_count++;
 
         if ((*hash_it).second.hasClusterOccurrence()) {
+
+            assert(!((*hash_it).second.isParameter()));
 
             if ((*hash_it).second.isExcluded()) {
 
@@ -128,14 +267,14 @@ vector<vector<vector<ulong> > > HybridKmerHash<kmer_size, sample_bin>::calculate
 
                 } else {
 
-                    assert((*hash_it).second.hasMulticlusterGroupOccurrence());
-                    multicluster_group_count++;         
+                    multigroup_count++;         
+                    assert((*hash_it).second.hasMultigroupOccurrence());
                 } 
 
             } else if ((*hash_it).second.hasMulticlusterOccurrence()) { 
 
-                assert(!((*hash_it).second.hasMulticlusterGroupOccurrence()));
                 multicluster_count++;
+                assert(!((*hash_it).second.hasMultigroupOccurrence()));
 
             } else {
 
@@ -147,13 +286,17 @@ vector<vector<vector<ulong> > > HybridKmerHash<kmer_size, sample_bin>::calculate
             non_cluster_count++;
 
             assert(!((*hash_it).second.hasMulticlusterOccurrence()));
-            assert(!((*hash_it).second.hasMulticlusterGroupOccurrence()));
+            assert(!((*hash_it).second.hasMultigroupOccurrence()));
 
-            if (!((*hash_it).second.hasDecoyOccurrence()) and ((*hash_it).second.getInterclusterMultiplicity(Utils::Gender::Male) == 2) and ((*hash_it).second.getInterclusterMultiplicity(Utils::Gender::Female) == 2)) {
+            if ((*hash_it).second.isParameter() and ((*hash_it).second.getInterclusterMultiplicity(Utils::Gender::Male) == 2) and ((*hash_it).second.getInterclusterMultiplicity(Utils::Gender::Female) == 2)) {
+
+                assert(!((*hash_it).second.isExcluded()));
+
+                const uchar bias_idx = Nucleotide::gcBiasBin<Utils::kmer_size>((*hash_it).first, num_genomic_rate_gc_bias_bins);
 
                 for (ushort sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-
-                    diploid_kmer_counts.at(sample_idx).at(Sequence::gcBiasBin<kmer_size>((*hash_it).first, num_genomic_rate_gc_bias_bins)).at((*hash_it).second.getSampleCount(sample_idx))++;
+            
+                    intercluster_diploid_kmer_stats.at(sample_idx).at(bias_idx).addValue(make_pair((*hash_it).second.getSampleCount(sample_idx), true));
                 }
             }
         }
@@ -161,55 +304,24 @@ vector<vector<vector<ulong> > > HybridKmerHash<kmer_size, sample_bin>::calculate
         hash_it++;
     }
 
-    assert(total_count == (unique_count + multicluster_count + decoy_count + multicluster_group_count + max_multiplicity_count + non_cluster_count));
+    assert(total_count == (unique_count + multicluster_count + decoy_count + multigroup_count + max_multiplicity_count + non_cluster_count));
 
-    cout << "[" << Utils::getLocalTime() << "] Out of " << total_count << " unique kmers:\n" << endl;
-    cout << "\t- " << unique_count << " have a unique match to a single variant cluster" << endl;
-    cout << "\t- " << multicluster_count << " have a match to single variant cluster group and multiple internal variant clusters" << endl;
+    cout << "[" << Utils::getLocalTime() << "] Out of " << total_count << " kmers:\n" << endl;
+    cout << "\t- " << unique_count << " have a match to a single variant cluster" << endl;
+    cout << "\t- " << multicluster_count << " have a match to single variant cluster group and multiple variant clusters" << endl;
     
     cout << "\n\t- " << decoy_count << " have match to at least one variant cluster and has match to a decoy sequence (not used for inference)" << endl;
     cout << "\t- " << max_multiplicity_count << " have match to at least one variant cluster and has a maximum haploid multiplicity higher than " << to_string(Utils::bit7_overflow) << " (not used for inference)" << endl;
-    cout << "\t- " << multicluster_group_count << " have matches to multiple variant cluster groups (not used for inference)" << endl;
+    cout << "\t- " << multigroup_count << " have matches to multiple variant cluster groups within or across inference units (not used for inference)" << endl;
     
-    cout << "\n\t- " << non_cluster_count << " have no match to a variant cluster (used for negative binomial parameter estimation)" << endl;
+    cout << "\n\t- " << non_cluster_count << " have no match to a variant cluster (includes parameter kmers)" << endl;
     
-    return diploid_kmer_counts;
+    return intercluster_diploid_kmer_stats;
 }
 
 
-template class BasicKmerHash<31>;
-template class BasicKmerHash<39>;
-template class BasicKmerHash<47>;
-template class BasicKmerHash<55>;
-template class BasicKmerHash<63>;
+template class ObservedKmerCountsHash<3>;
+template class ObservedKmerCountsHash<10>;
+template class ObservedKmerCountsHash<20>;
+template class ObservedKmerCountsHash<30>;
 
-
-template class HybridKmerHash<31,1>;
-template class HybridKmerHash<39,1>;
-template class HybridKmerHash<47,1>;
-template class HybridKmerHash<55,1>;
-template class HybridKmerHash<63,1>;
-
-template class HybridKmerHash<31,3>;
-template class HybridKmerHash<39,3>;
-template class HybridKmerHash<47,3>;
-template class HybridKmerHash<55,3>;
-template class HybridKmerHash<63,3>;
-
-template class HybridKmerHash<31,10>;
-template class HybridKmerHash<39,10>;
-template class HybridKmerHash<47,10>;
-template class HybridKmerHash<55,10>;
-template class HybridKmerHash<63,10>;
-
-template class HybridKmerHash<31,20>;
-template class HybridKmerHash<39,20>;
-template class HybridKmerHash<47,20>;
-template class HybridKmerHash<55,20>;
-template class HybridKmerHash<63,20>;
-
-template class HybridKmerHash<31,30>;
-template class HybridKmerHash<39,30>;
-template class HybridKmerHash<47,30>;
-template class HybridKmerHash<55,30>;
-template class HybridKmerHash<63,30>;

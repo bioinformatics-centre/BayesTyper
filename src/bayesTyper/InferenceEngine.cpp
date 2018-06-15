@@ -47,256 +47,227 @@ THE SOFTWARE.
 #include "Regions.hpp"
 
 
-static const uint parameter_estimation_stdout_frequency = 10;
-static const double genotyping_stdout_frequency = 100000;
+static const uint noise_estimation_batch_size = 100000;
 
 static const uint variant_cluster_groups_batch_size = 1000;
+static const double genotyping_stdout_frequency = 100000;
+
+static const uchar num_genomic_rate_gc_bias_bins = 1;
 
 
-InferenceEngine::InferenceEngine(const vector<Sample> & samples, const OptionsContainer & options_container) : num_samples(samples.size()), chromosome_ploidy(samples), chromosome_regions(options_container.getValue<Regions>("chromosome-regions")), prng_seed(options_container.getValue<uint>("random-seed")), num_threads(options_container.getValue<ushort>("threads")), gibbs_burn(options_container.getValue<ushort>("gibbs-burn-in")), gibbs_samples(options_container.getValue<ushort>("gibbs-samples")), num_gibbs_chains(options_container.getValue<ushort>("number-of-gibbs-chains")), kmer_subsampling_rate(options_container.getValue<float>("kmer-subsampling-rate")), max_haplotype_variant_kmers(options_container.getValue<uint>("max-haplotype-variant-kmers")), num_genomic_rate_gc_bias_bins(options_container.getValue<uchar>("number-of-genomic-rate-gc-bias-bins")), num_parameter_estimation_samples(options_container.getValue<ushort>("number-of-parameter-estimation-samples")), num_parameter_estimation_snvs(options_container.getValue<uint>("number-of-parameter-estimation-SNVs")) {}
+InferenceEngine::InferenceEngine(const vector<Sample> & samples_in, const OptionsContainer & options_container) : samples(samples_in), chrom_ploidy(samples), num_threads(options_container.getValue<ushort>("threads")), prng_seed(options_container.getValue<uint>("random-seed")), num_gibbs_burn(options_container.getValue<ushort>("gibbs-burn-in")), num_gibbs_samples(options_container.getValue<ushort>("gibbs-samples")), num_gibbs_chains(options_container.getValue<ushort>("number-of-gibbs-chains")), kmer_subsampling_rate(options_container.getValue<float>("kmer-subsampling-rate")), max_haplotype_variant_kmers(options_container.getValue<uint>("max-haplotype-variant-kmers")) {}
 
 
-void InferenceEngine::allocateShuffledIndicesToThreads(vector<vector<uint> > * thread_index_allocation, const uint num_indices) {
+void InferenceEngine::initNoiseEstimationGroupsCallback(vector<VariantClusterGroup *> * variant_cluster_groups, const vector<uint> & noise_estimation_group_indices, KmerCountsHash * kmer_hash, const ushort gibbs_chain_idx, const ushort thread_idx) {
+
+    const uint num_noise_estimation_groups = min(noise_estimation_batch_size, static_cast<uint>(noise_estimation_group_indices.size()));
+
+    uint noise_estimation_group_indices_idx = thread_idx;
+
+	while (noise_estimation_group_indices_idx < num_noise_estimation_groups) {
+
+		const uint variant_cluster_group_idx = noise_estimation_group_indices.at(noise_estimation_group_indices_idx);
+
+		assert(variant_cluster_groups->at(variant_cluster_group_idx));
+
+		assert(variant_cluster_groups->at(variant_cluster_group_idx)->numberOfVariants() == 1);
+		assert(variant_cluster_groups->at(variant_cluster_group_idx)->numberOfVariantClusters() == 1);
+		assert(variant_cluster_groups->at(variant_cluster_group_idx)->numberOfVariantClusterGroupTrees() == 1);
+
+		variant_cluster_groups->at(variant_cluster_group_idx)->initGenotyper(kmer_hash, samples, prng_seed * (gibbs_chain_idx + 1) + variant_cluster_group_idx, num_genomic_rate_gc_bias_bins, kmer_subsampling_rate, max_haplotype_variant_kmers);
+        
+        noise_estimation_group_indices_idx += num_threads;
+	}
+}
+
+void InferenceEngine::sampleNoiseCountsCallback(vector<VariantClusterGroup *> * variant_cluster_groups, const vector<uint> & noise_estimation_group_indices, CountAllocation * noise_counts_global, mutex * noise_counts_lock, const CountDistribution & count_distribution, const ushort thread_idx) {
+
+	CountAllocation noise_counts_local(samples.size());
+
+    const uint num_noise_estimation_groups = min(noise_estimation_batch_size, static_cast<uint>(noise_estimation_group_indices.size()));
+
+    uint noise_estimation_group_indices_idx = thread_idx;
+
+	while (noise_estimation_group_indices_idx < num_noise_estimation_groups) {
+
+		const uint variant_cluster_group_idx = noise_estimation_group_indices.at(noise_estimation_group_indices_idx);
+
+		assert(variant_cluster_groups->at(variant_cluster_group_idx));
+
+		variant_cluster_groups->at(variant_cluster_group_idx)->estimateGenotypes(count_distribution, chrom_ploidy, false);
+		variant_cluster_groups->at(variant_cluster_group_idx)->getNoiseCounts(&noise_counts_local, count_distribution);	
+        
+        noise_estimation_group_indices_idx += num_threads;
+	}
+	
+	lock_guard<mutex> counts_locker(*noise_counts_lock);
+	noise_counts_global->mergeInCountAllocations(noise_counts_local);	
+}
+
+void InferenceEngine::resetNoiseEstimationGroups(vector<VariantClusterGroup *> * variant_cluster_groups, const vector<uint> & noise_estimation_group_indices) {
+
+    const uint num_noise_estimation_groups = min(noise_estimation_batch_size, static_cast<uint>(noise_estimation_group_indices.size()));
+
+    uint noise_estimation_group_indices_idx = 0;
+
+	while (noise_estimation_group_indices_idx < num_noise_estimation_groups) {
+
+		const uint variant_cluster_group_idx = noise_estimation_group_indices.at(noise_estimation_group_indices_idx);
+
+		assert(variant_cluster_groups->at(variant_cluster_group_idx));
+		variant_cluster_groups->at(variant_cluster_group_idx)->resetGroup();
+        
+        noise_estimation_group_indices_idx++;;
+	}
+}
+
+void InferenceEngine::estimateNoiseParameters(CountDistribution * count_distribution, InferenceUnit * inference_unit, KmerCountsHash * kmer_hash, const string & output_prefix) {
+
+	cout << "[" << Utils::getLocalTime() << "] Estimating noise model parameters using " << num_gibbs_chains << " parallel gibbs sampling chains each with " << num_gibbs_burn + num_gibbs_samples << " iterations (" << num_gibbs_burn << " burn-in) ..." << endl;
+
+	vector<uint> noise_estimation_group_indices;
+	noise_estimation_group_indices.reserve(inference_unit->variant_cluster_groups.size());
+
+	for (uint variant_cluster_group_idx = 0; variant_cluster_group_idx < inference_unit->variant_cluster_groups.size(); variant_cluster_group_idx++) {
+
+		if (inference_unit->variant_cluster_groups.at(variant_cluster_group_idx)->isAutosomalSimpleSNV()) {
+		
+			noise_estimation_group_indices.push_back(variant_cluster_group_idx);
+		}		
+	}
+
+	noise_estimation_group_indices.shrink_to_fit();
+
+	vector<double> mean_noise_rates(samples.size(), 0);
+
+    ofstream noise_outfile(output_prefix + ".txt");
+    assert(noise_outfile.is_open());
+
+    noise_outfile << "Chain\tIteration";
+
+    for (ushort sample_idx = 0; sample_idx < samples.size(); sample_idx++) {
+
+	  	noise_outfile << "\t" << samples.at(sample_idx).name;
+    }
+
+    noise_outfile << endl;
 
     mt19937 prng = mt19937(prng_seed);
 
-    assert(thread_index_allocation->empty());
+	for (ushort gibbs_chain_idx = 0; gibbs_chain_idx < num_gibbs_chains; gibbs_chain_idx++) {
 
-    uint num_indices_per_thread = num_indices/num_threads + 1;
-    uint num_last_indices = num_indices%num_threads;
+	    shuffle(noise_estimation_group_indices.begin(), noise_estimation_group_indices.end(), prng);
 
-    for (uint i = 0; i < num_threads; i++) {
+	    vector<thread> initing_threads;
+	    initing_threads.reserve(num_threads);
 
-        thread_index_allocation->push_back(vector<uint>(num_indices_per_thread));
+		for (ushort thread_idx = 0; thread_idx < num_threads; thread_idx++) {
 
-        for (uint j = 0; j < thread_index_allocation->back().size(); j++) {
-
-            thread_index_allocation->back().at(j) = i + j * num_threads; 
-        }
-
-        if (i >= num_last_indices) {
-
-            thread_index_allocation->back().pop_back();
-        }
-
-        shuffle(thread_index_allocation->back().begin(), thread_index_allocation->back().end(), prng);
-    }
-}
-
-
-void InferenceEngine::selectVariantsClusterGroupsForParameterEstimationCallback(vector<VariantClusterGroup*> * variant_cluster_groups, const vector<uint> & variant_cluster_group_indices, vector<VariantClusterGroup*> * selected_variant_cluster_groups, KmerHash * kmer_hash, const vector<Sample> & samples, const uint num_parameter_estimation) {
-
-	assert(!(variant_cluster_group_indices.empty()));
-
-	for (auto &variant_cluster_groups_idx: variant_cluster_group_indices) {
-
-		VariantClusterGroup * variant_cluster_group = variant_cluster_groups->at(variant_cluster_groups_idx);
-
-		if (variant_cluster_group->isAutosomalSimpleSNV(kmer_hash)) {
-
-			variant_cluster_group->initialise(kmer_hash, samples, prng_seed + variant_cluster_groups_idx, num_genomic_rate_gc_bias_bins, kmer_subsampling_rate, max_haplotype_variant_kmers);
-
-			selected_variant_cluster_groups->push_back(variant_cluster_group);
-
-			if (selected_variant_cluster_groups->size() == num_parameter_estimation) {
-
-				break;
-			}
-		}
-	}
-}
-
-
-void InferenceEngine::allocateCountsForParameterEstimationCallback(vector<VariantClusterGroup*> * variant_cluster_groups, const CountDistribution & count_distribution, CountAllocation * count_allocation_global, mutex * count_allocation_lock) {
-
-	CountAllocation count_allocation_local(num_samples);
-
-	auto lit = variant_cluster_groups->begin();
-
-	while (lit != variant_cluster_groups->end()) {
-		
-		(*lit)->estimateGenotypes(count_distribution, chromosome_ploidy, false);
-		(*lit)->getCountAllocations(&count_allocation_local, count_distribution);		
-
-		lit++;
-	} 
-	
-	lock_guard<mutex> count_locker(*count_allocation_lock);
-	count_allocation_global->mergeInCountAllocations(count_allocation_local);
-}
-
-
-vector<double> InferenceEngine::meanParameterEstimates(const vector<vector<double> > & sample_parameter_estimates) {
-
-	assert(sample_parameter_estimates.size() == static_cast<uint>(gibbs_burn + num_parameter_estimation_samples + 1));
-
-	vector<double> mean_sample_parameter_estimates(num_samples, 0);
-
-	for (uint sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-
-		for (uint i = gibbs_burn + 1; i <= (gibbs_burn + num_parameter_estimation_samples); i++) {
-
-			assert(sample_parameter_estimates.at(i).size() == num_samples);
-
-			mean_sample_parameter_estimates.at(sample_idx) += sample_parameter_estimates.at(i).at(sample_idx);
-		}
-
-		mean_sample_parameter_estimates.at(sample_idx) /= num_parameter_estimation_samples;
-	}
-
-	return mean_sample_parameter_estimates;
-}
-
-
-void InferenceEngine::estimateNoiseParameters(CountDistribution * count_distribution, vector<VariantClusterGroup*> * variant_cluster_groups, KmerHash * kmer_hash, const vector<Sample> & samples) {
-
-	cout << "\n[" << Utils::getLocalTime() << "] Estimating noise model parameters ..." << endl;
-
-	vector<vector<uint> > thread_variant_cluster_group_index_allocation;
-	allocateShuffledIndicesToThreads(&thread_variant_cluster_group_index_allocation, variant_cluster_groups->size());
-	assert(thread_variant_cluster_group_index_allocation.size() == num_threads);
-
-	uint thread_num_parameter_estimation = ceil(num_parameter_estimation_snvs/static_cast<double>(num_threads));
-
-	cout << "\n[" << Utils::getLocalTime() << "] Selecting autosomal SNV clusters for noise parameter estimation ..." << endl;
-
-	vector<thread> parameter_estimation_selection_threads;
-	parameter_estimation_selection_threads.reserve(num_threads);
-
-	vector<vector<VariantClusterGroup*> * > thread_selected_variant_cluster_groups;
-	thread_selected_variant_cluster_groups.reserve(num_threads);
-
-	for (uint i = 0; i < num_threads; i++) {
-
-		if (!(thread_variant_cluster_group_index_allocation.at(i).empty())) {
-
-			thread_selected_variant_cluster_groups.push_back(new vector<VariantClusterGroup*>());
-			thread_selected_variant_cluster_groups.back()->reserve(thread_num_parameter_estimation);
-	   	    
-	   	    parameter_estimation_selection_threads.push_back(thread(&InferenceEngine::selectVariantsClusterGroupsForParameterEstimationCallback, this, variant_cluster_groups, ref(thread_variant_cluster_group_index_allocation.at(i)), thread_selected_variant_cluster_groups.back(), kmer_hash, ref(samples), thread_num_parameter_estimation));
-   		}
-    }
-
-	thread_selected_variant_cluster_groups.shrink_to_fit();
-
-    for (auto & thread : parameter_estimation_selection_threads) {
-        	
-       	thread.join();
-	}
-
-	uint num_selected_parameter_estimation_variants = 0;
-
-	for (uint i = 0; i < thread_selected_variant_cluster_groups.size(); i++) {
-
-		thread_selected_variant_cluster_groups.at(i)->shrink_to_fit();
-		assert(thread_selected_variant_cluster_groups.at(i)->size() <= thread_num_parameter_estimation);
-
-		if ((num_parameter_estimation_snvs % num_threads) > 0) {
-
-			if ((thread_selected_variant_cluster_groups.at(i)->size() == thread_num_parameter_estimation) and (i >= (num_parameter_estimation_snvs % num_threads))) {
-
-				thread_selected_variant_cluster_groups.at(i)->pop_back();
-			}
-		}
-
-		num_selected_parameter_estimation_variants += thread_selected_variant_cluster_groups.at(i)->size();
-	}
-
-	cout << "[" << Utils::getLocalTime() << "] Running a " << gibbs_burn << " burn-in iterations and " << num_parameter_estimation_samples << " parameter estimation iterations on " << num_selected_parameter_estimation_variants << " randomly selected simple single nucleotide variant clusters ...\n" << endl;
-
-	mutex count_allocation_lock;
-
-	for (uint i = 0; i < (gibbs_burn + num_parameter_estimation_samples); i++) {
-	
-		CountAllocation count_allocation(num_samples);
-
-	    vector<thread> count_allocation_threads;
-	    count_allocation_threads.reserve(thread_selected_variant_cluster_groups.size());
-
-		for (uint j = 0; j < thread_selected_variant_cluster_groups.size(); j++) {
-
-    	    count_allocation_threads.push_back(thread(&InferenceEngine::allocateCountsForParameterEstimationCallback, this, thread_selected_variant_cluster_groups.at(j), ref(*count_distribution), &count_allocation, &count_allocation_lock));
+		    initing_threads.push_back(thread(&InferenceEngine::initNoiseEstimationGroupsCallback, this, &(inference_unit->variant_cluster_groups), ref(noise_estimation_group_indices), kmer_hash, gibbs_chain_idx, thread_idx));
 	    }
 
-    	for (auto & thread: count_allocation_threads) {
-        	
-        	thread.join();
+		for (auto & initing_thread: initing_threads) {
+	    	
+	    	initing_thread.join();
 		}
 
-		count_distribution->sampleNoiseParameters(count_allocation);
+	    assert(count_distribution->getNoiseRates().size() == samples.size());
+	    noise_outfile << gibbs_chain_idx + 1 << "\t0\t" << count_distribution->getNoiseRates() << endl;
 
-		if (((i+1)%parameter_estimation_stdout_frequency) == 0) {
+		mutex noise_counts_lock;
 
-			if ((i+1) < (gibbs_burn)) {
-
-				cout << "[" << Utils::getLocalTime() << "] Gibbs sampler: Completed " << i+1 << " burn-in iterations" << endl;
-			}
-
-			if (((i+1) > gibbs_burn) and ((i+1) < (gibbs_burn + num_parameter_estimation_samples))) {
-
-				cout << "[" << Utils::getLocalTime() << "] Gibbs sampler: Completed " << i+1 - gibbs_burn << " parameter estimation iterations" << endl;
-			}
-		}	
+		for (uint iteration = 1; iteration <= (num_gibbs_burn + num_gibbs_samples); iteration++) {
 		
-		if ((i+1) == (gibbs_burn)) {
+			CountAllocation noise_counts(samples.size());
 
-			cout << "[" << Utils::getLocalTime() << "] Gibbs sampler: Completed " << i+1 << " burn-in iterations\n" << endl;
+			vector<thread> estimation_threads;
+			estimation_threads.reserve(num_threads);
+
+			for (ushort thread_idx = 0; thread_idx < num_threads; thread_idx++) {
+
+	    	    estimation_threads.push_back(thread(&InferenceEngine::sampleNoiseCountsCallback, this, &(inference_unit->variant_cluster_groups), ref(noise_estimation_group_indices), &noise_counts, &noise_counts_lock, ref(*count_distribution), thread_idx));
+		    }
+
+	    	for (auto & estimation_thread: estimation_threads) {
+	        	
+	        	estimation_thread.join();
+			}
+
+			count_distribution->sampleNoiseParameters(noise_counts);
+
+		    assert(count_distribution->getNoiseRates().size() == samples.size());
+	    	noise_outfile << gibbs_chain_idx + 1 << "\t" << iteration << "\t" << count_distribution->getNoiseRates() << endl;
+
+	    	if (num_gibbs_burn < iteration) {
+
+			    for (ushort sample_idx = 0; sample_idx < samples.size(); sample_idx++) {
+
+				  	mean_noise_rates.at(sample_idx) += count_distribution->getNoiseRates().at(sample_idx);
+			    }
+			}
 		}
+
+		resetNoiseEstimationGroups(&(inference_unit->variant_cluster_groups), noise_estimation_group_indices);
+		count_distribution->resetNoiseRates();
 	}
 
-	for (uint i = 0; i < thread_selected_variant_cluster_groups.size(); i++) {
+	cout << "[" << Utils::getLocalTime() << "] Calculated final noise model parameters by averaging " << num_gibbs_samples * num_gibbs_chains << " parameter estimates (" << num_gibbs_samples << " per gibbs sampling chain)" << endl;
 
-		delete thread_selected_variant_cluster_groups.at(i);
-	}
+    for (ushort sample_idx = 0; sample_idx < samples.size(); sample_idx++) {
 
-	cout << "[" << Utils::getLocalTime() << "] Gibbs sampler: Completed " << num_parameter_estimation_samples << " parameter estimation iterations" << endl;
-	
-	count_distribution->setNoiseRates(meanParameterEstimates(count_distribution->noiseRateEstimates()));
+	  	mean_noise_rates.at(sample_idx) /= (num_gibbs_samples * num_gibbs_chains);
+    }
 
-	cout << "\n[" << Utils::getLocalTime() << "] Fixed noise model parameters to the mean of the " << num_parameter_estimation_samples << " parameter estimates\n"<< endl;
+	count_distribution->setNoiseRates(mean_noise_rates);
+
+	noise_outfile << "0\t0\t" << count_distribution->getNoiseRates() << endl;
+	noise_outfile.close();
+
+	cout << "\n[" << Utils::getLocalTime() << "] Wrote parameters to " << output_prefix << ".txt" << endl;
 }
 
+void InferenceEngine::genotypeVariantClusterGroupsCallback(ProducerConsumerQueue<VariantClusterGroupBatch> * variant_cluster_group_batch_queue, KmerCountsHash * kmer_hash, const CountDistribution & count_distribution, const Filters & filters, GenotypeWriter * genotype_writer, uint * num_genotyped_variants, mutex * thread_lock) {
 
-void InferenceEngine::genotypeVariantClusterGroupsCallback(ProducerConsumerQueue<VariantClusterGroupBatch> * variant_cluster_group_batch_queue, KmerHash * kmer_hash, const CountDistribution & count_distribution, const vector<Sample> & samples, GenotypeWriter * genotype_writer, uint * num_genotyped_variants, mutex * thread_lock) {
+	assert(samples.size() == samples.size());
 
-	assert(samples.size() == num_samples);
-
-    mt19937 prng = mt19937(prng_seed);
 	VariantClusterGroupBatch variant_cluster_group_batch;
 
 	while (variant_cluster_group_batch_queue->pop(&variant_cluster_group_batch)) {
 
 		vector<Genotypes*> * variant_genotypes = new vector<Genotypes*>();
-		variant_genotypes->reserve(variant_cluster_group_batch.number_of_variants);
+		variant_genotypes->reserve(variant_cluster_group_batch.num_variants);
 
-		uint variant_cluster_groups_idx = variant_cluster_group_batch.first_variant_cluster_groups_idx;
+		uint variant_cluster_group_idx = variant_cluster_group_batch.first_variant_cluster_group_idx;
 
 		auto variant_cluster_group_it = variant_cluster_group_batch.start_it;
 
 		while (variant_cluster_group_it != variant_cluster_group_batch.end_it) {
 
-			if ((*variant_cluster_group_it)->isInChromosomeRegions(chromosome_regions)) {
-				
-				for (ushort chain_idx = 0; chain_idx < num_gibbs_chains; chain_idx++) {
+			(*variant_cluster_group_it)->initGenotyper(kmer_hash, samples, prng_seed + variant_cluster_group_idx, num_genomic_rate_gc_bias_bins, kmer_subsampling_rate, max_haplotype_variant_kmers);
+			
+			for (ushort gibbs_chain_idx = 0; gibbs_chain_idx < num_gibbs_chains; gibbs_chain_idx++) {
 
-					(*variant_cluster_group_it)->initialise(kmer_hash, samples, prng_seed + variant_cluster_groups_idx, num_genomic_rate_gc_bias_bins, kmer_subsampling_rate, max_haplotype_variant_kmers);
-					(*variant_cluster_group_it)->shuffleBranchOrder(&prng);
+				if (gibbs_chain_idx > 0) {
 
-					for (ushort i = 0; i < gibbs_burn; i++) {
-
-						(*variant_cluster_group_it)->estimateGenotypes(count_distribution, chromosome_ploidy, false);
-					}
-
-					for (ushort i = 0; i < gibbs_samples; i++) {
-
-						(*variant_cluster_group_it)->estimateGenotypes(count_distribution, chromosome_ploidy, true);
-					}
+					(*variant_cluster_group_it)->resetGenotyper(kmer_subsampling_rate, max_haplotype_variant_kmers);
 				}
 
-				(*variant_cluster_group_it)->collectGenotypes(variant_genotypes, chromosome_ploidy);
-			} 
+				(*variant_cluster_group_it)->shuffleBranchOrdering(prng_seed * (gibbs_chain_idx + 1) + variant_cluster_group_idx);
 
-			variant_cluster_groups_idx++;
+				for (ushort i = 0; i < num_gibbs_burn; i++) {
+
+					(*variant_cluster_group_it)->estimateGenotypes(count_distribution, chrom_ploidy, false);
+				}
+
+				for (ushort i = 0; i < num_gibbs_samples; i++) {
+
+					(*variant_cluster_group_it)->estimateGenotypes(count_distribution, chrom_ploidy, true);
+				}					
+			}
+
+			(*variant_cluster_group_it)->collectGenotypes(variant_genotypes, chrom_ploidy, filters);
+
+			variant_cluster_group_idx++;
 	
 			delete *variant_cluster_group_it;			
 			variant_cluster_group_it++;
@@ -312,7 +283,7 @@ void InferenceEngine::genotypeVariantClusterGroupsCallback(ProducerConsumerQueue
 
 		while (genotyping_stdout_idx_1 < genotyping_stdout_idx_2) {
 
-			cout << "[" << Utils::getLocalTime() << "] Gibbs sampler: Genotyped " << static_cast<uint>(genotyping_stdout_frequency * (genotyping_stdout_idx_1 + 1)) << " variants" << endl;	
+			cout << "[" << Utils::getLocalTime() << "] Genotyped " << static_cast<uint>(genotyping_stdout_frequency * (genotyping_stdout_idx_1 + 1)) << " variants" << endl;	
 			genotyping_stdout_idx_1++;
 		}
 
@@ -322,58 +293,57 @@ void InferenceEngine::genotypeVariantClusterGroupsCallback(ProducerConsumerQueue
 	}
 }
 
+void InferenceEngine::genotypeVariantClusterGroups(InferenceUnit * inference_unit, KmerCountsHash * kmer_hash, const CountDistribution & count_distribution, const Filters & filters, GenotypeWriter * genotype_writer) {
 
-void InferenceEngine::genotypeVariantClusterGroups(vector<VariantClusterGroup*> * variant_cluster_groups, const uint num_variants, KmerHash * kmer_hash, const CountDistribution & count_distribution, const vector<Sample> & samples, GenotypeWriter * genotype_writer) {
-
-	cout << "\n[" << Utils::getLocalTime() << "] Running " << num_gibbs_chains << " parallel gibbs sampling chains with " << gibbs_burn + gibbs_samples << " iterations (" << gibbs_burn << " burn-in) on " << num_variants << " variants ...\n" << endl;
+	cout << "[" << Utils::getLocalTime() << "] Running " << num_gibbs_chains << " parallel gibbs sampling chains each with " << num_gibbs_burn + num_gibbs_samples << " iterations (" << num_gibbs_burn << " burn-in) on " << inference_unit->num_variants << " variants ...\n" << endl;
 
     ProducerConsumerQueue<VariantClusterGroupBatch> variant_cluster_group_batch_queue(Utils::queue_size_thread_scaling * num_threads);
 
     uint num_genotyped_variants = 0;
     mutex thread_lock;
 
-	vector<thread> genotype_threads;
-	genotype_threads.reserve(num_threads);
+	vector<thread> genotyping_threads;
+	genotyping_threads.reserve(num_threads);
 
-	for (int i=0; i < num_threads; i++) {
+	for (ushort thread_idx = 0; thread_idx < num_threads; thread_idx++) {
 
-        genotype_threads.push_back(thread(&InferenceEngine::genotypeVariantClusterGroupsCallback, this, &variant_cluster_group_batch_queue, kmer_hash, ref(count_distribution), ref(samples), genotype_writer, &num_genotyped_variants, &thread_lock));
+        genotyping_threads.push_back(thread(&InferenceEngine::genotypeVariantClusterGroupsCallback, this, &variant_cluster_group_batch_queue, kmer_hash, ref(count_distribution), ref(filters), genotype_writer, &num_genotyped_variants, &thread_lock));
     }  
 
-    auto variant_cluster_group_it = variant_cluster_groups->begin();
+    auto variant_cluster_group_it = inference_unit->variant_cluster_groups.begin();
     auto first_variant_cluster_group_it = variant_cluster_group_it;
 
-	uint number_of_batch_variants = 0;
+	uint num_batch_variants = 0;
 	
-	while (variant_cluster_group_it != variant_cluster_groups->end()) {
+	while (variant_cluster_group_it != inference_unit->variant_cluster_groups.end()) {
 
 		assert(*variant_cluster_group_it);
-		number_of_batch_variants += (*variant_cluster_group_it)->numberOfVariants();
+		num_batch_variants += (*variant_cluster_group_it)->numberOfVariants();
 
 		variant_cluster_group_it++;
 
-		if (number_of_batch_variants >= variant_cluster_groups_batch_size) {
+		if (num_batch_variants >= variant_cluster_groups_batch_size) {
 
-			variant_cluster_group_batch_queue.push(VariantClusterGroupBatch(first_variant_cluster_group_it - variant_cluster_groups->begin(), number_of_batch_variants, first_variant_cluster_group_it, variant_cluster_group_it));	
+			variant_cluster_group_batch_queue.push(VariantClusterGroupBatch(first_variant_cluster_group_it - inference_unit->variant_cluster_groups.begin(), num_batch_variants, first_variant_cluster_group_it, variant_cluster_group_it));	
 			
 			first_variant_cluster_group_it = variant_cluster_group_it;
-			number_of_batch_variants = 0;
+			num_batch_variants = 0;
 		}
  	}
 
- 	variant_cluster_group_batch_queue.push(VariantClusterGroupBatch(first_variant_cluster_group_it - variant_cluster_groups->begin(), number_of_batch_variants, first_variant_cluster_group_it, variant_cluster_group_it));
+ 	variant_cluster_group_batch_queue.push(VariantClusterGroupBatch(first_variant_cluster_group_it - inference_unit->variant_cluster_groups.begin(), num_batch_variants, first_variant_cluster_group_it, variant_cluster_group_it));
 	variant_cluster_group_batch_queue.pushedLast();
 
-	for(auto & thread : genotype_threads) {
+	for(auto & genotyping_thread: genotyping_threads) {
     	
-    	thread.join();
+    	genotyping_thread.join();
 	}
 
-	assert(num_genotyped_variants <= num_variants);
+	assert(num_genotyped_variants <= inference_unit->num_variants);
 
-	cout << "\n[" << Utils::getLocalTime() << "] Out of " << num_variants << " variants:\n" << endl; 
+	cout << "\n[" << Utils::getLocalTime() << "] Out of " << inference_unit->num_variants << " variants:\n" << endl; 
     cout << "\t- " << num_genotyped_variants << " were genotyped" << endl;
-    cout << "\t- " << num_variants - num_genotyped_variants << " were skipped (unsupported or region)\n" << endl;
+    cout << "\t- " << inference_unit->num_variants - num_genotyped_variants << " were skipped (unsupported)" << endl;
 }
 
 

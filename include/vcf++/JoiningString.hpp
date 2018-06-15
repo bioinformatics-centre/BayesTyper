@@ -27,8 +27,8 @@ THE SOFTWARE.
 */
 
 
-#ifndef JOINING_STR
-#define JOINING_STR
+#ifndef __vcf__JoiningString_hpp
+#define __vcf__JoiningString_hpp
 
 #include <string>
 #include <vector>
