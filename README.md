@@ -74,7 +74,7 @@ The BayesTyper manuscript has been accepted for publication. Citation informatio
 ## Studies that have used BayesTyper ##
 * Sequencing and de novo assembly of 150 genomes from Denmark as a population reference. *Nature*, 2017 ([link](https://www.nature.com/articles/nature23264))
 * A high-coverage Neandertal genome from Vindija Cave in Croatia. *Science*, 2017 ([link](http://science.sciencemag.org/content/early/2017/10/04/science.aao1887))
-* Analysis of 62 hybrid assembled human Y chromosomes exposes rapid structural changes and high rates of gene conversion. *PLOS Genetics*, 2017 [link](http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.1006834)
+* Analysis of 62 hybrid assembled human Y chromosomes exposes rapid structural changes and high rates of gene conversion. *PLOS Genetics*, 2017 ([link](http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.1006834))
 * Assembly and analysis of 100 full MHC haplotypes from the Danish population, *Genome Research*, 2017 ([link](https://genome.cshlp.org/content/early/2017/08/03/gr.218891.116))
 
 Please let us know if you use BayesTyper in your publication - then we will put it on the list.
