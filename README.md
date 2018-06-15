@@ -9,13 +9,14 @@ BayesTyper performs genotyping of all types of variation (including SNPs, indels
     * **Simultaneous genotyping and filtering:** No need to run `bayesTyperTools filter`. Hard filters are now applied up front by `bayesTyper genotype`. Genotypes can still be refiltered using `bayesTyperTools filter` after genotyping if necessary.
     * **Parallel read bloom generation:** `bayesTyperTools makeBloom` can now use multiple threads (and  scales very well with the number of threads).
     * **snakemake workflow:** We have added an example *snakemake* workflow to the repo - this can orchestrate the entire pipeline straight from BAM(s) over variant candidates to final genotypes.  
-* 26 February 2018: New release out ([v1.2](https://github.com/bioinformatics-centre/BayesTyper/releases))
+    
+* 26 February 2018: Manuscript release ([v1.2](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.2))
 
 ## Installation ##
 1. Download the latest static Linux x86_64 build (k=55) found under [releases](https://github.com/bioinformatics-centre/BayesTyper/releases/latest).
     * To build from source, please refer to the [build wiki](https://github.com/bioinformatics-centre/BayesTyper/wiki/Building-BayesTyper-from-source) for detailed build instructions. Note that the k-mer size is determined compile time. Hence, if you want k ≠ 55 you need to compile it yourself (or post a [feature request](https://github.com/bioinformatics-centre/BayesTyper/issues) and we will see what we can do).
 
-2. Download the BayesTyper data bundle ([GRCh37](http://people.binf.ku.dk/~lassemaretty/bayesTyper/bayestyper_GRCh37_bundle.tar.gz) and [GRCh38](http://people.binf.ku.dk/~lassemaretty/bayesTyper/bayestyper_GRCh38_bundle.tar.gz)) containing reference sequences preprocessed for BayesTyper (i.e. canonical and decoy chromosomes) together with a reference matched variation prior database.
+2. Download the BayesTyper human data bundle ([GRCh37](http://people.binf.ku.dk/~lassemaretty/bayesTyper/bayestyper_GRCh37_bundle.tar.gz) and [GRCh38](http://people.binf.ku.dk/~lassemaretty/bayesTyper/bayestyper_GRCh38_bundle.tar.gz)) containing reference sequences preprocessed for BayesTyper (i.e. canonical and decoy chromosomes) together with a reference matched variation prior database.
 
 ## Usage ##
 The BayesTyper genotyping process occurs in two stages:
@@ -36,15 +37,19 @@ The complete workflow (i.e. BAM(s) to genotypes) outlined below is further provi
 
 **Important:** Please note that it is currently only possible to genotype 30 samples at the time using *BayesTyper*. To run more samples, please execute *BayesTyper* in batches as described in the [batching wiki](https://github.com/bioinformatics-centre/BayesTyper/wiki/Executing-BayesTyper-on-sample-batches). Batching is currently not supported by the *snakemake* workflow - please let us know if you require this feature by filing a [feature request](https://github.com/bioinformatics-centre/BayesTyper/issues).
 
-**Important:** Please note that Bayestyper currently does **not** support bgzip compressed vcf files, but only uncompressed and gzip compressed files.
+**Important:** Please note that Bayestyper currently **does not** support bgzip compressed vcf files, but only uncompressed and gzip compressed files.
 
 ### 1. Generation of variant candidates ###
 Starting from a set of indexed, aligned reads (obtained e.g. using *BWA-MEM*):
+
 1. For each sample, run [*HaplotypeCaller*](https://software.broadinstitute.org/gatk/documentation/tooldocs/3.8-0/org_broadinstitute_gatk_tools_walkers_haplotypecaller_HaplotypeCaller.php) to get standard mapping-based candidates
     * Marking duplicates, running Base Quality Recalibration or doing joint genotyping is **not** required
     * Faster alternative: [*Freebayes*](https://github.com/ekg/freebayes)
+    
 3. For each sample, run [*Platypus*](http://www.well.ox.ac.uk/platypus) to identify small and medium sized variants
+
 4. For each sample, run [*Manta*](https://github.com/Illumina/manta) to identify candidates by *de novo* local assembly (important for detecting larger deletions and insertions). Convert allele IDs (e.g. \<DEL\>) in the Manta output to sequences using `bayesTyperTools convertAllele`
+
 5. Combine variants across *all* samples, callers and the *variation prior* using `bayesTyperTools combine -o <candiate_variants> GATK:<gatk_sample1>.vcf,GATK:<gatk_sample2>.vcf,PLATYPUS:<platypus_sample1>.vcf,PLATYPUS:<platypus_sample2>.vcf,MANTA:<manta_sample1>.vcf,...,prior:<prior>.vcf`
    * **Note:** The source tag before the colon (e.g. GATK) only serves to identify the origin of the calls in the final callset - it can take any value.
 
@@ -54,29 +59,32 @@ Starting from a set of indexed, aligned reads (obtained e.g. using *BWA-MEM*):
       * **Note:** Default is fq(.gz) input - bam input is enabled using `-fbam`.
    2. Create a read k-mer bloom filter for each sample from the KMC3 output using `bayesTyperTools makeBloom -k <kmc_output_prefix> -p <num_threads>`
       * **Important:** The resulting bloom filter (*<sample_id>.bloom*) and the KMC3 output (*<sample_id>.kmc_pre* and *<sample_id>.kmc_suf*) must reside in the same directory and have the same prefix
+
 2. Identify variant clusters: `bayesTyper cluster -v <candiate_variants>.vcf -s <samples>.tsv -g <ref_build>_canon.fa -d <ref_build>_decoy.fa -p <num_threads> -o <output_prefix>`
-      * **Note:** This partitions the candidate variants into units written to separate directories (<output_prefix>_unit_1, <output_prefix>_unit_2 ...) - these can be processed independently e.g. on a cluster (supported by the snakemake workflow) followed by a simple concatenation operation using `bcftools concat` (see below).
+      * **Note:** This partitions the candidate variants into units written to separate directories (<output_prefix>_unit_1, <output_prefix>_unit_2, ...) - these can be processed independently e.g. on a cluster (supported by the snakemake workflow). By default each unit contains between 5M and 10M variants.
       * **Important:** The `<samples>.tsv` file should contain one sample per row with columns \<sample_id\>, \<sex\> and \<kmc_output_prefix\> and no header ([example](http://people.binf.ku.dk/~lassemaretty/bayesTyper/bt_samples_example.tsv)).
       * **Important:** Data that is common to all units and necessary for genotyping is written to the <output_prefix>_cluster_data directory.
-      * **Note:** Reference files (canon/decoy) are provided in the BayesTyper data bundle (see [Installation](https://github.com/bioinformatics-centre/BayesTyper#installation)).
+      * **Note:** Human reference files (canon/decoy) are provided in the BayesTyper data bundle (see [Installation](https://github.com/bioinformatics-centre/BayesTyper#installation)).
+
 3. Genotype variant clusters: `bayesTyper genotype -v <output_prefix>_unit_<unit_id>/variant_clusters.bin -c <output_prefix>_cluster_data -s <samples>.tsv -g <ref_build>_canon.fa -d <ref_build>_decoy.fa -o <output_prefix>_unit_<unit_id>/<output_prefix> -z -p <num_threads>`
-      * **Note:** The genotype command also applies the default BayesTyper hard-filters by setting the variant FILTER status and the sample allele filter (SAF) format attribute. Please refer to the [filter wiki](https://github.com/bioinformatics-centre/BayesTyper/wiki/Filtering) for information about the filters used, how to changes the defaults up front and how to refilter the data after running the genotyping step.
-      * **Important:** The filtering procedure **only** filters the genotypes ("./.") and set the genotype and variant level filter attributes. Hence, downstream tools **should prefilter on the variant quality and filter==PASS** (e.g. using *bcftools*) to obtain the filtered calls.
+      * **Note:** The genotype command also applies the default BayesTyper hard-filters by setting the variant FILTER status and the sample specific allele filter (SAF) format attribute. Please refer to the [filter wiki](https://github.com/bioinformatics-centre/BayesTyper/wiki/Filtering) for information about the filters used, how to changes the defaults up front and how to refilter the data after running the genotyping step.
+      * **Important:** The filtering procedure only filters the genotypes ("./.") and set the genotype and variant level filter attributes. Hence, downstream tools **should prefilter on the variant quality and filter==PASS** (e.g. using *bcftools*) to obtain the filtered calls.
+
 4. Concatenate units: `bcftools concat -O z -o <output_prefix>.vcf.gz <output_prefix>_unit_1/<output_prefix>.vcf.gz <output_prefix>_unit_2/<output_prefix>.vcf.gz ...`
-    * **Important:** Unit arguments to bcftools should be in ascending order (unit_1, unit_2 ...) for the output to be properly sorted
+    * **Important:** Unit arguments to bcftools should be in ascending order (unit_1, unit_2, ...) for the output to be properly sorted
 
 ## Computational requirements ##
 
-|Number of samples|Coverage|Number of variant alleles|Max allele length (nts)|Number of threads|Wall time (h, single core)\*|Wall time (h, cluster)\**|Max memory (GB)|
+|Number of samples|Coverage|Number of variant alleles|Max allele length (nts)|Number of threads|Wall time (h, single node)|Wall time (h, multiple nodes)\*|Max memory (GB)|
 |-|---|-----|-------|--|-|-|--|
-|3|13x|21.4M|500,000|28|7|3|40|
-|3|13x|64.4M|500,000|28|18|5|42|
-|10|50x|11.7M|10,000|28|32|15|65|
-|10|50x|61.1M|10,000|28|92|16|62|
+|3|13x|21.4M|500,000|28|5-6|2-3|41|
+|3|13x|64.4M|500,000|28|17-18|4-5|42|
+|10|50x|11.7M|10,000|28|31-32|16-17|66|
+|10|50x|61.1M|10,000|28|92-93|15-16|62|
 
-\*The time estimates are for running `bayesTyper cluster` and `bayesTyper genotype` only. Expect <1h combined run-time per sample for counting k-mers by *KMC* and bloom filter creation by *bayesTyperTools*. All runs were done on a 64-bit Intel Xeon 2.00 GHz machine with 128 GB of memory.
+\* `bayesTyper genotype` can be distributed across nodes on a cluster - between 2 and 11 nodes were used in this benchmark.
 
-\** `bayesTyper genotype` can be distributed across nodes on a cluster - between 2 and 11 nodes were used in this benchmark.
+The time estimates are for running `bayesTyper cluster` and `bayesTyper genotype` only. Expect <1h combined run-time per sample for counting k-mers by *KMC* and bloom filter creation by *bayesTyperTools*. All runs were done on a 64-bit Intel Xeon 2.00 GHz machine with 128 GB of memory.
 
 ## Citing BayesTyper ##
 The BayesTyper manuscript has been accepted for publication. Citation information will be updated on Monday June 18.
