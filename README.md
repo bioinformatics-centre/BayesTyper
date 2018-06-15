@@ -22,19 +22,19 @@ Below we outline an example strategy, where candiates are obtained using
 
 The complete workflow (i.e. BAM(s) to genotypes) outlined below is further provided as a [snakemake workflow](https://github.com/bioinformatics-centre/BayesTyper/tree/master/workflows) for easy deployment of BayesTyper. Please refer to the [snakemake wiki](https://github.com/bioinformatics-centre/BayesTyper/wiki/Running-BayesTyper-using-snakemake) for detailed instructions on how to set up and execute the workflow on your data.
 
-**Important:** This workflow should work well for most cases. If prefer to use another approach, please note that the candidate variant set *must contain* at least 1 million SNVs that are needed for accurate estimation of parameters.
+**Important:** This workflow should work well for most cases. If you prefer to use another approach, please note that the candidate variant set *must contain* at least 1 million SNVs that are needed for accurate estimation of parameters.
 
 **Important:** Please note that it is currently only possible to genotype 30 samples at the time using *BayesTyper*. To run more samples, please execute *BayesTyper* in batches as described in the [batching wiki](https://github.com/bioinformatics-centre/BayesTyper/wiki/Executing-BayesTyper-on-sample-batches). Batching is currently not supported by the *snakemake* workflow - please let us know if you require this feature by filing a [feature request](https://github.com/bioinformatics-centre/BayesTyper/issues).
 
 **Important:** Please note that Bayestyper currently does **not** support bgzip compressed vcf files, but only uncompressed and gzip compressed files.
 
 ### 1. Generation of variant candidates ###
-Starting from a set of indexed, aligned reads (obtained e.g. using BWA-MEM, both .bam and .bai files must exist):
+Starting from a set of indexed, aligned reads (obtained e.g. using *BWA-MEM*):
 1. For each sample, run [*HaplotypeCaller*](https://software.broadinstitute.org/gatk/documentation/tooldocs/3.8-0/org_broadinstitute_gatk_tools_walkers_haplotypecaller_HaplotypeCaller.php) to get standard mapping-based candidates
     * Marking duplicates, running Base Quality Recalibration or doing joint genotyping is **not** required
     * Faster alternative: [*Freebayes*](https://github.com/ekg/freebayes)
 3. For each sample, run [*Platypus*](http://www.well.ox.ac.uk/platypus) to identify small and medium sized variants
-4. For each sample, run [*Manta*](https://github.com/Illumina/manta) to identify candidates by *de novo* local assembly (important for detecting larger deletions and insertions). Convert allele IDs (e.g. <DEL>) in the Manta output to sequences using `bayesTyperTools convertAllele`
+4. For each sample, run [*Manta*](https://github.com/Illumina/manta) to identify candidates by *de novo* local assembly (important for detecting larger deletions and insertions). Convert allele IDs (e.g. \<DEL\>) in the Manta output to sequences using `bayesTyperTools convertAllele`
 5. Combine variants across *all* samples, callers and the **variation prior** using `bayesTyperTools combine -o <candiate_variants> GATK:<gatk_sample1>.vcf,GATK:<gatk_sample2>.vcf,PLATYPUS:<platypus_sample1>.vcf,PLATYPUS:<platypus_sample2>.vcf,MANTA:<manta_sample1>.vcf,...,prior:<prior>.vcf`
    * **Note:** The source tag before the colon (e.g. GATK) only serves to identify the origin of the calls in the final callset - it can take any value.
 
