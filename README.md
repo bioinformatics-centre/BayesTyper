@@ -2,6 +2,9 @@
 BayesTyper performs genotyping of all types of variation (including SNPs, indels and complex structural variants) based on an input set of variants and read k-mer counts. Internally, BayesTyper uses exact alignment of k-mers to a graph representation of the input variants and reference sequence in combination with a probabilistic model of k-mer counts to do genotyping.
 
 ## News ##
+* 18 June 2018: BayesTyper paper published as *Technical Report* in *Nature Genetics* ([link](https://www.nature.com/articles/s41588-018-0145-5)). 
+    * Please note that the results presented in the paper were obtained using BayesTyper [v1.2.0](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.2) 
+    * The new BayesTyper [v >= 1.3](https://github.com/bioinformatics-centre/BayesTyper/releases/latest) requires **much less memory** and **runs faster** than stated in *Supplementary Table 2* in the manuscript with no impact on sensitivity and genotyping acceracy as compared with v1.2. Please refer to the *Computational requirements* section below and the [release notes](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.3) for version 1.3 for further details. 
 
 * 18 June 2018: Patch ([v1.3.1](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.3.1)) 
     
@@ -14,6 +17,20 @@ BayesTyper performs genotyping of all types of variation (including SNPs, indels
     * **snakemake workflow:** We have added an example *snakemake* workflow to the repo - this can orchestrate the entire pipeline straight from BAM(s) over variant candidates to final genotypes.  
     
 * 26 February 2018: Manuscript release ([v1.2](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.2))
+
+## Why should I use BayesTyper? ##
+### Short explanation ###
+Because it allows you to obtain accurate genotypes spanning from SNVs/short indels to complex structural variants and hence provides a more complete picture of the genome as compared with standard methods - without sacrificing accuracy.
+
+### Detailed explanation ###
+Standard methods for genotyping (e.g. *GATK-HaplotypeCaller*, *Platypus* and *Freebayes*) start from an alignment of reads (e.g. by *BWA-MEM*) and then
+1. Call candidate variants.
+2. Perform *local* realignment of reads anchored to a particular variable region to candidate variant haplotypes.
+3. Estimate genotypes (and thus final variant calls).
+
+As the initial read map is biased towards the reference sequence and variants informative for a particular variant may thus have been left either unaligned (because of too large an edit distance to the reference) or may have aligned better elsewhere in the reference sequence.
+
+The variant graph approach used by BayesTyper ensures that the resulting calls are not biased towards the reference sequence by effectively realigning *all* reads (or more specifically their k-mers) when genotyping candidate variants. In our recent [paper](https://www.nature.com/articles/s41588-018-0145-5), we show how this approach significantly improvements both sensitivity and genotyping accuracy for most variant types - especially non-SNVs (please see citation below).
 
 ## Installation ##
 1. Download the latest static Linux x86_64 build (k=55) found under [releases](https://github.com/bioinformatics-centre/BayesTyper/releases/latest).
@@ -91,7 +108,7 @@ Starting from a set of indexed, aligned reads (obtained e.g. using *BWA-MEM*):
 The time estimates are for running `bayesTyper cluster` and `bayesTyper genotype` only. Expect <1h combined run-time per sample for counting k-mers by *KMC* and bloom filter creation by *bayesTyperTools*. All runs were done on a 64-bit Intel Xeon 2.00 GHz machine with 128 GB of memory.
 
 ## Citing BayesTyper ##
-The BayesTyper manuscript has been accepted for publication. Citation information will be updated on Monday June 18.
+Sibbesen JA*, Maretty L*, The Danish Pan-Genome Consortium & Krogh A: Accurate genotyping accross variant classes and lengths using variant graphs. *Nature Genetics*, 2018. [link](https://www.nature.com/articles/s41588-018-0145-5). *Equal contributors.
 
 ## Studies that have used BayesTyper ##
 * Sequencing and de novo assembly of 150 genomes from Denmark as a population reference. *Nature*, 2017 ([link](https://www.nature.com/articles/nature23264))
