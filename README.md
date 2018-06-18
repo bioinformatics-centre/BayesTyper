@@ -3,8 +3,7 @@ BayesTyper performs genotyping of all types of variation (including SNPs, indels
 
 ## News ##
 
-* 18 June 2018: Patch ([v1.3.1](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.3.1)) featuring:
-    * *bcftools merge* incompatibility fix.   
+* 18 June 2018: Patch ([v1.3.1](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.3.1)) 
     
 * 15 June 2018: New major release out ([v1.3](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.3)) featuring:
     * **New interface:** bayesTyper has been refactored into `BayesTyper cluster` and `BayesTyper genotype`. The *cluster* part partitions the variants into *units* that can then be *genotyped*.
