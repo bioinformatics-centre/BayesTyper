@@ -28,9 +28,9 @@ Standard methods for genotyping (e.g. *GATK-HaplotypeCaller*, *Platypus* and *Fr
 2. Perform *local* realignment of reads anchored to a particular variable region to candidate variant haplotypes.
 3. Estimate genotypes (and thus final variant calls).
 
-As the initial read map is biased towards the reference sequence and variants informative for a particular variant may thus have been left either unaligned (because of too large an edit distance to the reference) or may have aligned better elsewhere in the reference sequence.
+This approach can result in a bias towards the reference sequence since reads informative for a particular variant may have been left either unaligned (because of too large an edit distance to the reference) or have aligned better elsewhere in the reference.
 
-The variant graph approach used by BayesTyper ensures that the resulting calls are not biased towards the reference sequence by effectively realigning *all* reads (or more specifically their k-mers) when genotyping candidate variants. In our recent [paper](https://www.nature.com/articles/s41588-018-0145-5), we show how this approach significantly improvements both sensitivity and genotyping accuracy for most variant types - especially non-SNVs (please see citation below).
+The variant graph approach used by BayesTyper ensures that the resulting calls are not biased towards the reference sequence by effectively realigning *all* reads (or more specifically their k-mers) when genotyping candidate variants. In our recent [paper](https://www.nature.com/articles/s41588-018-0145-5), we show how this approach significantly improves both sensitivity and genotyping accuracy for most variant types - especially non-SNVs (please see citation below).
 
 ## Installation ##
 1. Download the latest static Linux x86_64 build (k=55) found under [releases](https://github.com/bioinformatics-centre/BayesTyper/releases/latest).
