@@ -1,128 +1,108 @@
 # BayesTyper #
-BayesTyper performs genotyping of all types of variation (including structural and complex variation) based on an input set of variants and read k-mer counts. Internally, BayesTyper uses exact alignment of k-mers to a graph representation of the input variation and reference sequence in combination with a probabilistic model of k-mer counts to do genotyping. The variant representation ensures that the resulting calls are not biased towards the reference sequence as is otherwise generally the case when basing calls only on mapped reads. 
+BayesTyper performs genotyping of all types of variation (including SNPs, indels and complex structural variants) based on an input set of variants and read k-mer counts. Internally, BayesTyper uses exact alignment of k-mers to a graph representation of the input variants and reference sequence in combination with a probabilistic model of k-mer counts to do genotyping.
 
-The BayesTyper was used to integrate mapping- and assembly-based calls in the [GenomeDenmark project](http://www.nature.com/nature/journal/vaop/ncurrent/full/nature23264.html). A manuscript describing the method is currently in revision.
-
-The BayesTyper is being developed by Jonas Andreas Sibbesen, Lasse Maretty and Anders Krogh at the Section for Computational and RNA Biology, Department of Biology, University of Copenhagen.
-
-## Use cases ##
-
-### Variant integration ###
-Sensitive calling of structural variation typically requires running multiple callers to ensure sensitivity yet this leads to the problem of integrating calls across call-sets. The BayesTyper can be used to produce a fully integrated call-set including SNVs, indels and complex variation from input variant *candidates* produced by a panel of methods; the panel must include standard SNV and indel calls e.g. from GATK, Freebayes or Platypus.
-
-### Prior based genotyping ###
-A signficant amount of both simple and complex variation is already known from large population-scale studies. As some of these variants may be missed in a study - even when running multiple methods - due to alignment bias, we provide a database containing common SNPs/indels together with complex variants that can be combined with *in-sample* calls (i.e. calls based only on the study data) to improve sensitivity.
-This approach can for instance be used to quickly augment a set of standard SNV and indel calls (e.g. from GATK) with structural variation by running BayesTyper on the SNV/indel calls combined with our variation database. For higher sensitivity, *in-sample* complex variation calls can be combined with the database to produce the final intergrated call-set.
+## News ##
+* 15 June 2018: New release out ([v1.3](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.3)) featuring:
+    * **New interface:** bayesTyper has been refactored into `BayesTyper cluster` and `BayesTyper genotype`. The *cluster* part partitions the variants into *units* that can then be *genotyped*.
+    * **Much reduced memory:** Only graphs and k-mers for a single unit need to reside in memory at the same time; the rest remains on disk. A bloom filter stores information about k-mers shared across units.  This construct ensures that *memory usage is (almost) independent of the number of candidate variants*.
+    * **Cluster support:** Each unit can be genotyped independently and hence distributed across nodes on a cluster followed by simple concatenation of the unit vcf files (e.g. using `bcftools concat`).
+    * **Simultaneous genotyping and filtering:** No need to run `bayesTyperTools filter`. Hard filters are now applied up front by `bayesTyper genotype`. Genotypes can still be refiltered using `bayesTyperTools filter` after genotyping if necessary.
+    * **Parallel read bloom generation:** `bayesTyperTools makeBloom` can now use multiple threads (and  scales very well with the number of threads).
+    * **snakemake workflow:** We have added an example *snakemake* workflow to the repo - this can orchestrate the entire pipeline straight from BAM(s) over variant candidates to final genotypes.  
+    
+* 26 February 2018: Manuscript release ([v1.2](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.2))
 
 ## Installation ##
-BayesTyper can either be build from source or a static Linux x86_64 build can be downloaded under [releases](https://github.com/bioinformatics-centre/BayesTyper/releases).
+1. Download the latest static Linux x86_64 build (k=55) found under [releases](https://github.com/bioinformatics-centre/BayesTyper/releases/latest).
+    * To build from source, please refer to the [build wiki](https://github.com/bioinformatics-centre/BayesTyper/wiki/Building-BayesTyper-from-source) for detailed build instructions. Note that the k-mer size is determined compile time. Hence, if you want k ≠ 55 you need to compile it yourself (or post a [feature request](https://github.com/bioinformatics-centre/BayesTyper/issues) and we will see what we can do).
 
-### Building BayesTyper ###
+2. Download the BayesTyper human data bundle ([GRCh37](http://people.binf.ku.dk/~lassemaretty/bayesTyper/bayestyper_GRCh37_bundle.tar.gz) and [GRCh38](http://people.binf.ku.dk/~lassemaretty/bayesTyper/bayestyper_GRCh38_bundle.tar.gz)) containing reference sequences preprocessed for BayesTyper (i.e. canonical and decoy chromosomes) together with a reference matched variation prior database.
 
-#### Prerequisites ####
-* gcc (c++11 support required)
-* [CMake](https://cmake.org) (version 2.8.0 or higher)
-* [Boost](http://www.boost.org) (tested with version 1.53.0, 1.56.0 and 1.59.0)
+## Usage ##
+The BayesTyper genotyping process occurs in two stages:
+1. Generation of variant candidates (using other tools)
+2. Genotyping based on variant candidates (using *BayesTyper*)
 
-#### Compilation ####
+As indicated, BayesTyper **does not** find candidate variants on its own. Instead, users can combine the variant discovery strategies suitable for their study as it will depend on the study design (e.g. coverage, number of samples etc.) as well as the available resources.
 
-1. `git clone https://github.com/bioinformatics-centre/BayesTyper.git`
-2. `cd BayesTyper`
-2. `mkdir build && cd build`
-5. `cmake ..`
-6. `make -j <threads>`
+Below we outline an example strategy, where candiates are obtained using
+* *GATK-HaplotypeCaller* (without all the pre-processing of alignments and post-processing of variants)
+* *Platypus*
+* *Manta*
+* The *variation prior* (part of the BayesTyper data bundle, see [Installation](https://github.com/bioinformatics-centre/BayesTyper#installation))
 
-The compiled `bayesTyper` and `bayesTyperTools` binaries are located in the `bin` directory.
+The complete workflow (i.e. BAM(s) to genotypes) outlined below is further provided as a [snakemake workflow](https://github.com/bioinformatics-centre/BayesTyper/tree/master/workflows) for easy deployment of BayesTyper. Please refer to the [snakemake wiki](https://github.com/bioinformatics-centre/BayesTyper/wiki/Running-BayesTyper-using-snakemake) for detailed instructions on how to set up and execute the workflow on your data.
 
-## Basic usage ##
-The BayesTyper package contains `bayesTyper`, which does the genotyping, and `bayesTyperTools`, which is used to pre- and post-process VCF files for BayesTyper.
+**Important:** This workflow should work well for most cases. If you prefer to use another approach, please note that the candidate variant set *must contain* at least 1 million SNVs that are needed for accurate estimation of parameters.
 
-1. Count k-mers
+**Important:** Please note that it is currently only possible to genotype 30 samples at the time using *BayesTyper*. To run more samples, please execute *BayesTyper* in batches as described in the [batching wiki](https://github.com/bioinformatics-centre/BayesTyper/wiki/Executing-BayesTyper-on-sample-batches). Batching is currently not supported by the *snakemake* workflow - please let us know if you require this feature by filing a [feature request](https://github.com/bioinformatics-centre/BayesTyper/issues).
 
-   1. Run [KMC3](https://github.com/refresh-bio/KMC) on each sample: `kmc -k55 -ci1 sample_1.fq sample_1 <tmp_dir>` 
-   
-      * This will output k-mer counts to `sample_1.kmc_pre` and `sample_1.kmc_suf`.
-      
-   2. For each sample create a read k-mer bloom filter: `bayesTyperTools makeBloom -k sample_1`
-   
-      * The resulting bloom filter (`sample_1.bloom`) and the KMC3 output (`sample_1.kmc_pre` and `sample_1.kmc_suf`) should be in the same directory with the same prefix.
-      
-2. Prepare variant input
+**Important:** Please note that Bayestyper currently **does not** support bgzip compressed vcf files, but only uncompressed and gzip compressed files.
 
-      **IMPORTANT:** The variant input **must** contain simple variants (SNPs and short indels). These can be obtained by first running a standard tool like GATK, Platypus or Freebayes and then combine these variants with structural variants calls and/or prior as desired. **At least 1 million simple variants are required**.
-   1. If required, convert allele IDs (e.g. \<DEL\>) to sequence: `bayesTyperTools convertAlleleId -o sample_1_sv_calls_seq -v sample_1_sv_calls.vcf -g hg38.fa`
-   
-      * Currently \<DEL\>, \<DUP\>, \<CN[digit(s)]\>, \<CNV\>, \<INV\>, \<INS:ME:[sequence name]\> are supported. The latter require a fasta file with the mobile element insertion sequences.
-      * This step can be skipped if the variant sets does not include any allele IDs (e.g. GATK, Platypus and Freebayes output).
-  
-   2. Normalise variants using [Bcftools](https://samtools.github.io/bcftools/): `bcftools norm -o sample_1_gatk_norm.vcf -f hg38.fa sample_1_gatk.vcf`
+### 1. Generation of variant candidates ###
+Starting from a set of indexed, aligned reads (obtained e.g. using *BWA-MEM*):
+
+1. For each sample, run [*HaplotypeCaller*](https://software.broadinstitute.org/gatk/documentation/tooldocs/3.8-0/org_broadinstitute_gatk_tools_walkers_haplotypecaller_HaplotypeCaller.php) to get standard mapping-based candidates
+    * Marking duplicates, running Base Quality Recalibration or doing joint genotyping is **not** required
+    * Faster alternative: [*Freebayes*](https://github.com/ekg/freebayes)
     
-   3. Combine variant sets: `bayesTyperTools combine -o bayesTyper_input -v gatk:sample_1_gatk_norm.vcf,gatk:sample_2_gatk_norm.vcf,gatk:sample_3_gatk_norm.vcf,varDB:SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh38.vcf`
-   
-      * The contig fields in the headers need to be identical between variant sets and the variants sorted in the same order as the fields.
-      
-3. Genotype variants
+3. For each sample, run [*Platypus*](http://www.well.ox.ac.uk/platypus) to identify small and medium sized variants
 
-   **IMPORTANT:** If you want to run BayesTyper on more than 30 samples, you should run BayesTyper in batches of 30 samples or less but using the **full** set of variants (i.e. across all individuals).
-   1. Prepare sample information: Create tsv file with one sample per row with columns \<sample_id\>, \<sex\> and \<path_to_kmc3_output\> ([example](http://people.binf.ku.dk/~lassemaretty/bayesTyper/bt_samples_example.tsv))
-   
-   2. Run BayesTyper: `bayesTyper -o integrated_calls -s samples.tsv -v bayesTyper_input.vcf -g hg38.fa -p <threads>`
-   
-      * By default BayesTyper does not genotype variant alleles longer than 500,000 nts. If longer variants are of interest this can be changed using the option `--max-allele-length`, however at the cost of increased computation time and memory usage.
-      * BayesTyper can be provided with decoy sequences using `-d` to handle sequence similarities between genotyped regions and non-genotyped regions (e.g. the mitochondrial genome and unplaced contigs in the reference). Matching reference and decoy sequences are available for
-      
-         * GRCh37: [Reference](http://people.binf.ku.dk/~lassemaretty/bayesTyper/GRCh37/GRCh37_canon.fa) and [decoy](http://people.binf.ku.dk/~lassemaretty/bayesTyper/GRCh37/GRCh37_decoy.fa)
-         * GRCh38: [Reference](http://people.binf.ku.dk/~lassemaretty/bayesTyper/GRCh38/GRCh38_canon.fa) and [decoy](http://people.binf.ku.dk/~lassemaretty/bayesTyper/GRCh38/GRCh38_decoy.fa)
-      
-     
-4. Filter output
-   
-   1. Run filtering: `bayesTyperTools filter -o integrated_calls_filtered -v integrated_calls.vcf -g hg38.fa --kmer-coverage-filename integrated_calls_kmer_coverage_estimates.txt`
-      
-      * By default only genotypes with high confidence (posterior probability >= 0.99) are kept. If low confident genotypes are needed in a downstream analyses this can be changed using the option `--min-genotype-posterior`.
+4. For each sample, run [*Manta*](https://github.com/Illumina/manta) to identify candidates by *de novo* local assembly (important for detecting larger deletions and insertions). Convert allele IDs (e.g. \<DEL\>) in the Manta output to sequences using `bayesTyperTools convertAllele`
 
-## Variant databases ##
-* [BayesTyper_varDB_GRCh37](http://people.binf.ku.dk/~lassemaretty/bayesTyper/GRCh37/SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh37.vcf)
-* [BayesTyper_varDB_GRCh38](http://people.binf.ku.dk/~lassemaretty/bayesTyper/GRCh38/SNP_dbSNP150common_SV_1000g_dbSNP150all_GDK_GoNL_GTEx_GRCh38.vcf)
+5. Combine variants across *all* samples, callers and the *variation prior* using `bayesTyperTools combine -o <candiate_variants> GATK:<gatk_sample1>.vcf,GATK:<gatk_sample2>.vcf,PLATYPUS:<platypus_sample1>.vcf,PLATYPUS:<platypus_sample2>.vcf,MANTA:<manta_sample1>.vcf,...,prior:<prior>.vcf`
+   * **Note:** The source tag before the colon (e.g. GATK) only serves to identify the origin of the calls in the final callset - it can take any value.
 
-### Variant database sources ###
-#### GRCh37 ####
-|Source|Version|Filters\*|Lifted|Reference|
-|------|-------|--------|------|---------|
-|dbSNP|150|No rare SNVs|No|[link](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC29783/)|
-|1000 Genomes Project (1KG)|Phase 3|No SNVs|No|[link](https://www.nature.com/nature/journal/v526/n7571/full/nature15394.html)||
-|Genome of the Netherlands Project (GoNL)|Release 6|No SNVs|No|[link](https://www.nature.com/articles/ncomms12989)|
-|Genotype-Tissue Expression (GTEx) Project|GTEx Analysis V6|No SNVs|No|[link](http://www.nature.com/ng/journal/v49/n5/full/ng.3834.html)|
-|GenomeDenmark (GDK)|v1.0|No SNVs|From GRCh38|[link](http://www.nature.com/nature/journal/vaop/ncurrent/full/nature23264.html)|
+### 2. Genotyping based on variant candidates ###
+1. Count k-mers
+   1. Run [KMC3](https://github.com/refresh-bio/KMC) on each sample (include singleton k-mers using `-ci1`)
+      * **Note:** Default is fq(.gz) input - bam input is enabled using `-fbam`.
+   2. Create a read k-mer bloom filter for each sample from the KMC3 output using `bayesTyperTools makeBloom -k <kmc_output_prefix> -p <num_threads>`
+      * **Important:** The resulting bloom filter (*<sample_id>.bloom*) and the KMC3 output (*<sample_id>.kmc_pre* and *<sample_id>.kmc_suf*) must reside in the same directory and have the same prefix
 
-#### GRCh38 ####
-|Source|Version|Filters\*|Lifted|Reference|
-|------|-------|--------|------|---------|
-|dbSNP|150|No rare SNVs|No|[link](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC29783/)|
-|1000 Genomes Project (1KG)|Phase 3|No SNVs|No|[link](https://www.nature.com/nature/journal/v526/n7571/full/nature15394.html)||
-|Genome of the Netherlands Project (GoNL)|Release 6|No SNVs|From GRCh37|[link](https://www.nature.com/articles/ncomms12989)|
-|Genotype-Tissue Expression (GTEx) Project|GTEx Analysis V6|No SNVs|From GRCh37|[link](http://www.nature.com/ng/journal/v49/n5/full/ng.3834.html)|
-|GenomeDenmark (GDK)|v1.0|No SNVs|No|[link](http://www.nature.com/nature/journal/vaop/ncurrent/full/nature23264.html)|
+2. Identify variant clusters: `bayesTyper cluster -v <candiate_variants>.vcf -s <samples>.tsv -g <ref_build>_canon.fa -d <ref_build>_decoy.fa -p <num_threads> -o <output_prefix>`
+      * **Note:** This partitions the candidate variants into units written to separate directories (<output_prefix>_unit_1, <output_prefix>_unit_2, ...) - these can be processed independently e.g. on a cluster (supported by the snakemake workflow). By default each unit contains between 5M and 10M variants.
+      * **Important:** The `<samples>.tsv` file should contain one sample per row with columns \<sample_id\>, \<sex\> and \<kmc_output_prefix\> and no header ([example](http://people.binf.ku.dk/~lassemaretty/bayesTyper/bt_samples_example.tsv)).
+      * **Important:** Data that is common to all units and necessary for genotyping is written to the <output_prefix>_cluster_data directory.
+      * **Note:** Human reference files (canon/decoy) are provided in the BayesTyper data bundle (see [Installation](https://github.com/bioinformatics-centre/BayesTyper#installation)).
 
-\*Reference and alternative alleles containing ambiguous nucleotides were removed from all variant sources.
+3. Genotype variant clusters: `bayesTyper genotype -v <output_prefix>_unit_<unit_id>/variant_clusters.bin -c <output_prefix>_cluster_data -s <samples>.tsv -g <ref_build>_canon.fa -d <ref_build>_decoy.fa -o <output_prefix>_unit_<unit_id>/<output_prefix> -z -p <num_threads>`
+      * **Note:** The genotype command also applies the default BayesTyper hard-filters by setting the variant FILTER status and the sample specific allele filter (SAF) format attribute. Please refer to the [filter wiki](https://github.com/bioinformatics-centre/BayesTyper/wiki/Filtering) for information about the filters used, how to changes the defaults up front and how to refilter the data after running the genotyping step.
+      * **Important:** The filtering procedure only filters the genotypes ("./.") and set the genotype and variant level filter attributes. Hence, downstream tools **should prefilter on the variant quality and filter==PASS** (e.g. using *bcftools*) to obtain the filtered calls.
 
-## Computational requirements ## 
-|Number of samples|Coverage|Number of variants|Max allele length (nts)|Number of threads|Wall time (hours)\*|Max memory (GB)|
-|-----------------|--------|------------------|-----------------------|-----------------|------------------|---------------|
-|10|10x|14.6M|500,000|32|17|152|
-|10|30x|13.4M|500,000|32|19|148|
-|13|50x|11.7M|500,000|32|91|169|
-|13|50x|11.7M|10,000|32|42|129|
-|13|50x|61.1M|500,000|32|125|375|
-|10|13x|21.4M|500,000|32|16|159|
-|10|13x|64.4M|500,000|32|61|291|
+4. Concatenate units: `bcftools concat -O z -o <output_prefix>.vcf.gz <output_prefix>_unit_1/<output_prefix>.vcf.gz <output_prefix>_unit_2/<output_prefix>.vcf.gz ...`
+    * **Important:** Unit arguments to bcftools should be in ascending order (unit_1, unit_2, ...) for the output to be properly sorted
 
-\*All runs were done on a 64-bit Intel Xeon 2.30 GHz machine with 1TB of memory.
+## Computational requirements ##
 
-## Third-party ## 
-Third-party software used by BayesTyper (distributed together with the BayesTyper source code).
+|Number of samples|Coverage|Number of variant alleles|Max allele length (nts)|Number of threads|Wall time (h, single node)|Wall time (h, multiple nodes)\*|Max memory (GB)|
+|-|---|-----|-------|--|-|-|--|
+|3|13x|21.4M|500,000|28|5-6|2-3|41|
+|3|13x|64.4M|500,000|28|17-18|4-5|42|
+|10|50x|11.7M|10,000|28|31-32|16-17|66|
+|10|50x|61.1M|10,000|28|92-93|15-16|62|
+
+\* `bayesTyper genotype` can be distributed across nodes on a cluster - between 2 and 11 nodes were used in this benchmark.
+
+The time estimates are for running `bayesTyper cluster` and `bayesTyper genotype` only. Expect <1h combined run-time per sample for counting k-mers by *KMC* and bloom filter creation by *bayesTyperTools*. All runs were done on a 64-bit Intel Xeon 2.00 GHz machine with 128 GB of memory.
+
+## Citing BayesTyper ##
+The BayesTyper manuscript has been accepted for publication. Citation information will be updated on Monday June 18.
+
+## Studies that have used BayesTyper ##
+* Sequencing and de novo assembly of 150 genomes from Denmark as a population reference. *Nature*, 2017 ([link](https://www.nature.com/articles/nature23264))
+* A high-coverage Neandertal genome from Vindija Cave in Croatia. *Science*, 2017 ([link](http://science.sciencemag.org/content/early/2017/10/04/science.aao1887))
+* Analysis of 62 hybrid assembled human Y chromosomes exposes rapid structural changes and high rates of gene conversion. *PLOS Genetics*, 2017 ([link](http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.1006834))
+* Assembly and analysis of 100 full MHC haplotypes from the Danish population, *Genome Research*, 2017 ([link](https://genome.cshlp.org/content/early/2017/08/03/gr.218891.116))
+
+Please let us know if you use BayesTyper in your publication - then we will put it on the list.
+
+## Contact ##
+Please post an [issue](https://github.com/bioinformatics-centre/BayesTyper/issues) if you have questions regarding how to run BayesTyper, if you want to report bugs or request new features. You can also reach us at jasi at binf dot ku dot dk or lasse dot maretty at clin dot au dot dk.
+
+## Third-party software acknowledgements ##
+We thank the developers of the third-party libraries used by BayesTyper:
 * [Edlib](https://github.com/Martinsos/edlib)
 * [Eigen](http://eigen.tuxfamily.org/index.php?title=Main_Page)
 * [KMC](https://github.com/refresh-bio/KMC)
-* [libbf](https://github.com/mavam/libbf)
 * [ntHash](https://github.com/bcgsc/ntHash)
