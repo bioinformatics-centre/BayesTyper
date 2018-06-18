@@ -636,7 +636,7 @@ namespace Auxiliaries {
             
                 for (uint allele_idx = 0; allele_idx < sample->alleleInfo().size(); allele_idx++) {
 
-                    sample->alleleInfo().at(allele_idx).setValue<string>("SAF", "P");
+                    sample->alleleInfo().at(allele_idx).setValue<int>("SAF", 0);
                 }
             
             } else {

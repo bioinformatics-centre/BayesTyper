@@ -396,16 +396,35 @@ vector<Genotypes::SampleStats> VariantClusterGenotyper::getGenotypeSampleStats(c
 
 	        if (!(Utils::floatCompare(sample_stats.back().allele_posteriors.at(allele_idx), 0))) {
 
-            	assert(sample_stats.back().allele_posteriors.at(allele_idx) > 0);  	
+            	assert(sample_stats.back().allele_posteriors.at(allele_idx) > 0);
 
-		        if (Utils::floatLess(sample_stats.back().allele_kmer_stats.count_stats.at(allele_idx).getMean().first, filters.minNumberOfKmers())) {
+            	auto allele_count_stat = sample_stats.back().allele_kmer_stats.count_stats.at(allele_idx).getMean();
 
-		        	sample_stats.back().allele_filters.at(allele_idx) = "F";
-		        
-		        } else if (Utils::floatLess(sample_stats.back().allele_kmer_stats.fraction_stats.at(allele_idx).getMean().first, filters.minFractionObservedKmers(sample_idx))) {
+            	assert(allele_count_stat.first >= 0);
+            	assert(allele_count_stat.second);
 
-		        	sample_stats.back().allele_filters.at(allele_idx) = "F";
-		        }
+		        if (Utils::floatLess(allele_count_stat.first, filters.minNumberOfKmers())) {
+
+		        	sample_stats.back().allele_filters.at(allele_idx) += 1;      
+		        } 
+
+            	auto allele_fraction_stat = sample_stats.back().allele_kmer_stats.fraction_stats.at(allele_idx).getMean();
+
+                assert(Utils::floatCompare(allele_count_stat.first, 0) == !allele_fraction_stat.second);
+
+                if (!(Utils::floatCompare(allele_count_stat.first, 0))) {
+
+            		assert(allele_fraction_stat.first >= 0);
+            		assert(allele_fraction_stat.second);
+
+			        if (Utils::floatLess(allele_fraction_stat.first, filters.minFractionObservedKmers(sample_idx))) {
+
+			        	sample_stats.back().allele_filters.at(allele_idx) += 2;      
+			        }
+                }
+
+		        assert(sample_stats.back().allele_filters.at(allele_idx) >= 0);
+                assert(sample_stats.back().allele_filters.at(allele_idx) <= 3);
 		    }
 	    }
 
@@ -430,7 +449,7 @@ vector<Genotypes::SampleStats> VariantClusterGenotyper::getGenotypeSampleStats(c
 				    assert(max_posterior_genotypes.first.front().first <= max_posterior_genotypes.first.front().second);
 				    assert(max_posterior_genotypes.first.front().second < variant_cluster_info.at(variant_idx).numberOfAlleles());
 
-				    if ((sample_stats.back().allele_filters.at(max_posterior_genotypes.first.front().first) == "P") and (sample_stats.back().allele_filters.at(max_posterior_genotypes.first.front().second) == "P")) {
+				    if ((sample_stats.back().allele_filters.at(max_posterior_genotypes.first.front().first) == 0) and (sample_stats.back().allele_filters.at(max_posterior_genotypes.first.front().second) == 0)) {
 
 				    	sample_stats.back().genotype_estimate.front() = max_posterior_genotypes.first.front().first;
 				    	sample_stats.back().genotype_estimate.back() = max_posterior_genotypes.first.front().second;
@@ -449,7 +468,7 @@ vector<Genotypes::SampleStats> VariantClusterGenotyper::getGenotypeSampleStats(c
 
 			    assert(max_posterior_genotypes.first.front().first < variant_cluster_info.at(variant_idx).numberOfAlleles());
 
-			    if (sample_stats.back().allele_filters.at(max_posterior_genotypes.first.front().first) == "P") {
+			    if (sample_stats.back().allele_filters.at(max_posterior_genotypes.first.front().first) == 0) {
 
 			    	sample_stats.back().genotype_estimate.front() = max_posterior_genotypes.first.front().first;
                 }
@@ -480,7 +499,7 @@ Genotypes::VariantStats VariantClusterGenotyper::getGenotypeVariantStats(const u
 			if (allele_idx != Utils::ushort_overflow) {
 
 				assert(allele_idx < variant_cluster_info.at(variant_idx).numberOfAlleles());
-				assert(sample_stats.at(sample_idx).allele_filters.at(allele_idx) == "P");
+				assert(sample_stats.at(sample_idx).allele_filters.at(allele_idx) == 0);
 
 				variant_stat.total_count++;
 
@@ -495,7 +514,9 @@ Genotypes::VariantStats VariantClusterGenotyper::getGenotypeVariantStats(const u
 
 		for (ushort allele_idx = 0; allele_idx < sample_stats.at(sample_idx).allele_posteriors.size(); allele_idx++) {
 
-			if (sample_stats.at(sample_idx).allele_filters.at(allele_idx) == "P") {
+			assert(sample_stats.at(sample_idx).allele_filters.at(allele_idx) <= 3);
+
+			if (sample_stats.at(sample_idx).allele_filters.at(allele_idx) == 0) {
 
 				variant_stat.allele_call_probabilities.at(allele_idx) = max(variant_stat.allele_call_probabilities.at(allele_idx), sample_stats.at(sample_idx).allele_posteriors.at(allele_idx));
 			}

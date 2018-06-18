@@ -37,13 +37,14 @@ bool Stats::isAlleleFiltered(Sample & cur_sample, const ushort allele_idx) {
 
     if (!(cur_sample.alleleInfo().empty())) {
 
-        auto saf_value = cur_sample.alleleInfo().at(allele_idx).getValue<string>("SAF");
+        auto saf_value = cur_sample.alleleInfo().at(allele_idx).getValue<int>("SAF");
 
         if (saf_value.second) {
 
-            assert((saf_value.first == "P") or (saf_value.first == "F"));
-
-            if (saf_value.first == "F") {
+            assert(saf_value.first >= 0);
+            assert(saf_value.first <= 3);
+                    
+            if (saf_value.first > 0) {
 
                 return true;
             }

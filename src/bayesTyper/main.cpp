@@ -160,7 +160,7 @@ int main (int argc, char * const argv[]) {
 		    assert((options_container.getValue<ushort>("max-number-of-sample-haplotype-candidates") * max_num_samples) < Utils::ushort_overflow);
 
 
-			cout << "[" << Utils::getLocalTime() << "] Seeding pseudo-random number generator with " << options_container.getValue<int>("random-seed") << " ..." << endl;
+			cout << "[" << Utils::getLocalTime() << "] Seeding pseudo-random number generator with " << options_container.getValue<uint>("random-seed") << " ..." << endl;
 			cout << "[" << Utils::getLocalTime() << "] Setting the kmer size to " << Utils::kmer_size << " ..." << endl;
 
 			vector<Sample> samples;
@@ -429,7 +429,7 @@ int main (int argc, char * const argv[]) {
 		    assert((options_container.getValue<pair<double,double> >("noise-rate-prior").second) > 0);
 
 
-			cout << "[" << Utils::getLocalTime() << "] Seeding pseudo-random number generator with " << options_container.getValue<int>("random-seed") << " ..." << endl;
+			cout << "[" << Utils::getLocalTime() << "] Seeding pseudo-random number generator with " << options_container.getValue<uint>("random-seed") << " ..." << endl;
 			cout << "[" << Utils::getLocalTime() << "] Setting the kmer size to " << Utils::kmer_size << " ..." << endl;
 
 			vector<Sample> samples;

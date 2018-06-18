@@ -313,7 +313,7 @@ void GenotypeWriter::writeSamples(const vector<Genotypes::SampleStats> & sample_
             assert(sample_stats.at(sample_idx).allele_filters.size() == num_alleles);
 
             tmp_outfile_fstream << ":";
-            writeAlleleField<string>(sample_stats.at(sample_idx).allele_filters);
+            writeAlleleField<ushort>(sample_stats.at(sample_idx).allele_filters);
 
         } else {
 
@@ -527,16 +527,16 @@ string GenotypeWriter::generateHeader(const string & genome_filename, const Chro
     header_ss << "##INFO=<ID=VCGR,Number=1,Type=String,Description=\"Variant cluster group region (<chromosome>:<start>-<end>)\">\n";
 
     header_ss << "##INFO=<ID=HC,Number=1,Type=Integer,Description=\"Number of haplotype candidates used for inference in variant cluster\">\n";
-    header_ss << "##INFO=<ID=ANC,Number=.,Type=String,Description=\"Allele(s) not covered by a haplotype candidate. '0': Reference allele\">\n";
+    header_ss << "##INFO=<ID=ANC,Number=.,Type=String,Description=\"Allele(s) not covered by a haplotype candidate ('0': Reference allele)\">\n";
     header_ss << "##INFO=<ID=ACO,Number=A,Type=String,Description=\"Alternative allele call-set origin(s) (<call-set>:...)\">\n";
 
     header_ss << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n";
     header_ss << "##FORMAT=<ID=GPP,Number=G,Type=Float,Description=\"Genotype posterior probabilities\">\n";
     header_ss << "##FORMAT=<ID=APP,Number=R,Type=Float,Description=\"Allele posterior probabilities\">\n";
-    header_ss << "##FORMAT=<ID=NAK,Number=R,Type=Float,Description=\"Mean number of allele kmers across gibbs samples. '-1': Not sampled\">\n";
-    header_ss << "##FORMAT=<ID=FAK,Number=R,Type=Float,Description=\"Mean fraction of observed allele kmers across gibbs samples. '-1': Not sampled or NAK = 0\">\n";
-    header_ss << "##FORMAT=<ID=MAC,Number=R,Type=Float,Description=\"Mean allele kmer coverage (mean value) across gibbs samples. '-1': Not sampled or NAK = 0\">\n";
-    header_ss << "##FORMAT=<ID=SAF,Number=R,Type=String,Description=\"Sample specific allele filter ('P': Pass, 'F': Filtered)\">\n";
+    header_ss << "##FORMAT=<ID=NAK,Number=R,Type=Float,Description=\"Mean number of allele kmers across gibbs samples ('-1': Not sampled)\">\n";
+    header_ss << "##FORMAT=<ID=FAK,Number=R,Type=Float,Description=\"Mean fraction of observed allele kmers across gibbs samples ('-1': Not sampled or NAK = 0)\">\n";
+    header_ss << "##FORMAT=<ID=MAC,Number=R,Type=Float,Description=\"Mean allele kmer coverage (mean value) across gibbs samples ('-1': Not sampled or NAK = 0)\">\n";
+    header_ss << "##FORMAT=<ID=SAF,Number=R,Type=Integer,Description=\"Sample specific allele filter ('0': PASS, '1': NAK, '2': FAK, '3': NAK and FAK)\">\n";
         
     header_ss << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT";
 

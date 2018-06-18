@@ -202,14 +202,14 @@ namespace Filter {
 
                 for (uint allele_idx = 0; allele_idx < cur_var->numAlls(); allele_idx++) {
 
-                    auto saf_value = cur_sample->alleleInfo().at(allele_idx).getValue<string>("SAF");
+                    auto saf_value = cur_sample->alleleInfo().at(allele_idx).getValue<int>("SAF");
                     
                     if (!(saf_value.second)) {
 
                         continue;
                     }
 
-                    assert(saf_value.first == "P");
+                    assert(saf_value.first == 0);
 
                     auto app_value = cur_sample->alleleInfo().at(allele_idx).getValue<float>("APP");
                     assert(app_value.second);
@@ -218,22 +218,37 @@ namespace Filter {
 
                         assert(app_value.first > 0);
 
+                        int cur_saf_value = 0;
+
                         auto nak_value = cur_sample->alleleInfo().at(allele_idx).getValue<float>("NAK");                  
                         assert(nak_value.second);
-
-                        auto fak_value = cur_sample->alleleInfo().at(allele_idx).getValue<float>("FAK");                  
-                        assert(fak_value.second);
 
                         assert(nak_value.first >= 0);
        
                         if (Utils::floatLess(nak_value.first, filter_values.min_nak_value)) {
 
-                            assert(!(cur_sample->alleleInfo().at(allele_idx).setValue<string>("SAF", "F")));
-                        
-                        } else if ((fak_value.first >= 0) and Utils::floatLess(fak_value.first, filter_values.min_sample_fak_values.at(sample_idx))) {
+                            cur_saf_value += 1;                        
+                        } 
+
+                        auto fak_value = cur_sample->alleleInfo().at(allele_idx).getValue<float>("FAK");                  
+                        assert(fak_value.second);
+
+                        assert(Utils::floatCompare(nak_value.first, 0) == Utils::floatCompare(fak_value.first, -1));
+
+                        if (!(Utils::floatCompare(nak_value.first, 0))) {
+
+                            assert(fak_value.first >= 0);
+
+                            if (Utils::floatLess(fak_value.first, filter_values.min_sample_fak_values.at(sample_idx))) {
                             
-                            assert(!(cur_sample->alleleInfo().at(allele_idx).setValue<string>("SAF", "F")));
-                        }
+                                cur_saf_value += 2;
+                            }
+                        } 
+
+                        assert(cur_saf_value >= 0);
+                        assert(cur_saf_value <= 3);
+
+                        assert(!(cur_sample->alleleInfo().at(allele_idx).setValue<int>("SAF", cur_saf_value)));
                     }
                 }
 
@@ -247,10 +262,13 @@ namespace Filter {
 
                 for (auto allele_idx: cur_sample->genotypeEstimate()) {
 
-                    auto saf_value = cur_sample->alleleInfo().at(allele_idx).getValue<string>("SAF");
+                    auto saf_value = cur_sample->alleleInfo().at(allele_idx).getValue<int>("SAF");      
                     assert(saf_value.second);
 
-                    if (saf_value.first == "F") {
+                    assert(saf_value.first >= 0);
+                    assert(saf_value.first <= 3);
+
+                    if (saf_value.first > 0) {
 
                         cur_sample->clearGenotypeEstimate();
                         break;
@@ -271,7 +289,9 @@ namespace Filter {
             Auxiliaries::updateAlleleStatsAndCallProb(cur_var);
 
             auto an_value = cur_var->info().getValue<int>("AN");
+            
             assert(an_value.second);
+            assert(an_value.first >= 0);
 
             if (an_value.first == 0) {
 

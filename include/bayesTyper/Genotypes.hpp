@@ -90,9 +90,9 @@ class Genotypes {
 		    vector<float> allele_posteriors;
 			AlleleKmerStats allele_kmer_stats;
 
-			vector<string> allele_filters;
+			vector<ushort> allele_filters;
 
-			SampleStats(const ushort num_alleles, const uint num_genotypes) : is_homozygote(false), genotype_posteriors(num_genotypes, 0), allele_posteriors(num_alleles, 0), allele_filters(num_alleles, "P") {
+			SampleStats(const ushort num_alleles, const uint num_genotypes) : is_homozygote(false), genotype_posteriors(num_genotypes, 0), allele_posteriors(num_alleles, 0), allele_filters(num_alleles, 0) {
 
 				genotype_estimate.reserve(2);
 			}
