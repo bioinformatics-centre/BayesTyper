@@ -68,7 +68,7 @@ Starting from a set of indexed, aligned reads (obtained e.g. using *BWA-MEM*):
 2. Identify variant clusters: `bayesTyper cluster -v <candiate_variants_prefix>.vcf.gz -s <samples>.tsv -g <ref_build>_canon.fa -d <ref_build>_decoy.fa -p <num_threads>`
       * **Note:** This partitions the candidate variants into units written to separate directories (*bayestyper_unit_1*, *bayestyper_unit_2*, ...) - each containing between 5M and 10M variants. These can be genotyped independently e.g. on a cluster (supported by the [snakemake workflow](https://github.com/bioinformatics-centre/BayesTyper/tree/master/workflows)) followed by a simple concatenation operation using `bcftools concat` (see below).
       * **Important:** The `<samples>.tsv` file should contain one sample per row with columns *<sample_id>, \<sex> and <kmc_output_prefix>* and no header ([example](http://people.binf.ku.dk/~lassemaretty/bayesTyper/bt_samples_example.tsv)).
-      * **Important:** Data that is common to all units and necessary for genotyping is written to the *<output_prefix>_cluster_data* directory.
+      * **Important:** Data that is common to all units and necessary for genotyping is written to the *bayestyper_cluster_data* directory.
       * **Note:** Human reference files (canon/decoy) are provided in the BayesTyper data bundle (see [Installation](https://github.com/bioinformatics-centre/BayesTyper#installation)).
 
 3. Genotype variant clusters: `bayesTyper genotype -v bayestyper_unit_<unit_id>/variant_clusters.bin -c bayestyper_cluster_data -s <samples>.tsv -g <ref_build>_canon.fa -d <ref_build>_decoy.fa -o bayestyper_unit_<unit_id>/bayestyper -z -p <num_threads>`
