@@ -59,6 +59,8 @@ The complete workflow (i.e. BAM(s) to genotypes) outlined below is further provi
 
 **Important:** Bayestyper supports uncompressed and gzip compressed vcf files. Please note that bgzip compression is currently **not** supported.
 
+**Important:** If you intend to run on **non-human** data, please refer to the [Running on non-human data wiki](https://github.com/bioinformatics-centre/BayesTyper/wiki/Running-BayesTyper-on-non-human-data) for more information. 
+
 ### 1. Generation of variant candidates ###
 Starting from a set of indexed, aligned reads (obtained e.g. using *BWA-MEM*):
 
