@@ -79,7 +79,7 @@ Starting from a set of indexed, aligned reads (obtained e.g. using *BWA-MEM*):
 ### 2. Genotyping based on variant candidates ###
 
 1. Count k-mers
-   1. Run [KMC3](https://github.com/refresh-bio/KMC) on each sample (include singleton k-mers using `-ci1`)
+   1. Run [KMC3](https://github.com/refresh-bio/KMC) on each sample (set k=55 using `-k55` and include singleton k-mers using `-ci1`)
       * **Note:** Default is fq(.gz) input - bam input is enabled using `-fbam`.
    2. Create a read k-mer bloom filter for each sample from the KMC3 output using `bayesTyperTools makeBloom -k <kmc_output_prefix> -p <num_threads>`
       * **Important:** The resulting bloom filter (*<sample_id>.bloomMeta* and *<sample_id>.bloomData*) and the KMC3 output (*<sample_id>.kmc_pre* and *<sample_id>.kmc_suf*) must reside in the same directory and have the same prefix
