@@ -103,8 +103,8 @@ Starting from a set of indexed, aligned reads (obtained e.g. using *BWA-MEM*):
 |-|---|-----|-------|--|-|-|--|
 |3|13x|21.4M|500,000|28|5-6|2-3|41|
 |3|13x|64.4M|500,000|28|17-18|4-5|42|
-|10|50x|11.7M|10,000|28|31-32|16-17|66|
-|10|50x|61.1M|10,000|28|92-93|15-16|62|
+|13|50x|11.7M|10,000|28|31-32|16-17|66|
+|13|50x|61.1M|10,000|28|92-93|15-16|62|
 
 \* `bayesTyper genotype` can be distributed across nodes on a cluster - between 2 and 11 nodes were used in this benchmark.
 
