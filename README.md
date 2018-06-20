@@ -75,6 +75,7 @@ Starting from a set of indexed, aligned reads (obtained e.g. using *BWA-MEM*):
 
 5. Combine variants across *all* samples, callers and the [variation prior](https://github.com/bioinformatics-centre/BayesTyper/wiki/Variation-prior) using `bayesTyperTools combine -v GATK:<gatk_sample1>.vcf,GATK:<gatk_sample2>.vcf,PLATYPUS:<platypus_sample1>.vcf,PLATYPUS:<platypus_sample2>.vcf,MANTA:<manta_sample1>.vcf,...,prior:<prior>.vcf -o <candiate_variants_prefix> -z`
    * **Note:** The source tag before the colon (e.g. GATK) only serves to identify the origin of the calls in the final callset - it can take any value.
+   * **Important:** `bayesTyperTools combine` requires the vcf header to contain contig entries (e.g.`##contig=<ID=8,length=146364022>`) for all reference sequences containing variants in the vcf; the contigs further need to appear in the same order in the header and for the variant entries.
 
 ### 2. Genotyping based on variant candidates ###
 
