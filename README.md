@@ -54,7 +54,7 @@ Below we outline an example strategy, where candiates are obtained using
 
 The complete workflow (i.e. BAM(s) to genotypes) outlined below is further provided as a [snakemake workflow](https://github.com/bioinformatics-centre/BayesTyper/tree/master/workflows) for easy deployment of BayesTyper. Please refer to the [snakemake wiki](https://github.com/bioinformatics-centre/BayesTyper/wiki/Running-BayesTyper-using-snakemake) for detailed instructions on how to set up and execute the workflow on your data.
 
-**Important:** This workflow should work well for most cases. If you prefer to use another approach, please note that the candidate variant set *must contain* at least 1 million SNVs that are needed for accurate estimation of parameters.
+**Important:** This workflow should work well for most cases. If you prefer to use another approach, please note that the candidate variant set *must contain* at least 1 million *candidate* SNVs that are needed for accurate estimation of parameters.
 
 **Important:** Please note that it is currently only possible to genotype 30 samples at the time using *BayesTyper*. To run more samples, please execute *BayesTyper* in batches as described in the [batching wiki](https://github.com/bioinformatics-centre/BayesTyper/wiki/Executing-BayesTyper-on-sample-batches). Batching is currently not supported by the *snakemake* workflow - please let us know if you require this feature by filing a [feature request](https://github.com/bioinformatics-centre/BayesTyper/issues).
 
