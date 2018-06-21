@@ -69,9 +69,11 @@ Starting from a set of indexed, aligned reads (obtained e.g. using *BWA-MEM*):
     * Running Base Quality Recalibration or doing joint genotyping is **not** required
     * Faster alternative: [*Freebayes*](https://github.com/ekg/freebayes)
     
-3. For each sample, run [*Platypus*](http://www.well.ox.ac.uk/platypus) to identify small and medium sized variants
+2. For each sample, run [*Platypus*](http://www.well.ox.ac.uk/platypus) to identify small and medium sized variants
 
-4. For each sample, run [*Manta*](https://github.com/Illumina/manta) to identify candidates by *de novo* local assembly (important for detecting larger deletions and insertions). Convert allele IDs (e.g. \<DEL\>) in the Manta output to sequences using `bayesTyperTools convertAllele`
+3. For each sample, run [*Manta*](https://github.com/Illumina/manta) to identify candidates by *de novo* local assembly (important for detecting larger deletions and insertions). Convert allele IDs (e.g. \<DEL\>) in the Manta output to sequences using `bayesTyperTools convertAllele`
+
+4. For each caller, left-align and normalize variants using `bcftools norm` ([*bcftools*](https://github.com/samtools/bcftools))
 
 5. Combine variants across *all* samples, callers and the [variation prior](https://github.com/bioinformatics-centre/BayesTyper/wiki/Variation-prior) using `bayesTyperTools combine -v GATK:<gatk_sample1>.vcf,GATK:<gatk_sample2>.vcf,PLATYPUS:<platypus_sample1>.vcf,PLATYPUS:<platypus_sample2>.vcf,MANTA:<manta_sample1>.vcf,...,prior:<prior>.vcf -o <candiate_variants_prefix> -z`
    * **Note:** The source tag before the colon (e.g. GATK) only serves to identify the origin of the calls in the final callset - it can take any value.
@@ -93,9 +95,9 @@ Starting from a set of indexed, aligned reads (obtained e.g. using *BWA-MEM*):
 
 3. Genotype variant clusters: `bayesTyper genotype -v bayestyper_unit_<unit_id>/variant_clusters.bin -c bayestyper_cluster_data -s <samples>.tsv -g <ref_build>_canon.fa -d <ref_build>_decoy.fa -o bayestyper_unit_<unit_id>/bayestyper -z -p <num_threads>`
       * **Note:** The genotype command also applies the default BayesTyper hard-filters by setting the variant FILTER status and the sample specific allele filter (SAF) format attribute. Please refer to the [filter wiki](https://github.com/bioinformatics-centre/BayesTyper/wiki/Filtering) for information about the filters used, how to changes the defaults up front and how to refilter the data after running the genotyping step.
-      * **Important:** The filtering procedure only filters the genotypes ("./.") and hence, downstream tools **should prefilter on the variant quality and FILTER==\"PASS\"** (e.g. using *bcftools*) to obtain the filtered calls.
+      * **Important:** The filtering procedure only filters the genotypes ("./.") and hence, downstream tools **should prefilter on the variant quality and FILTER==\"PASS\"** (e.g. using [*bcftools*](https://github.com/samtools/bcftools)) to obtain the filtered calls.
 
-4. Concatenate units: `bcftools concat -O z -o <output_prefix>.vcf.gz bayestyper_unit_1/bayestyper.vcf.gz bayestyper_unit_2/bayestyper.vcf.gz ...`
+4. Concatenate units using [*bcftools*](https://github.com/samtools/bcftools): `bcftools concat -O z -o <output_prefix>.vcf.gz bayestyper_unit_1/bayestyper.vcf.gz bayestyper_unit_2/bayestyper.vcf.gz ...`
     * **Important:** Unit arguments to bcftools should be in ascending order (unit_1 unit_2 ...) for the output to be properly sorted
 
 ## Computational requirements ##
