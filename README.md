@@ -84,6 +84,7 @@ Starting from a set of indexed, aligned reads (obtained e.g. using *BWA-MEM*):
 1. Count k-mers
    1. Run [KMC3](https://github.com/refresh-bio/KMC) on each sample (set k=55 using `-k55` and include singleton k-mers using `-ci1`)
       * **Note:** Default is fq(.gz) input - bam input is enabled using `-fbam`.
+      * **Imporant:** If the reads are in bam format, the file sould also contain the unmapped reads.   
    2. Create a read k-mer bloom filter for each sample from the KMC3 output using `bayesTyperTools makeBloom -k <kmc_output_prefix> -p <num_threads>`
       * **Important:** The resulting bloom filter (*<sample_id>.bloomMeta* and *<sample_id>.bloomData*) and the KMC3 output (*<sample_id>.kmc_pre* and *<sample_id>.kmc_suf*) must reside in the same directory and have the same prefix
 
@@ -111,7 +112,7 @@ Starting from a set of indexed, aligned reads (obtained e.g. using *BWA-MEM*):
 
 \* `bayesTyper genotype` can be distributed across nodes on a cluster - between 2 and 11 nodes were used in this benchmark.
 
-The time estimates are for running `bayesTyper cluster` and `bayesTyper genotype` only. Expect <1h combined run-time per sample for counting k-mers by *KMC* and bloom filter creation by *bayesTyperTools*. All runs were done on a 64-bit Intel Xeon 2.00 GHz machine with 128 GB of memory.
+The time estimates are for running `bayesTyper cluster` and `bayesTyper genotype` only. Expect <1h combined run-time per sample for counting k-mers by *KMC3* and bloom filter creation by *bayesTyperTools*. All runs were done on a 64-bit Intel Xeon 2.00 GHz machine with 128 GB of memory.
 
 ## Citing BayesTyper ##
 Sibbesen JA*, Maretty L*, The Danish Pan-Genome Consortium & Krogh A: Accurate genotyping accross variant classes and lengths using variant graphs. *Nature Genetics*, 2018. [link](https://www.nature.com/articles/s41588-018-0145-5). *Equal contributors.
