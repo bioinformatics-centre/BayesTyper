@@ -2,6 +2,7 @@
 BayesTyper performs genotyping of all types of variation (including SNPs, indels and complex structural variants) based on an input set of variants and read k-mer counts. Internally, BayesTyper uses exact alignment of k-mers to a graph representation of the input variants and reference sequence in combination with a probabilistic model of k-mer counts to do genotyping.
 
 ## News ##
+* 31 July 2018: BayesTyper data bundles have been updated to fix reference naming issue when used with the snakemake workflow and to fix a fasta parsing error in `bayesTyperTools convertAllele`
 * 19 June 2018: BayesTyper *canon* and *decoy* references in the data bundles have been updated
 * 18 June 2018: BayesTyper paper published as *Technical Report* in *Nature Genetics* ([link](https://www.nature.com/articles/s41588-018-0145-5)). 
     * Please note that the results presented in the paper were obtained using BayesTyper [v1.2.0](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.2) 
