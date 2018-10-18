@@ -50,11 +50,19 @@ using namespace std;
 
 static const uint hash_root_size = pow(4,12);
 
+static const uchar num_genomic_rate_gc_bias_bins = 1;
+static const uchar max_multiplicity = Utils::uchar_overflow;
+
 
 void writeSizeDistribution(const string & distribution_filename, const map<ulong, ulong> & size_distribution) {
 
     ofstream distribution_outfile(distribution_filename);
-    assert(distribution_outfile.is_open());
+
+    if (!distribution_outfile.is_open()) {
+
+        cerr << "\nERROR: Unable to write file " << distribution_filename << "\n" << endl;
+        exit(1);
+    }
 
     distribution_outfile << "Size\tCount" << endl;
 
@@ -124,7 +132,12 @@ ulong BooleanKmerHash::writeKmersToFasta(const string & output_prefix, const boo
     ulong num_kmers_written = 0;
 
     ofstream kmers_outfile(output_prefix + ".fa.gz", ios::binary);
-    assert(kmers_outfile.is_open());
+
+    if (!kmers_outfile.is_open()) {
+
+        cerr << "\nERROR: Unable to write file " << output_prefix + ".fa.gz" << "\n" << endl;
+        exit(1);
+    }
 
     boost::iostreams::filtering_ostream kmers_outfile_fstream;
 
@@ -232,9 +245,9 @@ void ObservedKmerCountsHash<sample_bin>::writeRootSizeDistribution(const string 
 }
 
 template<uchar sample_bin>
-vector<vector<KmerStats> > ObservedKmerCountsHash<sample_bin>::calculateKmerStats(const ushort num_samples, const uchar num_genomic_rate_gc_bias_bins) {
+vector<vector<vector<KmerStats> > > ObservedKmerCountsHash<sample_bin>::calculateKmerStats(const vector<Sample> & samples) {
 
-    vector<vector<KmerStats> > intercluster_diploid_kmer_stats(num_samples, vector<KmerStats>(num_genomic_rate_gc_bias_bins));
+    vector<vector<vector<KmerStats> > > intercluster_diploid_kmer_stats(samples.size(), vector<vector<KmerStats> >(num_genomic_rate_gc_bias_bins, vector<KmerStats>(max_multiplicity + 1)));
 
     ulong total_count = 0;
 
@@ -253,7 +266,7 @@ vector<vector<KmerStats> > ObservedKmerCountsHash<sample_bin>::calculateKmerStat
 
         if ((*hash_it).second.hasClusterOccurrence()) {
 
-            assert(!((*hash_it).second.isParameter()));
+            assert(!(*hash_it).second.isParameter());
 
             if ((*hash_it).second.isExcluded()) {
 
@@ -274,7 +287,7 @@ vector<vector<KmerStats> > ObservedKmerCountsHash<sample_bin>::calculateKmerStat
             } else if ((*hash_it).second.hasMulticlusterOccurrence()) { 
 
                 multicluster_count++;
-                assert(!((*hash_it).second.hasMultigroupOccurrence()));
+                assert(!(*hash_it).second.hasMultigroupOccurrence());
 
             } else {
 
@@ -285,18 +298,19 @@ vector<vector<KmerStats> > ObservedKmerCountsHash<sample_bin>::calculateKmerStat
 
             non_cluster_count++;
 
-            assert(!((*hash_it).second.hasMulticlusterOccurrence()));
-            assert(!((*hash_it).second.hasMultigroupOccurrence()));
+            assert(!(*hash_it).second.hasMulticlusterOccurrence());
+            assert(!(*hash_it).second.hasMultigroupOccurrence());
 
-            if ((*hash_it).second.isParameter() and ((*hash_it).second.getInterclusterMultiplicity(Utils::Gender::Male) == 2) and ((*hash_it).second.getInterclusterMultiplicity(Utils::Gender::Female) == 2)) {
+            if ((*hash_it).second.isParameter()) {
 
-                assert(!((*hash_it).second.isExcluded()));
+                assert(!(*hash_it).second.isExcluded());
 
                 const uchar bias_idx = Nucleotide::gcBiasBin<Utils::kmer_size>((*hash_it).first, num_genomic_rate_gc_bias_bins);
 
-                for (ushort sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+
+                for (ushort sample_idx = 0; sample_idx < samples.size(); sample_idx++) {
             
-                    intercluster_diploid_kmer_stats.at(sample_idx).at(bias_idx).addValue(make_pair((*hash_it).second.getSampleCount(sample_idx), true));
+                    intercluster_diploid_kmer_stats.at(sample_idx).at(bias_idx).at((*hash_it).second.getInterclusterMultiplicity(samples.at(sample_idx).gender)).addValue(make_pair((*hash_it).second.getSampleCount(sample_idx), true));
                 }
             }
         }

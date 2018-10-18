@@ -53,7 +53,12 @@ int main(int argc, char const *argv[]) {
 	vcf_reader.metaData().formatDescriptors().clear();
 	
 	ofstream intervals_outfile(string(argv[2]) + ".bed");
-	assert(intervals_outfile.is_open());
+
+    if (!intervals_outfile.is_open()) {
+
+        cerr << "\nERROR: Unable to write file " << string(argv[2]) + ".bed" << "\n" << endl;
+        exit(1);
+    }
 
 	Variant * cur_var;
 	uint num_variants = 0;
@@ -76,7 +81,7 @@ int main(int argc, char const *argv[]) {
 
 		if (cur_var->chrom() != cur_chrom) {
 
-			if (!(cur_chrom.empty())) {
+			if (!cur_chrom.empty()) {
 
 				assert(cur_chrom_len > 0);
 				assert(interval_start_pos <= cur_chrom_len);
@@ -109,7 +114,7 @@ int main(int argc, char const *argv[]) {
 
 		for (uint alt_allele_idx = 0; alt_allele_idx < cur_var->numAlts(); alt_allele_idx++) {
 
-			assert(!(cur_var->alt(alt_allele_idx).isID()));
+			assert(!cur_var->alt(alt_allele_idx).isID());
 
             if (cur_var->alt(alt_allele_idx).isMissing()) {
 
@@ -121,8 +126,8 @@ int main(int argc, char const *argv[]) {
 
             Auxiliaries::rightTrimAllelePair(&cur_ref_allele, &cur_alt_allele);
 
-            assert(!(cur_ref_allele.seq().empty()));
-            assert(!(cur_alt_allele.seq().empty()));
+            assert(!cur_ref_allele.seq().empty());
+            assert(!cur_alt_allele.seq().empty());
 
             interval_end_pos = max(interval_end_pos, static_cast<uint>(cur_var->pos() + cur_ref_allele.seq().size() - 1));
 		}	
@@ -135,7 +140,7 @@ int main(int argc, char const *argv[]) {
 		delete cur_var;
 	}
 
-	assert(!(cur_chrom.empty()));
+	assert(!cur_chrom.empty());
 	assert(cur_chrom_len > 0);
 	assert(interval_start_pos <= cur_chrom_len);
 

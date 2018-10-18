@@ -61,8 +61,6 @@ class Chromosomes {
     ulong getTotalLength() const;
     ulong getDecoyLength() const;
 
-    Utils::ChromClass getClass(string) const; 
-
     void convertToUpper();    
 
   protected:

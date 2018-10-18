@@ -50,11 +50,15 @@ void Chromosomes::addFasta(const string & fasta_filename, const bool is_decoy) {
 
 void Chromosomes::addSequence(const pair<string, string> & sequence, const bool is_decoy) {
 
-    assert(!(sequence.first.empty()));
+    assert(!sequence.first.empty());
 
-    _chromosomes.emplace_back(sequence);
+    _chromosomes.emplace_back(sequence); 
     
-    assert(order.emplace(sequence.first, _chromosomes.size() - 1).second);
+    if (!order.emplace(sequence.first, _chromosomes.size() - 1).second) {
+
+        cerr << "\nERROR: Chromosome \"" << sequence.first << "\" appears multiple times in fasta file(s)\n" << endl;
+        exit(1);
+    }
 
     if (is_decoy) {
 
@@ -67,48 +71,43 @@ void Chromosomes::addSequence(const pair<string, string> & sequence, const bool 
 
 void Chromosomes::parseFasta(const string & fasta_filename, const bool is_decoy) {
 
-    if (!(fasta_filename.empty())) {
+    if (!fasta_filename.empty()) {
 
         ifstream fasta_infile(fasta_filename);
-        assert(fasta_infile.is_open());
 
-        string line;
-        string name = "";
+        if (!fasta_infile.is_open()) {
 
-        while (fasta_infile.good()) {
+            cerr << "\nERROR: Unable to open file " << fasta_filename << "\n" << endl;
+            exit(1);
+        }
 
-            getline(fasta_infile, line);
+        string chrom_name = "";
 
-            if (line.substr(0,1) == ">") {
+        for (string fasta_line; getline(fasta_infile, fasta_line);) {
 
-                vector<string> name_split;
+            if (fasta_line.substr(0,1) == ">") {
 
-                boost::split(name_split, line, boost::is_any_of("\t "));
-                assert(name_split.front().at(0) == '>');
+                vector<string> chrom_name_split;
 
-                name = name_split.front().substr(1);
-                assert(!(name.empty()));
+                boost::split(chrom_name_split, fasta_line, boost::is_any_of("\t "));
+                assert(chrom_name_split.front().at(0) == '>');
 
-                _chromosomes.emplace_back(name, "");
-                
-                assert(order.emplace(name, _chromosomes.size() - 1).second);
+                chrom_name = chrom_name_split.front().substr(1);
+                assert(!chrom_name.empty());
 
-                if (is_decoy) {
-
-                    assert(decoys.emplace(name).second);
-                }
+                addSequence(make_pair(chrom_name, ""), is_decoy);
 
             } else {
 
-                assert(!(name.empty()));
-                assert(!(_chromosomes.empty()));
+                assert(!chrom_name.empty());
+                assert(!_chromosomes.empty());
 
-                _chromosomes.back().second.append(line);
-                total_length += line.size();
+                _chromosomes.back().second.append(fasta_line);
+                total_length += fasta_line.size();
 
                  if (is_decoy) {
 
-                    decoy_length += line.size();
+                    decoy_length += fasta_line.size();
                 }                   
             }
         }
@@ -143,6 +142,7 @@ SequenceIterator Chromosomes::find(const string & name) const {
 
 bool Chromosomes::isDecoy(const string & name) const {
 
+    assert(order.find(name) != order.end());
     return (decoys.count(name) > 0);
 }
 
@@ -164,29 +164,6 @@ ulong Chromosomes::getTotalLength() const {
 ulong Chromosomes::getDecoyLength() const {
 
     return decoy_length;
-}
-
-Utils::ChromClass Chromosomes::getClass(string name) const {
-
-    if (decoys.count(name) > 0) {
-
-        return Utils::ChromClass::Decoy;
-
-    } else {
-
-        transform(name.begin(), name.end(), name.begin(), ::tolower);
-
-        if ((name == "x") or (name == "chrx")) {
-
-            return Utils::ChromClass::X;
-
-        } else if ((name == "y") or (name == "chry")) {
-
-            return Utils::ChromClass::Y;
-        }
-    }
-
-    return Utils::ChromClass::Autosomal;
 }
 
 void Chromosomes::convertToUpper() {

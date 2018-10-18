@@ -28,14 +28,20 @@ THE SOFTWARE.
 
 
 #include <assert.h>
+#include <iostream>
 
 #include "FastaReader.hpp"
 
 FastaReader::FastaReader(const string & fasta_filename) {
 
     fasta_infile.open(fasta_filename);
-    assert(fasta_infile.is_open());
     
+    if (!fasta_infile.is_open()) {
+
+        cerr << "\nERROR: Unable to open file " << fasta_filename << "\n" << endl;
+        exit(1);
+    }
+
     last_line_read = !getline(fasta_infile, cur_line);
 }
 

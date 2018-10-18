@@ -95,7 +95,7 @@ namespace Annotate {
 
         cout << "[" << Utils::getLocalTime() << "] Running BayesTyperTools (" << BT_VERSION << ") annotate ...\n" << endl;
 
-		bool self_anno_mode = (variant_file == annotation_file);
+		bool self_anno_mode = variant_file == annotation_file;
 
 		assert(window_size_scale >= 1);
 
@@ -156,7 +156,7 @@ namespace Annotate {
 
 					if (!cur_annotation_var->alt(alt_idx).isMissing()) {
 
-						assert(!(cur_annotation_var->alt(alt_idx).isID()));
+						assert(!cur_annotation_var->alt(alt_idx).isID());
 
 						++num_annotation_alleles;
 
@@ -226,7 +226,7 @@ namespace Annotate {
 
 					if (!cur_callset_var->alt(alt_idx).isMissing()) {
 
-						assert(!(cur_callset_var->alt(alt_idx).isID()));
+						assert(!cur_callset_var->alt(alt_idx).isID());
 
 						auto ref_trimmed = cur_callset_var->ref();
 						auto alt_trimmed = cur_callset_var->alt(alt_idx);

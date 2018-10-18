@@ -60,7 +60,7 @@ Sample::Sample(const string & sample_str, const string & format_str, const map<s
 
     assert(sample_split_str.size() <= format_str_split.size());
 
-    assert(!(format_str_split.empty()));
+    assert(!format_str_split.empty());
     assert(format_str_split.front() == "GT");
 
     if (sample_split_str.empty()) {
@@ -265,7 +265,7 @@ vector<AttributeSet> & Sample::genotypeInfo() {
 
 string Sample::vcf(const vector<Attribute::DetailedDescriptor> & format_descriptors) {
 
-    assert(!(format_descriptors.empty()));
+    assert(!format_descriptors.empty());
     assert(format_descriptors.front().id() == "GT");
 
     JoiningString sample_gt_element;

@@ -47,6 +47,7 @@ THE SOFTWARE.
 #include "Regions.hpp"
 
 
+static const uint min_noise_estimation_clusters = 10000;
 static const uint noise_estimation_batch_size = 100000;
 
 static const uint variant_cluster_groups_batch_size = 1000;
@@ -55,7 +56,7 @@ static const double genotyping_stdout_frequency = 100000;
 static const uchar num_genomic_rate_gc_bias_bins = 1;
 
 
-InferenceEngine::InferenceEngine(const vector<Sample> & samples_in, const OptionsContainer & options_container) : samples(samples_in), chrom_ploidy(samples), num_threads(options_container.getValue<ushort>("threads")), prng_seed(options_container.getValue<uint>("random-seed")), num_gibbs_burn(options_container.getValue<ushort>("gibbs-burn-in")), num_gibbs_samples(options_container.getValue<ushort>("gibbs-samples")), num_gibbs_chains(options_container.getValue<ushort>("number-of-gibbs-chains")), kmer_subsampling_rate(options_container.getValue<float>("kmer-subsampling-rate")), max_haplotype_variant_kmers(options_container.getValue<uint>("max-haplotype-variant-kmers")) {}
+InferenceEngine::InferenceEngine(const vector<Sample> & samples_in, const ChromosomePloidy & chrom_ploidy_in, const OptionsContainer & options_container) : samples(samples_in), chrom_ploidy(chrom_ploidy_in), num_threads(options_container.getValue<ushort>("threads")), prng_seed(options_container.getValue<uint>("random-seed")), num_gibbs_burn(options_container.getValue<ushort>("gibbs-burn-in")), num_gibbs_samples(options_container.getValue<ushort>("gibbs-samples")), num_gibbs_chains(options_container.getValue<ushort>("number-of-gibbs-chains")), kmer_subsampling_rate(options_container.getValue<float>("kmer-subsampling-rate")), max_haplotype_variant_kmers(options_container.getValue<uint>("max-haplotype-variant-kmers")) {}
 
 
 void InferenceEngine::initNoiseEstimationGroupsCallback(vector<VariantClusterGroup *> * variant_cluster_groups, const vector<uint> & noise_estimation_group_indices, KmerCountsHash * kmer_hash, const ushort gibbs_chain_idx, const ushort thread_idx) {
@@ -70,7 +71,6 @@ void InferenceEngine::initNoiseEstimationGroupsCallback(vector<VariantClusterGro
 
 		assert(variant_cluster_groups->at(variant_cluster_group_idx));
 
-		assert(variant_cluster_groups->at(variant_cluster_group_idx)->numberOfVariants() == 1);
 		assert(variant_cluster_groups->at(variant_cluster_group_idx)->numberOfVariantClusters() == 1);
 		assert(variant_cluster_groups->at(variant_cluster_group_idx)->numberOfVariantClusterGroupTrees() == 1);
 
@@ -130,7 +130,7 @@ void InferenceEngine::estimateNoiseParameters(CountDistribution * count_distribu
 
 	for (uint variant_cluster_group_idx = 0; variant_cluster_group_idx < inference_unit->variant_cluster_groups.size(); variant_cluster_group_idx++) {
 
-		if (inference_unit->variant_cluster_groups.at(variant_cluster_group_idx)->isAutosomalSimpleSNV()) {
+		if (inference_unit->variant_cluster_groups.at(variant_cluster_group_idx)->isSimpleParameterCluster()) {
 		
 			noise_estimation_group_indices.push_back(variant_cluster_group_idx);
 		}		
@@ -138,10 +138,26 @@ void InferenceEngine::estimateNoiseParameters(CountDistribution * count_distribu
 
 	noise_estimation_group_indices.shrink_to_fit();
 
+	if (noise_estimation_group_indices.size() < min_noise_estimation_clusters) {
+
+		cerr << "\nERROR: Insufficient number of SNV clusters available for Poisson parameter estimation (" << noise_estimation_group_indices.size() << " < " << min_noise_estimation_clusters << "); the genome used is likely too small\n" << endl;
+		exit(1);
+	}
+
+    if (noise_estimation_group_indices.size() < (min_noise_estimation_clusters * 10)) {
+
+		cout << "\nWARNING: Low number of SNV clusters available for Poisson parameter estimation (" << noise_estimation_group_indices.size() << " < " << min_noise_estimation_clusters * 10 << "); rate estimates might be biased\n" << endl;
+	}
+
 	vector<double> mean_noise_rates(samples.size(), 0);
 
     ofstream noise_outfile(output_prefix + ".txt");
-    assert(noise_outfile.is_open());
+
+    if (!noise_outfile.is_open()) {
+
+        cerr << "\nERROR: Unable to write file " << output_prefix + ".txt" << "\n" << endl;
+        exit(1);
+    }
 
     noise_outfile << "Chain\tIteration";
 
@@ -215,7 +231,7 @@ void InferenceEngine::estimateNoiseParameters(CountDistribution * count_distribu
 
     for (ushort sample_idx = 0; sample_idx < samples.size(); sample_idx++) {
 
-	  	mean_noise_rates.at(sample_idx) /= (num_gibbs_samples * num_gibbs_chains);
+	  	mean_noise_rates.at(sample_idx) /= num_gibbs_samples * num_gibbs_chains;
     }
 
 	count_distribution->setNoiseRates(mean_noise_rates);

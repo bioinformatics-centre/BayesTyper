@@ -71,8 +71,8 @@ namespace Combine {
 
 	string mergeOriginValues(const string & aco_values_1, const string & aco_values_2) {
 
-		assert(!(aco_values_1.empty()));
-		assert(!(aco_values_2.empty()));
+		assert(!aco_values_1.empty());
+		assert(!aco_values_2.empty());
 
 		assert(aco_values_1 != ".");
 		assert(aco_values_2 != ".");
@@ -103,7 +103,7 @@ namespace Combine {
 			string inter_var_ref_seq_1 = "";
 			string inter_var_ref_seq_2 = "";
 
-	    	if (!(allele_set.alleles.empty()) and (allele_set.prev_end_pos < contig_variants_it->second->pos())) {
+	    	if (!allele_set.alleles.empty() and (allele_set.prev_end_pos < contig_variants_it->second->pos())) {
 
 	    		inter_var_ref_seq_1 = ref_allele_seq.substr(allele_set.ref_seq.size(), contig_variants_it->second->pos() - allele_set.prev_end_pos - 1);
 	    		inter_var_ref_seq_2 = alt_allele_seq.substr(allele_set.alt_seq.size(), contig_variants_it->second->pos() - allele_set.prev_end_pos - 1);
@@ -119,13 +119,13 @@ namespace Combine {
 			    	Allele cur_ref_allele = contig_variants_it->second->ref();
 			    	Allele cur_allele = contig_variants_it->second->allele(allele_idx);
 
-			    	assert(!(cur_ref_allele.isMissing()));
-			    	assert(!(cur_allele.isMissing()));
+			    	assert(!cur_ref_allele.isMissing());
+			    	assert(!cur_allele.isMissing());
 
 			    	Auxiliaries::rightTrimAllelePair(&cur_ref_allele, &cur_allele);
 
-			    	assert(!(cur_ref_allele.seq().empty()));
-			    	assert(!(cur_allele.seq().empty()));
+			    	assert(!cur_ref_allele.seq().empty());
+			    	assert(!cur_allele.seq().empty());
 
 			    	cur_allele_set.prev_end_pos = contig_variants_it->second->pos() + cur_ref_allele.seq().size() - 1;
 
@@ -161,13 +161,13 @@ namespace Combine {
     	Allele ref_allele = contig_variants_it->second->ref();
     	Allele alt_allele = contig_variants_it->second->alt(alt_allele_idx);
 
-    	assert(!(ref_allele.isMissing()));
-    	assert(!(alt_allele.isMissing()));
+    	assert(!ref_allele.isMissing());
+    	assert(!alt_allele.isMissing());
 
     	Auxiliaries::rightTrimAllelePair(&ref_allele, &alt_allele);
 
-    	assert(!(ref_allele.seq().empty()));
-    	assert(!(alt_allele.seq().empty()));
+    	assert(!ref_allele.seq().empty());
+    	assert(!alt_allele.seq().empty());
 
     	if (ref_allele.seq().size() > 1) {
 
@@ -176,7 +176,7 @@ namespace Combine {
 
     		getRedundantAlleleSets(&(redundant_allele_sets), allele_set, ref_allele.seq(), alt_allele.seq(), contig_variants_it, contig_variants_eit);
 
-			if (!(redundant_allele_sets.empty())) {
+			if (!redundant_allele_sets.empty()) {
 
 				auto aco_value_original_allele = alt_allele.info().getValue<string>("ACO");
 				assert(aco_value_original_allele.second);
@@ -208,7 +208,7 @@ namespace Combine {
 
 	void updateOriginAttribute(Allele * cur_allele, const string & call_set_name) {
 
-		assert(!(cur_allele->isMissing()));
+		assert(!cur_allele->isMissing());
 		auto aco_value = cur_allele->info().getValue<string>("ACO");
 
 		if (aco_value.second) {
@@ -225,7 +225,7 @@ namespace Combine {
 			JoiningString aco_value_elements(':');
 			aco_value_elements.join(aco_value_split);
 
-			assert(!(cur_allele->info().setValue<string>("ACO", aco_value_elements.str())));
+			assert(!cur_allele->info().setValue<string>("ACO", aco_value_elements.str()));
 
 		} else {
 
@@ -237,14 +237,14 @@ namespace Combine {
 
 	    for (uint allele_idx = 0; allele_idx < cur_var->numAlls(); allele_idx++) {
 
-	        assert(!(cur_var->allele(allele_idx).isMissing()));
+	        assert(!cur_var->allele(allele_idx).isMissing());
 	        cur_var->allele(allele_idx).seq().append(new_seq);
 	    }
 	}
 
 	uint addVariant(Variant * cur_var, map<uint, Variant *> * contig_variants, const string & call_set_name, const bool filter_ambiguous_alleles) {
 
-		assert(!(cur_var->ref().seq().empty()));
+		assert(!cur_var->ref().seq().empty());
 		assert(cur_var->numAlts() > 0);
 
 		vector<uint> excluded_alt_allele_indices;
@@ -327,7 +327,7 @@ namespace Combine {
 
 		cout << "[" << Utils::getLocalTime() << "] Running BayesTyperTools (" << BT_VERSION << ") combine on " << variant_files.size() << " files ...\n" << endl;
 
-		assert(!(variant_files.empty()));
+		assert(!variant_files.empty());
 
 		vector<CallSet> input_call_sets;
 		input_call_sets.reserve(variant_files.size());
@@ -340,14 +340,14 @@ namespace Combine {
 			input_call_sets.emplace_back(variant_file_split.front(), variant_file_split.back());
 		}
 
-		assert(!(input_call_sets.empty()));
+		assert(!input_call_sets.empty());
 		assert(input_call_sets.size() == variant_files.size());
 
 		vector<Contig> contigs_merged;
 
 		for (auto & input_call_set: input_call_sets) {
 
-			assert(!(input_call_set.name.empty()));
+			assert(!input_call_set.name.empty());
 			assert(input_call_set.name != ".");
  			assert(input_call_set.name.find(",") == string::npos);
  			assert(input_call_set.name.find("#") == string::npos);
@@ -406,8 +406,8 @@ namespace Combine {
 
 				for (uint alt_allele_idx = 0; alt_allele_idx < contig_variants_it->second->numAlts(); alt_allele_idx++) {
 
-					assert(!(contig_variants_it->second->alt(alt_allele_idx).isID()));
-					assert(!(contig_variants_it->second->alt(alt_allele_idx).isMissing()));
+					assert(!contig_variants_it->second->alt(alt_allele_idx).isID());
+					assert(!contig_variants_it->second->alt(alt_allele_idx).isMissing());
 					assert(contig_variants_it->second->alt(alt_allele_idx) != contig_variants_it->second->ref());
 
             		if (isAltAlleleRedundant(contig_variants_it, contig_variants.end(), alt_allele_idx)) {
@@ -449,8 +449,8 @@ namespace Combine {
 
 		for (auto & input_call_set: input_call_sets) {
 
-			assert(!(input_call_set.vcf_reader->getNextVariant(&(input_call_set.variant))));
-			assert(!(input_call_set.variant));
+			assert(!input_call_set.vcf_reader->getNextVariant(&(input_call_set.variant)));
+			assert(!input_call_set.variant);
 
 			delete input_call_set.vcf_reader;
 

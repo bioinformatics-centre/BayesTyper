@@ -37,9 +37,9 @@ THE SOFTWARE.
 
 template<typename Out>
 void split(const std::string &s, char delim, Out result) {
+    
     std::stringstream ss(s);
-    std::string item;
-    while (std::getline(ss, item, delim)) {
+    for (std::string item; std::getline(ss, item, delim);) {
         *(result++) = item;
     }
 }
@@ -63,7 +63,12 @@ template <uchar kmer_size>
 KmerBloom<kmer_size>::KmerBloom(const std::string & prefix) {
 
 	std::ifstream meta_infile(prefix + ".bloomMeta");
-	assert(meta_infile.is_open());
+
+    if (!meta_infile.is_open()) {
+
+        cerr << "\nERROR: Unable to open file " << prefix + ".bloomMeta" << "\n" << endl;
+        exit(1);
+    }
 
 	std::string bloom_meta_str;
 	
@@ -144,7 +149,12 @@ template <uchar kmer_size>
 void KmerBloom<kmer_size>::save(const std::string & prefix) const {
 
 	std::ofstream meta_outfile(prefix + ".bloomMeta");
-	assert(meta_outfile.is_open());
+
+    if (!meta_outfile.is_open()) {
+
+        cerr << "\nERROR: Unable to write file " << prefix + ".bloomMeta" << "\n" << endl;
+        exit(1);
+    }
 	
 	meta_outfile << std::to_string(num_kmers) << "\t" << std::to_string(num_bloom_bits) << "\t" << std::to_string(kmer_size) << std::endl;
 	meta_outfile.close();

@@ -36,7 +36,7 @@ THE SOFTWARE.
 
 Regions::Regions(const string & regions_string) {
 
-    assert(!(regions_string.empty()));
+    assert(!regions_string.empty());
 
     auto regions_info_split = Utils::splitString(regions_string, ':');
 
@@ -65,7 +65,7 @@ bool Regions::isIn(const Variant & cur_var) const {
 
     if (regions_it != regions.end()) {
 
-         if (!(regions_it->second.empty())) {
+         if (!regions_it->second.empty()) {
 
             bool is_in_region = false;
 

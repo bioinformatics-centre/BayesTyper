@@ -67,7 +67,7 @@ uint DiscreteSampler::sample(mt19937 * prng) const {
 
 uint DiscreteSampler::search(double random01_sample_scaled) const {
 
-	assert(!(cum_probs.empty()));
+	assert(!cum_probs.empty());
 	assert(std::isfinite(random01_sample_scaled));
 
 	if (cum_probs.size() > 1) {
@@ -88,7 +88,7 @@ uint DiscreteSampler::search(double random01_sample_scaled) const {
 
 double DiscreteSampler::probSum() const {
 
-	assert(!(cum_probs.empty()));
+	assert(!cum_probs.empty());
 	return cum_probs.back();
 }
 

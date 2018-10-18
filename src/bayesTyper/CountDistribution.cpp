@@ -40,7 +40,14 @@ THE SOFTWARE.
 #include "Combinator.hpp"
 
 
-CountDistribution::CountDistribution(const vector<Sample> & samples_in, const OptionsContainer & options_container) : samples(samples_in), num_genomic_rate_gc_bias_bins(1), noise_rate_priors(samples.size(), options_container.getValue<pair<double,double> >("noise-rate-prior")) {
+static const uint min_nb_kmer_count = 1000;
+
+static const uchar num_genomic_rate_gc_bias_bins = 1;
+static const uchar max_multiplicity = Utils::uchar_overflow;
+static const uchar max_kmer_count = Utils::uchar_overflow;
+
+
+CountDistribution::CountDistribution(const vector<Sample> & samples_in, const OptionsContainer & options_container) : samples(samples_in), noise_rate_priors(samples.size(), options_container.getValue<pair<float,float> >("noise-rate-prior")) {
 
 	prng = mt19937(options_container.getValue<uint>("random-seed"));
 	
@@ -55,47 +62,79 @@ CountDistribution::CountDistribution(const vector<Sample> & samples_in, const Op
 }
 
 
-void CountDistribution::setGenomicCountDistributions(const vector<vector<KmerStats> > & intercluster_diploid_kmer_stats, const string & output_prefix) {
+void CountDistribution::setGenomicCountDistributions(const vector<vector<vector<KmerStats> > > & intercluster_diploid_kmer_stats, const string & output_prefix) {
+
+    cout << "[" << Utils::getLocalTime() << "] Estimating genomic haploid kmer count distribution(s) from parameter kmers ...\n" << endl;
+
+    ofstream genomic_outfile(output_prefix + ".txt");
+
+    if (!genomic_outfile.is_open()) {
+
+        cerr << "\nERROR: Unable to write file " << output_prefix + ".txt" << "\n" << endl;
+        exit(1);
+    }
+
+    genomic_outfile << "Sample\tMean\tVariance" << endl;
 
 	assert(intercluster_diploid_kmer_stats.size() == samples.size());
 	assert(intercluster_diploid_kmer_stats.size() == genomic_count_distributions.size());
 
-	assert(!(intercluster_diploid_kmer_stats.empty()));
-	assert(intercluster_diploid_kmer_stats.front().size() == 1);
-
-    cout << "[" << Utils::getLocalTime() << "] Estimating genomic haploid kmer count distribtion(s) from " << intercluster_diploid_kmer_stats.front().front().getCount() << " diploid parameter kmers ...\n" << endl;
-
-    ofstream genomic_outfile(output_prefix + ".txt");
-    assert(genomic_outfile.is_open());
-
-    genomic_outfile << "Sample\tMean\tVariance" << endl;
-
     for (ushort sample_idx = 0; sample_idx < samples.size(); sample_idx++) {
 
     	assert(num_genomic_rate_gc_bias_bins == 1);
-		assert(genomic_count_distributions.at(sample_idx).size() == num_genomic_rate_gc_bias_bins);
+
+		assert(intercluster_diploid_kmer_stats.at(sample_idx).size() == num_genomic_rate_gc_bias_bins);    	
+		assert(intercluster_diploid_kmer_stats.at(sample_idx).size() == genomic_count_distributions.at(sample_idx).size());
 
         for (ushort bias_idx = 0; bias_idx < num_genomic_rate_gc_bias_bins; bias_idx++) {
 
-        	assert(intercluster_diploid_kmer_stats.front().front().getCount() == intercluster_diploid_kmer_stats.at(sample_idx).at(bias_idx).getCount());
+			assert(intercluster_diploid_kmer_stats.at(sample_idx).at(bias_idx).size() == static_cast<uint>(max_multiplicity + 1));
+        	assert(intercluster_diploid_kmer_stats.at(sample_idx).at(bias_idx).front().getCount() == 0);
 
-        	auto sample_mean = intercluster_diploid_kmer_stats.at(sample_idx).at(bias_idx).getMean();
-        	assert(sample_mean.second);
+        	uint max_kmer_count = 0;
+        	ushort max_kmer_multiplicity = 0;
 
-        	auto sample_var = intercluster_diploid_kmer_stats.at(sample_idx).at(bias_idx).getVariance();
-        	assert(sample_var.second);
+			for (ushort kmer_multiplicity = 1; kmer_multiplicity <= max_multiplicity; kmer_multiplicity++) {
 
-        	auto ng_parameters = NegativeBinomialDistribution::momentsToParameters(sample_mean.first, sample_var.first);
-        	ng_parameters.second /= 2;
+				auto kmer_count = intercluster_diploid_kmer_stats.at(sample_idx).at(bias_idx).at(kmer_multiplicity).getCount();
 
-            genomic_count_distributions.at(sample_idx).at(bias_idx).setParameters(ng_parameters);
+				if (kmer_count > max_kmer_count) {
 
-            auto ng_mean = genomic_count_distributions.at(sample_idx).at(bias_idx).mean();
-            auto ng_var = genomic_count_distributions.at(sample_idx).at(bias_idx).var();
+					max_kmer_count = kmer_count;
+					max_kmer_multiplicity = kmer_multiplicity;
+				}
+        	}
 
-            cout << "[" << Utils::getLocalTime() << "] Estimated fixed negative binomial distribution for sample " << samples.at(sample_idx).name << " with mean " << ng_mean << " and variance " << ng_var << endl;
+			if (max_kmer_count < min_nb_kmer_count) {
 
-	        genomic_outfile << samples.at(sample_idx).name << "\t" << ng_mean << "\t" << ng_var << endl;
+				cerr << "\nERROR: Insufficient number of kmers used for negative binomial parameters estimation for sample " << samples.at(sample_idx).name << " (" << max_kmer_count << " < " << min_nb_kmer_count << "); the genome used is likely too small and/or too repetitive\n" << endl;
+				exit(1);
+			}
+
+			assert(max_kmer_multiplicity > 0);
+
+    		auto kmer_mean = intercluster_diploid_kmer_stats.at(sample_idx).at(bias_idx).at(max_kmer_multiplicity).getMean();
+   	        assert(kmer_mean.second);
+
+    		auto kmer_var = intercluster_diploid_kmer_stats.at(sample_idx).at(bias_idx).at(max_kmer_multiplicity).getVariance();
+    		assert(kmer_var.second);
+
+	        auto nb_para = NegativeBinomialDistribution::momentsToParameters(kmer_mean.first, kmer_var.first);
+	        nb_para.second /= max_kmer_multiplicity;
+
+        	genomic_count_distributions.at(sample_idx).at(bias_idx).setParameters(nb_para);
+
+        	auto nb_mean = genomic_count_distributions.at(sample_idx).at(bias_idx).mean();
+        	auto nb_var = genomic_count_distributions.at(sample_idx).at(bias_idx).var();
+
+            cout << "[" << Utils::getLocalTime() << "] Estimated negative binomial for sample " << samples.at(sample_idx).name << " with mean " << nb_mean << " and variance " << nb_var << " using " << max_kmer_count << " parameter kmers" << endl;
+
+			if (max_kmer_count < (min_nb_kmer_count * 10)) {
+
+				cout << "\nWARNING: Low number of kmers used for negative binomial parameters estimation for sample " << samples.at(sample_idx).name << " (" << max_kmer_count << " < " << min_nb_kmer_count * 10 << "); mean and variance estimate might be biased\n" << endl;
+			}
+
+	        genomic_outfile << samples.at(sample_idx).name << "\t" << nb_mean << "\t" << nb_var << endl;
         }
     }
 
@@ -158,7 +197,7 @@ pair<ulong, ulong> CountDistribution::calcCountSuffStats(const vector<ulong> & c
 	for (uint i = 0; i < counts.size(); i++) {
 
 		num_observations += counts.at(i);
-		count_sum += (i * counts.at(i));
+		count_sum += i * counts.at(i);
 	}
 
 	return make_pair(num_observations, count_sum);
@@ -267,7 +306,7 @@ double CountDistribution::genomicCountLogPmf(const ushort sample_idx, const ucha
 				break;
 			}
 
-		} while (!(Utils::doubleCompare(prev_genomic_count_log_pmf, genomic_count_log_pmf)));
+		} while (!Utils::doubleCompare(prev_genomic_count_log_pmf, genomic_count_log_pmf));
 	}
 
 	assert(isfinite(genomic_count_log_pmf));
@@ -302,7 +341,7 @@ double CountDistribution::noiseCountLogPmf(const ushort sample_idx, const uchar 
 				break;
 			}
 
-		} while (!(Utils::doubleCompare(prev_noise_count_log_pmf, noise_count_log_pmf)));
+		} while (!Utils::doubleCompare(prev_noise_count_log_pmf, noise_count_log_pmf));
 	} 
 
 	assert(isfinite(noise_count_log_pmf));

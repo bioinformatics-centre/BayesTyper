@@ -66,7 +66,7 @@ uchar VariantClusterHaplotypes::getUniqueKmerMultiplicity(const uint kmer_idx, c
 
 	if (kmer_counts) {
 
-		assert(!(kmer_counts->hasMulticlusterOccurrence()));
+		assert(!kmer_counts->hasMulticlusterOccurrence());
 		multiplicity += kmer_counts->getInterclusterMultiplicity(gender);
 	}
 
@@ -125,7 +125,7 @@ void VariantClusterHaplotypes::sampleKmerSubset(mt19937 * prng, const float kmer
 
 		if (bernoulli_dist(*prng)) {
 
-			if (!(isMaxHaplotypeVariantKmer(&num_haplotype_variant_subset_kmers, max_haplotype_variant_kmers, kmers.at(kmer_idx).variant_haplotype_indices))) {
+			if (!isMaxHaplotypeVariantKmer(&num_haplotype_variant_subset_kmers, max_haplotype_variant_kmers, kmers.at(kmer_idx).variant_haplotype_indices)) {
 
 				unique_kmer_subset_indices.push_back(kmer_idx);	
 			}
@@ -138,7 +138,7 @@ void VariantClusterHaplotypes::sampleKmerSubset(mt19937 * prng, const float kmer
 
 		if (bernoulli_dist(*prng)) {
 
-			if (!(isMaxHaplotypeVariantKmer(&num_haplotype_variant_subset_kmers, max_haplotype_variant_kmers, kmers.at(kmer_idx).variant_haplotype_indices))) {
+			if (!isMaxHaplotypeVariantKmer(&num_haplotype_variant_subset_kmers, max_haplotype_variant_kmers, kmers.at(kmer_idx).variant_haplotype_indices)) {
 
 				multicluster_kmer_subset_indices.push_back(kmer_idx);	
 			}

@@ -65,12 +65,12 @@ Attribute::Descriptor::Descriptor(const vector<pair<string,string> > & descripto
         }
     }
 
-    assert(!(_id.empty()));
+    assert(!_id.empty());
 }
 
 string Attribute::Descriptor::id() const {
 
-    assert(!(_id.empty()));
+    assert(!_id.empty());
     return _id;
 }
 
@@ -82,7 +82,7 @@ string Attribute::Descriptor::description() const {
 
 string Attribute::Descriptor::str() const {
 
-    assert(!(_id.empty()));
+    assert(!_id.empty());
 
     JoiningString descriptor_str(',');
     descriptor_str.join("ID=" + _id);
@@ -225,7 +225,7 @@ Attribute::Type Attribute::DetailedDescriptor::type() const {
 
 string Attribute::DetailedDescriptor::str() const {
 
-    assert(!(_id.empty()));
+    assert(!_id.empty());
     assert(has_number);
     assert(has_type);
 
@@ -265,7 +265,7 @@ Attribute::Value::Value() {
 
 Attribute::Value::Value(Type type_in, const string & data_str) {
 
-    assert(!(data_str.empty()));
+    assert(!data_str.empty());
 
     type_ = type_in;
 
@@ -312,7 +312,7 @@ Attribute::Value::Value(int val) {
 
 Attribute::Value::Value(const string & val) {
 
-    assert(!(val.empty()));
+    assert(!val.empty());
 
     type_ = Attribute::Type::String;
     data_ = val;

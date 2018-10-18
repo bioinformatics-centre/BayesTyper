@@ -70,13 +70,14 @@ namespace po = boost::program_options;
 
 
 static const ushort max_num_samples = 30;
-static const uint max_parameter_kmers = 10000000;
+static const uint max_parameter_kmers = 1000000;
 
 static const ushort min_filter_samples = 10;
 
 static const string intercluster_regions_file_prefix = "intercluster_regions";
 static const string multigroup_kmers_file_prefix = "multigroup_kmers";
 static const string parameter_kmers_file_prefix = "parameter_kmers";
+
 
 int main (int argc, char * const argv[]) {
 
@@ -116,7 +117,7 @@ int main (int argc, char * const argv[]) {
 			required_options.add_options()
 
 				("variant-file,v", po::value<string>()->required()->notifier(bind(&OptionsContainer::parseValue<string>, &options_container, "variant-file", placeholders::_1)), "variant file (vcf format).")
-			 	("samples-file,s", po::value<string>()->required()->notifier(bind(&OptionsContainer::parseValue<string>, &options_container, "samples-file", placeholders::_1)), "samples file.")
+			 	("samples-file,s", po::value<string>()->required()->notifier(bind(&OptionsContainer::parseValue<string>, &options_container, "samples-file", placeholders::_1)), "samples file (see github documentation for format specifications).")
 				("genome-file,g", po::value<string>()->required()->notifier(bind(&OptionsContainer::parseValue<string>, &options_container, "genome-file", placeholders::_1)), "reference genome file (fasta format).")
 			;
 
@@ -134,7 +135,7 @@ int main (int argc, char * const argv[]) {
 
 				("min-number-of-unit-variants", po::value<uint>()->default_value(5000000)->notifier(bind(&OptionsContainer::parseValue<uint>, &options_container, "min-number-of-unit-variants", placeholders::_1)), "minimum number of variants per inference unit.")
 				("max-allele-length", po::value<uint>()->default_value(500000)->notifier(bind(&OptionsContainer::parseValue<uint>, &options_container, "max-allele-length", placeholders::_1)), "exclude alleles (reference and alternative) longer than <length>.")
-				("copy-number-variant-threshold", po::value<double>()->default_value(0.5, "0.5")->notifier(bind(&OptionsContainer::parseValue<double>, &options_container, "copy-number-variant-threshold", placeholders::_1)), "minimum fraction of identical kmers required between an allele and the downstream reference sequence in order for it to be classified as a copy number.")
+				("copy-number-variant-threshold", po::value<float>()->default_value(0.5, "0.5")->notifier(bind(&OptionsContainer::parseValue<float>, &options_container, "copy-number-variant-threshold", placeholders::_1)), "minimum fraction of identical kmers required between an allele and the downstream reference sequence in order for it to be classified as a copy number.")
 				("max-number-of-sample-haplotype-candidates", po::value<ushort>()->default_value(16)->notifier(bind(&OptionsContainer::parseValue<ushort>, &options_container, "max-number-of-sample-haplotype-candidates", placeholders::_1)), "maximum number of haplotype candidates per sample.")
 			;
 
@@ -154,8 +155,8 @@ int main (int argc, char * const argv[]) {
 
 		    assert(options_container.getValue<uint>("min-number-of-unit-variants") > 0);
 
-		    assert(options_container.getValue<double>("copy-number-variant-threshold") >= 0);
-		    assert(options_container.getValue<double>("copy-number-variant-threshold") <= 1);
+		    assert(options_container.getValue<float>("copy-number-variant-threshold") >= 0);
+		    assert(options_container.getValue<float>("copy-number-variant-threshold") <= 1);
 		    assert(options_container.getValue<ushort>("max-number-of-sample-haplotype-candidates") > 0);
 		    assert((options_container.getValue<ushort>("max-number-of-sample-haplotype-candidates") * max_num_samples) < Utils::ushort_overflow);
 
@@ -166,18 +167,14 @@ int main (int argc, char * const argv[]) {
 			vector<Sample> samples;
 
 			ifstream samples_infile(options_container.getValue<string>("samples-file").c_str());
-			assert(samples_infile.is_open());
 
-			string sample_line;
+	        if (!samples_infile.is_open()) {
 
-			while (samples_infile.good()) {
+	            cerr << "\nERROR: Unable to open file " << options_container.getValue<string>("samples-file").c_str() << "\n" << endl;
+	            exit(1);
+	        }
 
-				getline(samples_infile, sample_line);
-
-				if (sample_line.size() == 0) {
-
-					continue;
-				}
+			for (string sample_line; getline(samples_infile, sample_line);) {
 
 				samples.emplace_back(sample_line);
 			}
@@ -186,13 +183,13 @@ int main (int argc, char * const argv[]) {
 
 		    if (samples.empty()) {
 
-				cout << "\nERROR: Samples file empty.\n" << endl;
+				cerr << "\nERROR: Samples file empty\n" << endl;
 				exit(1);    	
 		    }
 
 		    if (samples.size() > max_num_samples) {
 
-				cout << "\nERROR: The maximum number of samples supported by BayesTyper is currently " << max_num_samples << ".\n" << endl;
+				cerr << "\nERROR: The maximum number of samples supported by BayesTyper is currently " << max_num_samples << "\n" << endl;
 				exit(1);    	
 		    }
 
@@ -260,9 +257,9 @@ int main (int argc, char * const argv[]) {
 
 		   		boost::filesystem::path inference_unit_dir(output_prefix + "_unit_" + to_string(inference_unit.index));
 		  		
-		  		if (!(boost::filesystem::create_directory(inference_unit_dir))) {
+		  		if (!boost::filesystem::create_directory(inference_unit_dir)) {
 
-		  			cout << "\nERROR: Unit directory " << inference_unit_dir.string() << "/ already exist.\n" << endl;
+		  			cerr << "\nERROR: Unit directory " << inference_unit_dir.string() << "/ already exist\n" << endl;
 		  			exit(1);
 		  		}
 
@@ -270,7 +267,12 @@ int main (int argc, char * const argv[]) {
 
 				{
 					ofstream clusters_outfile(clusters_filename, ios::binary);
-				    assert(clusters_outfile.is_open());        
+
+				    if (!clusters_outfile.is_open()) {
+
+				        cerr << "\nERROR: Unable to write file " << clusters_filename << "\n" << endl;
+				        exit(1);
+				    }
 
 			  		boost::iostreams::filtering_ostream clusters_outfile_fstream;
 					
@@ -305,9 +307,9 @@ int main (int argc, char * const argv[]) {
 		    
 	   		boost::filesystem::path cluster_data_dir(output_prefix + "_cluster_data");
 	  		
-	  		if (!(boost::filesystem::create_directory(cluster_data_dir))) {
+	  		if (!boost::filesystem::create_directory(cluster_data_dir)) {
 
-	  			cout << "\nERROR: Cluster data directory " << cluster_data_dir.string() << "/ already exist.\n" << endl;
+	  			cerr << "\nERROR: Cluster data directory " << cluster_data_dir.string() << "/ already exist\n" << endl;
 	  			exit(1);
 	  		}
 
@@ -321,14 +323,15 @@ int main (int argc, char * const argv[]) {
 		    variant_file_parser.sortInterclusterRegions();
 		    variant_file_parser.writeInterclusterRegions(intercluster_regions_dir_prefix);
 
-    		cout << "[" << Utils::getLocalTime() << "] Wrote " << variant_file_parser.getInterclusterRegions().size() << " regions to " << intercluster_regions_dir_prefix << ".txt.gz" << endl;
+    		cout << "[" << Utils::getLocalTime() << "] Wrote " << variant_file_parser.getInterclusterRegions().size() << " regions to " << intercluster_regions_dir_prefix << ".txt.gz\n" << endl;
 
 
-	      	cout << endl;
+	      	const uint max_intercluster_kmers = 3 * max_parameter_kmers;
+	      	const float parameter_kmer_fraction = min(float(1), static_cast<float>(max_intercluster_kmers) / variant_file_parser.getNumberOfInterclusterRegionKmers());
 	
-    		BooleanKmerHash parameter_kmer_hash(ceil(variant_file_parser.getNumberOfInterclusterRegionKmers() / static_cast<float>(Utils::kmer_size * 2)) + chromosomes.getDecoyLength(), num_threads);
+    		BooleanKmerHash parameter_kmer_hash(max_intercluster_kmers + chromosomes.getDecoyLength(), num_threads);
 
-			kmer_counter.countInterclusterParameterKmers(&parameter_kmer_hash, variant_file_parser.getInterclusterRegions(), 1 / static_cast<float>(Utils::kmer_size * 2), chromosomes, path_kmer_bloom);
+			kmer_counter.countInterclusterParameterKmers(&parameter_kmer_hash, variant_file_parser.getInterclusterRegions(), chromosomes, path_kmer_bloom, parameter_kmer_fraction);
 
 		    parameter_kmer_hash.shuffle(options_container.getValue<uint>("random-seed"));
 
@@ -371,7 +374,7 @@ int main (int argc, char * const argv[]) {
 
 				("variant-clusters-file,v", po::value<string>()->required()->notifier(bind(&OptionsContainer::parseValue<string>, &options_container, "variant-clusters-file", placeholders::_1)), "variant_clusters.bin file (BayesTyper cluster output).")
 				("cluster-data-dir,c", po::value<string>()->required()->notifier(bind(&OptionsContainer::parseValue<string>, &options_container, "cluster-data-dir", placeholders::_1)), cluster_data_dir_option_help.c_str())
-			 	("samples-file,s", po::value<string>()->required()->notifier(bind(&OptionsContainer::parseValue<string>, &options_container, "samples-file", placeholders::_1)), "samples file.")
+			 	("samples-file,s", po::value<string>()->required()->notifier(bind(&OptionsContainer::parseValue<string>, &options_container, "samples-file", placeholders::_1)), "samples file (see github documentation for format specifications).")
 				("genome-file,g", po::value<string>()->required()->notifier(bind(&OptionsContainer::parseValue<string>, &options_container, "genome-file", placeholders::_1)), "reference genome file (fasta format).")
 			;
 
@@ -383,6 +386,7 @@ int main (int argc, char * const argv[]) {
 				("gzip-output,z", po::value<bool>()->default_value(false)->implicit_value(true)->notifier(bind(&OptionsContainer::parseValue<bool>, &options_container, "gzip-output", placeholders::_1)), "compress <output-prefix>.vcf using gzip.")
 		    	("random-seed,r", po::value<uint>()->default_value(time(nullptr), "unix time")->notifier(bind(&OptionsContainer::parseValue<uint>, &options_container, "random-seed", placeholders::_1)), "seed for pseudo-random number generator.")
 				("threads,p", po::value<ushort>()->default_value(1)->notifier(bind(&OptionsContainer::parseValue<ushort>, &options_container, "threads", placeholders::_1)), "number of threads used (+= 2 I/O threads).")
+				("chromosome-ploidy-file,y", po::value<string>()->default_value("")->notifier(bind(&OptionsContainer::parseValue<string>, &options_container, "chromosome-ploidy-file", placeholders::_1)), "chromosome gender ploidy file (see github documentation for format specifications). Human ploidy levels will be assumed if no file is given.")
 			;
 
 			po::options_description genotyping_parameters_options("== Genotyping parameters ==", 160);
@@ -393,7 +397,7 @@ int main (int argc, char * const argv[]) {
 				("number-of-gibbs-chains", po::value<ushort>()->default_value(20)->notifier(bind(&OptionsContainer::parseValue<ushort>, &options_container, "number-of-gibbs-chains", placeholders::_1)), "number of parallel Gibbs sampling chains.")
 				("kmer-subsampling-rate", po::value<float>()->default_value(0.1, "0.1")->notifier(bind(&OptionsContainer::parseValue<float>, &options_container, "kmer-subsampling-rate", placeholders::_1)), "subsampling rate for subsetting kmers used for genotype inference (a new subset is sampled for each Gibbs sampling chain).")
 				("max-haplotype-variant-kmers", po::value<uint>()->default_value(500)->notifier(bind(&OptionsContainer::parseValue<uint>, &options_container, "max-haplotype-variant-kmers", placeholders::_1)), "maximum number of kmers used for genotype inference after subsampling across a haplotype candidate for each variant (a new subset is sampled for each Gibbs sampling chain).")
-				("noise-rate-prior", po::value<string>()->default_value("1,1")->notifier(bind(&OptionsContainer::parseValuePair<double>, &options_container, "noise-rate-prior", placeholders::_1)), "parameters for Poisson noise rate gamma prior (<shape>,<scale>). All samples will use the same parameters.")
+				("noise-rate-prior", po::value<string>()->default_value("1,1")->notifier(bind(&OptionsContainer::parseValuePair<float>, &options_container, "noise-rate-prior", placeholders::_1)), "parameters for Poisson noise rate gamma prior (<shape>,<scale>). All samples will use the same parameters.")
 			;
 
 			po::options_description filter_parameters_options("== Filter parameters ==", 160);
@@ -425,8 +429,8 @@ int main (int argc, char * const argv[]) {
 		    assert(options_container.getValue<float>("kmer-subsampling-rate") > 0);
 		    assert(options_container.getValue<float>("kmer-subsampling-rate") <= 1);
 
-		    assert((options_container.getValue<pair<double,double> >("noise-rate-prior").first) > 0);
-		    assert((options_container.getValue<pair<double,double> >("noise-rate-prior").second) > 0);
+		    assert((options_container.getValue<pair<float,float> >("noise-rate-prior").first) > 0);
+		    assert((options_container.getValue<pair<float,float> >("noise-rate-prior").second) > 0);
 
 
 			cout << "[" << Utils::getLocalTime() << "] Seeding pseudo-random number generator with " << options_container.getValue<uint>("random-seed") << " ..." << endl;
@@ -435,18 +439,14 @@ int main (int argc, char * const argv[]) {
 			vector<Sample> samples;
 
 			ifstream samples_infile(options_container.getValue<string>("samples-file").c_str());
-			assert(samples_infile.is_open());
 
-			string sample_line;
+	        if (!samples_infile.is_open()) {
 
-			while (samples_infile.good()) {
+	            cerr << "\nERROR: Unable to open file " << options_container.getValue<string>("samples-file").c_str() << "\n" << endl;
+	            exit(1);
+	        }
 
-				getline(samples_infile, sample_line);
-
-				if (sample_line.size() == 0) {
-
-					continue;
-				}
+			for (string sample_line; getline(samples_infile, sample_line);) {
 
 				samples.emplace_back(sample_line);
 			}
@@ -455,13 +455,13 @@ int main (int argc, char * const argv[]) {
 
 		    if (samples.empty()) {
 
-				cout << "\nERROR: Samples file empty.\n" << endl;
+				cerr << "\nERROR: Samples file empty\n" << endl;
 				exit(1);    	
 		    }
 
 		    if (samples.size() > max_num_samples) {
 
-				cout << "\nERROR: The maximum number of samples supported by BayesTyper is currently " << max_num_samples << ".\n" << endl;
+				cerr << "\nERROR: The maximum number of samples supported by BayesTyper is currently " << max_num_samples << "\n" << endl;
 				exit(1);    	
 		    }
 
@@ -496,7 +496,12 @@ int main (int argc, char * const argv[]) {
 
 			{
 				std::ifstream clusters_infile(options_container.getValue<string>("variant-clusters-file"), std::ios::binary);
-				assert(clusters_infile.is_open());
+
+		        if (!clusters_infile.is_open()) {
+
+		            cerr << "\nERROR: Unable to open file " << options_container.getValue<string>("variant-clusters-file") << "\n" << endl;
+		            exit(1);
+		        }
 
 			  	boost::iostreams::filtering_istream clusters_infile_fstream;
 				
@@ -543,14 +548,19 @@ int main (int argc, char * const argv[]) {
 
 		    {
 			    ifstream kmers_infile(parameter_kmers_dir_prefix + ".fa.gz", std::ios::binary);
-			    assert(kmers_infile.is_open());
+
+		        if (!kmers_infile.is_open()) {
+
+		            cerr << "\nERROR: Unable to open file " << parameter_kmers_dir_prefix + ".fa.gz" << "\n" << endl;
+		            exit(1);
+		        }
 
 				boost::iostreams::filtering_istream kmers_infile_fstream;
 				
 				kmers_infile_fstream.push(boost::iostreams::gzip_decompressor());
 		    	kmers_infile_fstream.push(boost::ref(kmers_infile));
 
-    			assert(kmers_infile_fstream.is_complete());    
+    			assert(kmers_infile_fstream.is_complete());   
 
 			    string parameter_kmer_str;
 			    getline(kmers_infile_fstream, parameter_kmer_str);
@@ -585,8 +595,10 @@ int main (int argc, char * const argv[]) {
 
 	      	cout << "\n" << endl;
 
+	      	auto chrom_ploidy = ChromosomePloidy(options_container.getValue<string>("chromosome-ploidy-file"), chromosomes, samples);
+
 		    kmer_counter.countPathKmers(path_kmer_bloom, &inference_unit);
-	    	kmer_counter.countInterclusterKmers(kmer_hash, path_kmer_bloom, intercluster_regions_dir_prefix, chromosomes);
+	    	kmer_counter.countInterclusterKmers(kmer_hash, path_kmer_bloom, intercluster_regions_dir_prefix, chromosomes, chrom_ploidy);
 
 	    	cout << endl;
 	      	kmer_counter.parseSampleKmers(kmer_hash, path_kmer_bloom);
@@ -596,7 +608,7 @@ int main (int argc, char * const argv[]) {
 			cout << endl;	
 			kmer_counter.classifyPathKmers(kmer_hash, &inference_unit, multigroup_kmers_dir_prefix);
 			
-			auto intercluster_kmer_stats = kmer_hash->calculateKmerStats(samples.size(), 1);
+			auto intercluster_kmer_stats = kmer_hash->calculateKmerStats(samples);
 
 			cout << "\n[" << Utils::getLocalTime() << "] " << Utils::getMaxMemoryUsage() << endl;
 	      	
@@ -611,7 +623,7 @@ int main (int argc, char * const argv[]) {
 
 	      	cout << "\n" << endl;
 
-			InferenceEngine inference_engine(samples, options_container);
+			InferenceEngine inference_engine(samples, chrom_ploidy, options_container);
 			inference_engine.estimateNoiseParameters(&count_distribution, &inference_unit, kmer_hash, output_prefix + "_noise_parameters");	
 
 			cout << "\n[" << Utils::getLocalTime() << "] " << Utils::getMaxMemoryUsage() << endl;

@@ -50,7 +50,14 @@ int main(int argc, char const *argv[]) {
 
 
     VcfFileReader in_vcf(argv[1], true);
+    
     ofstream indels_outfile(string(argv[2]) + ".fa");
+
+    if (!indels_outfile.is_open()) {
+
+        cerr << "\nERROR: Unable to write file " << string(argv[2]) + ".fa" << "\n" << endl;
+        exit(1);
+    }
 
     const uint min_indel_length = stoi(argv[3]); 
 

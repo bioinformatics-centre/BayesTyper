@@ -58,8 +58,8 @@ pair<string, string> getAllelePair(Variant & variant, const uint allele_idx) {
 
     Auxiliaries::rightTrimAllelePair(&ref_allele, &allele);
 
-    assert(!(ref_allele.seq().empty()));
-    assert(!(allele.seq().empty()));
+    assert(!ref_allele.seq().empty());
+    assert(!allele.seq().empty());
 
     return make_pair(ref_allele.seq(), allele.seq());
 }
@@ -85,16 +85,16 @@ vector<vector<AltAlleleInfo> > getHaplotypesAlleleInfo(vector<Variant *> & varia
 
         for (uint genotyped_allele_idx = 0; genotyped_allele_idx < sample.genotypeEstimate().size(); genotyped_allele_idx++) {
 
-        	if ((sample.genotypeEstimate().at(genotyped_allele_idx) > 0) and !(variant->allele(sample.genotypeEstimate().at(genotyped_allele_idx)).isMissing())) {
+        	if ((sample.genotypeEstimate().at(genotyped_allele_idx) > 0) and !variant->allele(sample.genotypeEstimate().at(genotyped_allele_idx)).isMissing()) {
 
 				Allele ref_allele = variant->ref();
 				Allele alt_allele = variant->allele(sample.genotypeEstimate().at(genotyped_allele_idx));
 
 			    auto pos_shift = Auxiliaries::fullTrimAllelePair(&ref_allele, &alt_allele);
 
-			    assert(!(ref_allele.seq().empty()) or !(alt_allele.seq().empty()));
+			    assert(!ref_allele.seq().empty() or !alt_allele.seq().empty());
 
-	        	if (!(haplotype_allele_info.at(genotyped_allele_idx).empty())) {
+	        	if (!haplotype_allele_info.at(genotyped_allele_idx).empty()) {
 
 	        		assert((haplotype_allele_info.at(genotyped_allele_idx).back().pos + haplotype_allele_info.at(genotyped_allele_idx).back().ref_len) <= (variant->pos() + pos_shift.first));
 	        	}
@@ -294,7 +294,7 @@ void addGenotypeConcordance(Variant * gt_variant, Variant * cs_variant, const st
     		gt_sample->info().setValue<string>("GTCO", genotype_concordance);
     	}
 
-		assert(!(cs_sample->info().getValue<string>("GTCO").second));
+		assert(!cs_sample->info().getValue<string>("GTCO").second);
 		cs_sample->info().setValue<string>("GTCO", genotype_concordance);
 
 	} else {
@@ -442,7 +442,7 @@ int main(int argc, char const *argv[]) {
 
     cout << "\n[" << Utils::getLocalTime() << "] Running BayesTyperTools (" << BT_VERSION << ") addEditDistanceAndCondordance script ...\n" << endl;
 
-    cout << "[" << Utils::getLocalTime() << "] WARNING: edit distance calculation is currently disabled!\n" << endl;
+    cout << "\nWARNING: edit distance calculation is currently disabled\n" << endl;
 
 	GenotypedVcfFileReader gt_vcf_reader(argv[1], true);
 	GenotypedVcfFileReader cs_vcf_reader(argv[2], true);
@@ -488,7 +488,7 @@ int main(int argc, char const *argv[]) {
 
 		while (gt_cur_var) {
 
-			assert(!(gt_cur_var->ref().seq().empty()));
+			assert(!gt_cur_var->ref().seq().empty());
 
 			if (gt_cur_var->chrom() != contig.id()) {
 
@@ -497,7 +497,7 @@ int main(int argc, char const *argv[]) {
 
 			while (cs_cur_var) {
 
-				assert(!(cs_cur_var->ref().seq().empty()));
+				assert(!cs_cur_var->ref().seq().empty());
 
 				if (cs_cur_var->chrom() != contig.id()) { 
 
@@ -549,7 +549,7 @@ int main(int argc, char const *argv[]) {
 
 		while (cs_cur_var) {
 
-			assert(!(cs_cur_var->ref().seq().empty()));
+			assert(!cs_cur_var->ref().seq().empty());
 
 			if (cs_cur_var->chrom() != contig.id()) {
 
@@ -585,8 +585,8 @@ int main(int argc, char const *argv[]) {
 	assert(!cs_cur_var);
 	assert(!gt_cur_var);
 
-	assert(!(cs_vcf_reader.getNextVariant(&cs_cur_var)));
-	assert(!(gt_vcf_reader.getNextVariant(&gt_cur_var)));
+	assert(!cs_vcf_reader.getNextVariant(&cs_cur_var));
+	assert(!gt_vcf_reader.getNextVariant(&gt_cur_var));
 
 	cout << "\n[" << Utils::getLocalTime() << "] Added MED and GTCO to genotypes on " << num_gt_variants << " ground truth variants." << endl;
 	cout << "[" << Utils::getLocalTime() << "] Added MED and GTCO to genotypes on " << num_cs_variants << " callset variants." << endl;

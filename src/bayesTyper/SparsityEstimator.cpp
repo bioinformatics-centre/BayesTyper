@@ -30,6 +30,7 @@ THE SOFTWARE.
 #include <unordered_set>
 
 #include "SparsityEstimator.hpp"
+#include "DiscreteSampler.hpp"
 
 
 SparsityEstimator::SparsityEstimator(const uint prng_seed) {
@@ -37,51 +38,41 @@ SparsityEstimator::SparsityEstimator(const uint prng_seed) {
     prng = mt19937(prng_seed);
 }
 
-uint SparsityEstimator::estimateMinimumSetCover(Utils::MatrixXuchar const & data_element_map, Utils::RowVectorXbool * non_zero_counts) {
+unordered_set<ushort> SparsityEstimator::estimateMinimumColumnCover(const Utils::MatrixXuchar & data_matrix, Utils::RowVectorXbool * uncovered_rows) {
+
+    assert(data_matrix.cols() < Utils::ushort_overflow);    
+    assert(data_matrix.rows() == uncovered_rows->size());
+
+    unordered_set<ushort> min_column_cover;
+
+    while (uncovered_rows->sum() > 0) {
+        
+        Utils::RowVectorXuint column_row_cover = (*uncovered_rows).cast<uint>() * data_matrix.cast<uint>();
+        assert(column_row_cover.size() == data_matrix.cols());
+
+        uint max_row_cover = column_row_cover.maxCoeff();
+        assert(max_row_cover > 0);
     
-    assert(data_element_map.rows() == non_zero_counts->size());
-    assert(in_minimum_set.empty());
+        DiscreteSampler column_sampler(column_row_cover.size());
 
-    in_minimum_set = std::vector<bool>(data_element_map.cols(), false);
-    uint minimum_set_size = 0;
-
-    Utils::MatrixXbool binary_data_element_map((data_element_map.array() > 0).matrix().cast<bool>());
-
-    while (non_zero_counts->sum() > 0) {
+        vector<ushort> max_row_cover_column_indices;
+        max_row_cover_column_indices.reserve(column_row_cover.size());
         
-        Utils::ColVectorXbool covered_data(*non_zero_counts * binary_data_element_map);
-
-        uint max_val = covered_data.maxCoeff();
-        assert(max_val > 0);
-        
-        vector<uint> max_indices;
-        max_indices.reserve(covered_data.size());
-        
-        for (uint i = 0; i < covered_data.size(); i++) {
+        for (ushort column_idx = 0; column_idx < column_row_cover.size(); column_idx++) {
             
-            if (max_val == covered_data[i]) {
+            if (column_row_cover[column_idx] == max_row_cover) {
                 
-                max_indices.push_back(i);
+                column_sampler.addOutcome(1);
+                max_row_cover_column_indices.push_back(column_idx);
             }
         }
         	
-        uniform_int_dist.param(uniform_int_distribution<>::param_type(0, max_indices.size()-1));
-        uint max_pos = max_indices.at(uniform_int_dist(prng));
-        
-        assert(!in_minimum_set.at(max_pos));
+        const ushort sampled_column_idx = max_row_cover_column_indices.at(column_sampler.sample(&prng)); 
+        assert(min_column_cover.insert(sampled_column_idx).second);
 
-        in_minimum_set.at(max_pos) = true;
-        minimum_set_size++;
-
-        *non_zero_counts = (non_zero_counts->array() - non_zero_counts->array() * binary_data_element_map.col(max_pos).transpose().array()).matrix();
+        *uncovered_rows = *uncovered_rows - (uncovered_rows->array() * (data_matrix.col(sampled_column_idx).transpose().cast<bool>().array())).matrix();
     }
 
-    return minimum_set_size;
-}
-
-
-vector<bool> & SparsityEstimator::getMinimumSet() {
-
-    return in_minimum_set;
+    return min_column_cover;
 }
 

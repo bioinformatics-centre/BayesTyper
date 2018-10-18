@@ -75,15 +75,15 @@ int main(int argc, char const *argv[]) {
 
 		for (uint alt_allele_idx = 0; alt_allele_idx < cur_var->numAlts(); alt_allele_idx++) {
 
-        	if (!(cur_var->alt(alt_allele_idx).isMissing())) {
+        	if (!cur_var->alt(alt_allele_idx).isMissing()) {
 
 	        	Allele ref_allele = cur_var->ref();
 	        	Allele alt_allele = cur_var->alt(alt_allele_idx);
 
 	            Auxiliaries::rightTrimAllelePair(&ref_allele, &alt_allele);
 
-	            assert(!(ref_allele.seq().empty()));
-	            assert(!(alt_allele.seq().empty()));
+	            assert(!ref_allele.seq().empty());
+	            assert(!alt_allele.seq().empty());
 
 	            allele_ref_lengths.at(alt_allele_idx + 1) = ref_allele.seq().size();
         	}

@@ -118,12 +118,18 @@ int main(int argc, char const *argv[]) {
 
 	HapTranIdx haplotype_transmission_idx;
 	ifstream hap_tran_file(argv[2]);
-	assert(hap_tran_file.is_open());
+
+    if (!hap_tran_file.is_open()) {
+
+        cerr << "\nERROR: Unable to open file " << argv[2] << "\n" << endl;
+        exit(1);
+    }
+
 	unordered_map<string,uint> sampleId_to_hap_idx;
-	string hap_tran_line;
 
 	uint num_parsed_intervals = 0;
-	while (std::getline(hap_tran_file, hap_tran_line)) {
+
+	for (std::string hap_tran_line; std::getline(hap_tran_file, hap_tran_line);) {
 
 		auto hap_tran_line_split = Utils::splitString(hap_tran_line, '\t');
 

@@ -65,7 +65,7 @@ namespace ConvertAllele {
 
         unordered_map<string, pair<FastaRecord*, FastaRecord*> > mei_seqs;
 
-        if (!(mei_file.empty())) {
+        if (!mei_file.empty()) {
 
             FastaReader mei_reader(mei_file);
 
@@ -218,7 +218,7 @@ namespace ConvertAllele {
                             }
                         } 
 
-                        if (cnv_multiplicities.empty() or (end_variant_seq.empty())) {
+                        if (cnv_multiplicities.empty() or end_variant_seq.empty()) {
 
                             is_excluded = true;
                             excluded_alt_indices.push_back(alt_allele_idx);
@@ -410,7 +410,7 @@ namespace ConvertAllele {
                     }
                 }
 
-                assert(!(allele_type.empty()));
+                assert(!allele_type.empty());
 
                 if (is_excluded) {
                     
@@ -429,7 +429,7 @@ namespace ConvertAllele {
             assert(cur_var->numAlts() > 0);
             assert(cur_var->numAlts() >= excluded_alt_indices.size());
 
-            if (!(excluded_alt_indices.empty())) {
+            if (!excluded_alt_indices.empty()) {
 
                 cur_var->removeAlts(excluded_alt_indices);
             }

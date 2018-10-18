@@ -65,12 +65,12 @@ class VariantFileParser {
 		struct InterClusterRegion {
 
 			string chrom_name;
-			Utils::ChromClass chrom_class;
+			bool is_decoy;
 
-			uint start;
-			uint end;
+			uint start_position;
+			uint end_position;
 
-			InterClusterRegion(const string & chrom_name_in, const Utils::ChromClass & chrom_class_in, const uint start_in, const uint end_in) : chrom_name(chrom_name_in), chrom_class(chrom_class_in), start(start_in), end(end_in) {}
+			InterClusterRegion(const string & chrom_name_in, const bool is_decoy_in, const uint start_position_in, const uint end_position_in) : chrom_name(chrom_name_in), is_decoy(is_decoy_in), start_position(start_position_in), end_position(end_position_in) {}
 		};
 
 		string getVariantStatsString(const uint);
@@ -88,7 +88,7 @@ class VariantFileParser {
 
 		const ushort num_threads;
 		const uint max_allele_length;
-		const double copy_number_variant_threshold;
+		const float copy_number_variant_threshold;
 
 		enum class AlleleCount : uchar {Total = 0, Excluded_decoy, Excluded_genome, Excluded_match, Excluded_end, Excluded_length, ALLELE_COUNT_SIZE};
 
@@ -118,9 +118,9 @@ class VariantFileParser {
 	    vector<string> variant_line;
 
 		void openVariantFile(const string &);
-		void updateVariantLine();
+		bool updateVariantLine();
 
-		void addSequenceToInterclusterRegions(const string &, const Utils::ChromClass &, const uint, const uint);
+		void addSequenceToInterclusterRegions(const string &, const bool, const uint, const uint);
 
 		void parseVariants(ProducerConsumerQueue<vector<unordered_map<uint, VariantCluster*> * > * > *, const uint, const Chromosomes &);
 
@@ -131,7 +131,7 @@ class VariantFileParser {
 		VariantCluster::VariantType classifyAllele(const int, const int);		
 
 		uint copyNumberVariantLength(const string &, const string &, const uint);
-		void clusterVariants(VariantCluster::Variant &, const uint, const set<uint>, const string &, const Utils::ChromClass &, map<uint, VariantCluster*> *, unordered_map<uint, VariantCluster*> *, list<unordered_set<uint> > *);
+		void clusterVariants(VariantCluster::Variant &, const uint, const set<uint>, const string &, map<uint, VariantCluster*> *, unordered_map<uint, VariantCluster*> *, list<unordered_set<uint> > *);
 		
 		void processVariantClusterGroups(ProducerConsumerQueue<vector<unordered_map<uint, VariantCluster*> * > * > *, vector<unordered_map<uint, VariantCluster*> * > **, uint *, unordered_map<uint, VariantCluster*> **, list<unordered_set<uint> > *, map<uint, VariantCluster*> *);
 		void mergeVariantClusters(unordered_map<uint, VariantCluster*> *, list<unordered_set<uint> > &);

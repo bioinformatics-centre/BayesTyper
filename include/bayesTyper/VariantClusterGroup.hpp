@@ -77,14 +77,13 @@ class VariantClusterGroup {
 		};
 
 		string chrom_name;
-		Utils::ChromClass chrom_class;
 
 		uint start_position;
 		uint end_position;
 
 		uint num_variants;
 		
-		bool is_snv;
+		bool is_parameter_cluster;
 
 		vector<VariantClusterVertex> vertices;
 		vector<vector<uint> > out_edges; 
@@ -96,11 +95,10 @@ class VariantClusterGroup {
     	void serialize(Archive & ar, const unsigned int version) {
 
     		ar & chrom_name;
-    		ar & chrom_class;
     		ar & start_position;
     		ar & end_position;
     		ar & num_variants;
-    		ar & is_snv;
+    		ar & is_parameter_cluster;
     		ar & vertices;
     		ar & out_edges;
     		ar & source_vertices;
@@ -125,7 +123,7 @@ class VariantClusterGroup {
 		void countPathKmers(unordered_set<bitset<Utils::kmer_size * 2> > *);
 		void classifyPathKmers(KmerCountsHash *, KmerBloom<Utils::kmer_size> *);
 
-		bool isAutosomalSimpleSNV() const;
+		bool isSimpleParameterCluster() const;
 
 		void initGenotyper(KmerCountsHash *, const vector<Sample> &, const uint, const uchar, const float, const uint);
 

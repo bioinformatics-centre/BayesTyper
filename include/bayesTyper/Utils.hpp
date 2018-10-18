@@ -58,10 +58,9 @@ namespace Utils {
 
     static const uint kmer_size = BT_KMER_SIZE;
 
-    typedef Eigen::Matrix<uchar,Eigen::Dynamic,Eigen::Dynamic, Eigen::RowMajor> MatrixXuchar;
-    typedef Eigen::Matrix<bool,Eigen::Dynamic,Eigen::Dynamic> MatrixXbool;
+    typedef Eigen::Matrix<uchar,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor> MatrixXuchar;
     typedef Eigen::Matrix<bool,1,Eigen::Dynamic,Eigen::RowMajor> RowVectorXbool;
-    typedef Eigen::Matrix<bool,Eigen::Dynamic,1> ColVectorXbool;
+    typedef Eigen::Matrix<uint,1,Eigen::Dynamic,Eigen::RowMajor> RowVectorXuint;
 
     static const double double_precision = numeric_limits<double>::epsilon();
     static const float float_precision = numeric_limits<float>::epsilon();
@@ -75,9 +74,8 @@ namespace Utils {
 
     static const ushort queue_size_thread_scaling = 2;
 
-    enum class ChromClass : uchar {Autosomal = 0, X, Y, Decoy, CHROM_CLASS_SIZE};
     enum class Ploidy : uchar {Null = 0, Haploid, Diploid, PLOIDY_SIZE};
-    enum class Gender : uchar {Male = 0, Female, GENDER_SIZE};
+    enum class Gender : uchar {Female = 0, Male, GENDER_SIZE};
 
 
     inline bool doubleCompare(const double a, const double b) {

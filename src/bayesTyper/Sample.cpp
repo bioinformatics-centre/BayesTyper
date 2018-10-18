@@ -37,46 +37,34 @@ THE SOFTWARE.
 
 Sample::Sample(const string & sample_line) {
 
-    vector<string> split_sample_line;
-    boost::split(split_sample_line, sample_line, boost::is_any_of("\t"));
-    assert(split_sample_line.size() == 3);
+    vector<string> sample_line_split;
+    boost::split(sample_line_split, sample_line, boost::is_any_of("\t"));
 
-    name = split_sample_line.at(0);
+    if (sample_line_split.size() != 3) {
 
-    if (split_sample_line.at(1) == "M") {
+        cerr << "\nERROR: Line \"" << sample_line << "\" in the samples file should contain three tab-seperated columns (<Sample ID>, <Gender> & <KMC Output Prefix>)\n" << endl;
+        exit(1);
+    }
 
-        gender = Utils::Gender::Male;
+    name = sample_line_split.at(0);
+
+    if ((sample_line_split.at(1) == "F") or (sample_line_split.at(1) == "Female")) {
+
+        gender = Utils::Gender::Female;
 
     } else {
 
-        assert(split_sample_line.at(1) == "F");
-        gender = Utils::Gender::Female;
+        if ((sample_line_split.at(1) != "M") and (sample_line_split.at(1) != "Male")) {
+
+            cerr << "\nERROR: Gender (column two) in line \"" << sample_line << "\" in the samples file should be either \"F\" (Female) or \"M\" (Male)\n" << endl;
+            exit(1);
+        }
+
+        gender = Utils::Gender::Male;
     }
 
-    file = split_sample_line.at(2);
-
-    ifstream kmer_prefix_infile(file + ".kmc_pre");
-    ifstream kmer_suffix_infile(file + ".kmc_suf");
-
-    if (!kmer_prefix_infile.good() or !kmer_suffix_infile.good()) {
-
-        cout << "\nERROR: " << file << ".kmc_pre or " << file << ".kmc_suf does not exist - or you do not have sufficient permissions.\n" << endl;
-        exit(1);
-    }
-
-    kmer_prefix_infile.close();
-    kmer_suffix_infile.close();
-
-    ifstream bloom_data_infile(file + ".bloomData");
-    ifstream bloom_meta_infile(file + ".bloomMeta");
-
-    if (!bloom_data_infile.good() or !bloom_meta_infile.good()) {
-
-        cout << "\nERROR: " << file << ".bloomData or " << file << ".bloomMeta does not exist - or you do not have sufficient permissions.\n" << endl;
-        exit(1);
-    }
-
-    bloom_data_infile.close();
-    bloom_meta_infile.close();
-
+    file = sample_line_split.at(2);
 }
+
+
+

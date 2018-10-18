@@ -55,7 +55,7 @@ Contig::Contig(const vector<string> & contig_info_line) {
         }
     }
 
-    assert(!(_id.empty()));
+    assert(!_id.empty());
     assert(_length > 0);
 
     string id_copy = _id; 
@@ -69,13 +69,13 @@ Contig::Contig(const vector<string> & contig_info_line) {
         }
     }
 
-    assert(!(id_copy.empty()));
+    assert(!id_copy.empty());
 
     bool is_pure_digit = true;
 
     for (auto &symbol: id_copy) {
 
-        if (!(isdigit(symbol))) {
+        if (!isdigit(symbol)) {
 
             is_pure_digit = false;
         }

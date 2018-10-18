@@ -67,10 +67,9 @@ namespace Utils {
   vector<string> splitString(const string & str, const char delim) {
 
       stringstream ss(str);
-      string item;
       vector<string> elems;
 
-      while (getline(ss, item, delim)) {
+      for (string item; getline(ss, item, delim);) {
 
           elems.push_back(item);
       }
@@ -81,10 +80,9 @@ namespace Utils {
   vector<string> splitStringEmptyIgnore(const string & str, const char delim) {
 
       stringstream ss(str);
-      string item;
       vector<string> elems;
 
-      while (getline(ss, item, delim)) {
+      for (string item; getline(ss, item, delim);) {
 
           if (!item.empty()) {
 
@@ -100,11 +98,10 @@ namespace Utils {
       assert(max_elems > 1);
 
       stringstream ss(str);
-      string item;
       vector<string> elems;
       elems.reserve(max_elems);
 
-      while (getline(ss, item, delim)) {
+      for (string item; getline(ss, item, delim);) {
 
           elems.push_back(item);
 

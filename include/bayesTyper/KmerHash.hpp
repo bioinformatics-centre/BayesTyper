@@ -82,7 +82,7 @@ class KmerCountsHash {
         virtual void sortKmers() = 0;
 
         virtual void writeRootSizeDistribution(const string &) = 0;
-        virtual vector<vector<KmerStats> > calculateKmerStats(const ushort, const uchar) = 0;
+        virtual vector<vector<vector<KmerStats> > > calculateKmerStats(const vector<Sample> &) = 0;
 };
 
 template<uchar sample_bin>
@@ -103,7 +103,7 @@ class ObservedKmerCountsHash : public KmerCountsHash {
         void sortKmers();
 
         void writeRootSizeDistribution(const string &);
-        vector<vector<KmerStats> > calculateKmerStats(const ushort, const uchar);
+        vector<vector<vector<KmerStats> > > calculateKmerStats(const vector<Sample> &);
 };
 
 #endif

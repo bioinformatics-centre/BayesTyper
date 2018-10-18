@@ -31,22 +31,26 @@ THE SOFTWARE.
 #define __bayesTyper__ChromosomePloidy_hpp
 
 #include <vector>
+#include <string>
+#include <unordered_map>
 
 #include "Utils.hpp"
 #include "Sample.hpp"
+#include "Chromosomes.hpp"
 
 class ChromosomePloidy {
 
 	public:
 
-		ChromosomePloidy(const vector<Sample> &);
-		const vector<Utils::Ploidy> & getPloidy(const Utils::ChromClass) const;
+		ChromosomePloidy(const string &, const Chromosomes &, const vector<Sample> &);
+
+		const vector<Utils::Ploidy> & getGenderPloidy(const string &) const;		
+		const vector<Utils::Ploidy> & getSamplePloidy(const string &) const;
 
 	private:
 
-		vector<Utils::Ploidy> autosomal;
-		vector<Utils::Ploidy> chrX;
-		vector<Utils::Ploidy> chrY;
+		unordered_map<string, vector<Utils::Ploidy> > gender_ploidy;
+		unordered_map<string, vector<Utils::Ploidy> > sample_ploidy;
 };
 
 #endif

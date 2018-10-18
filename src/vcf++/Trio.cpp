@@ -39,8 +39,8 @@ Trio::Trio(Variant & cur_var, const TrioInfo & trio_info) {
     mother = cur_var.getSample(trio_info.mother);
     child = cur_var.getSample(trio_info.child);
 
-    is_filtered = ((father.callStatus() != Sample::CallStatus::Complete) or (mother.callStatus() != Sample::CallStatus::Complete) or (child.callStatus() != Sample::CallStatus::Complete));
-    is_diploid = ((father.ploidy() == Sample::Ploidy::Diploid) and (mother.ploidy() == Sample::Ploidy::Diploid) and (child.ploidy() == Sample::Ploidy::Diploid));
+    is_filtered = (father.callStatus() != Sample::CallStatus::Complete) or (mother.callStatus() != Sample::CallStatus::Complete) or (child.callStatus() != Sample::CallStatus::Complete);
+    is_diploid = (father.ploidy() == Sample::Ploidy::Diploid) and (mother.ploidy() == Sample::Ploidy::Diploid) and (child.ploidy() == Sample::Ploidy::Diploid);
 
     assert((father.ploidy() != Sample::Ploidy::Zeroploid) or (mother.ploidy() != Sample::Ploidy::Zeroploid) or (child.ploidy() != Sample::Ploidy::Zeroploid));
 
@@ -63,16 +63,16 @@ Trio::Trio(Variant & cur_var, const TrioInfo & trio_info) {
 
         if (child.ploidy() != Sample::Ploidy::Zeroploid) {
 
-            assert(!(child_genotype.empty()));
+            assert(!child_genotype.empty());
 
-            first_child_allele_in_father = (find(father_genotype.begin(), father_genotype.end(), child_genotype.front()) != father_genotype.end());
-            second_child_allele_in_father = (find(father_genotype.begin(), father_genotype.end(), child_genotype.back()) != father_genotype.end());
-            first_child_allele_in_mother = (find(mother_genotype.begin(), mother_genotype.end(), child_genotype.front()) != mother_genotype.end());
-            second_child_allele_in_mother = (find(mother_genotype.begin(), mother_genotype.end(), child_genotype.back()) != mother_genotype.end());
+            first_child_allele_in_father = find(father_genotype.begin(), father_genotype.end(), child_genotype.front()) != father_genotype.end();
+            second_child_allele_in_father = find(father_genotype.begin(), father_genotype.end(), child_genotype.back()) != father_genotype.end();
+            first_child_allele_in_mother = find(mother_genotype.begin(), mother_genotype.end(), child_genotype.front()) != mother_genotype.end();
+            second_child_allele_in_mother = find(mother_genotype.begin(), mother_genotype.end(), child_genotype.back()) != mother_genotype.end();
 
-            is_concordant = ((first_child_allele_in_father and second_child_allele_in_mother) or (second_child_allele_in_father and first_child_allele_in_mother));
+            is_concordant = (first_child_allele_in_father and second_child_allele_in_mother) or (second_child_allele_in_father and first_child_allele_in_mother);
 
-            if ((cur_var.numAlls() == 2) and !(father_genotype.empty()) and !(father_genotype.empty())) {
+            if ((cur_var.numAlls() == 2) and !father_genotype.empty() and !father_genotype.empty()) {
 
                 if ((father_genotype.front() != father_genotype.back()) and (mother_genotype.front() != mother_genotype.back())) {
 
@@ -94,7 +94,7 @@ Trio::Trio(Variant & cur_var, const TrioInfo & trio_info) {
 
         } else {
 
-            assert(!(child_genotype.empty()));
+            assert(!child_genotype.empty());
 
             if (child_genotype.front() == child_genotype.back()) {
 
@@ -108,8 +108,8 @@ Trio::Trio(Variant & cur_var, const TrioInfo & trio_info) {
 
         } else {
 
-            assert(!(father_genotype.empty()));
-            assert(!(mother_genotype.empty()));
+            assert(!father_genotype.empty());
+            assert(!mother_genotype.empty());
 
             if ((father_genotype.front() != father_genotype.back()) or (mother_genotype.front() != mother_genotype.back())) {
 
@@ -241,7 +241,7 @@ vector<Trio::TrioInfo> Trio::parsePedigree(const VcfMetaData & meta_data, const 
 
     vector<TrioInfo> trios;
 
-    assert(!(trio_info_str.empty()));
+    assert(!trio_info_str.empty());
     auto trio_info_str_split = Utils::splitString(trio_info_str, ':');
 
     uint suffix_length = 2;

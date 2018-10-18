@@ -44,15 +44,27 @@ void VcfFile::checkChromosomeAndPositionOrder(const string & cur_var_chrom, cons
 
   if (is_sorted) {
 
-    assert(meta_data.getContig(cur_var_chrom).length() >= cur_var_pos);
+    if (meta_data.getContig(cur_var_chrom).length() < cur_var_pos) {
+
+      cerr << "\nERROR: Variant position \"" << cur_var_pos << "\" is larger than the length specified in the header for contig \"" << cur_var_chrom << "\"\n" << endl;
+      exit(1);
+    }
 
     if (cur_var_chrom == current_chromosome) {
 
-      assert(cur_var_pos >= current_position);
+      if (cur_var_pos < current_position) {
 
-    } else if (!(current_chromosome.empty())) {
+        cerr << "\nERROR: Variants need to be sorted by position; \"" << current_position << "\" is before \"" << cur_var_pos << "\" on contig \"" << cur_var_chrom << "\"\n" << endl;
+        exit(1);
+      }
 
-      assert(meta_data.getContigIndex(current_chromosome) < meta_data.getContigIndex(cur_var_chrom));
+    } else if (!current_chromosome.empty()) {
+
+      if (meta_data.getContigIndex(current_chromosome) >= meta_data.getContigIndex(cur_var_chrom)) {
+
+        cerr << "\nERROR: Contigs should be sorted in the same order as they appear in the header\n" << endl;
+        exit(1);
+      }
     }
 
     current_chromosome = cur_var_chrom;
@@ -68,7 +80,7 @@ VcfMetaData & VcfFile::metaData() {
 
 VcfFileReaderBase::VcfFileReaderBase(string vcf_filename, const bool is_sorted_in) : VcfFile(is_sorted_in) {
 
-  assert(!(vcf_infile.is_open()));
+  assert(!vcf_infile.is_open());
   assert(vcf_infile_fstream.empty());
   
   if (vcf_filename.substr(vcf_filename.size() - 7, 7) == ".vcf.gz") {
@@ -82,8 +94,12 @@ VcfFileReaderBase::VcfFileReaderBase(string vcf_filename, const bool is_sorted_i
       vcf_infile.open(vcf_filename);
   }
 
-  assert(vcf_infile.is_open());
-  
+  if (!vcf_infile.is_open()) {
+
+      cerr << "\nERROR: Unable to open file " << vcf_filename << "\n" << endl;
+      exit(1);
+  }
+      
   vcf_infile_fstream.push(boost::ref(vcf_infile));
   assert(vcf_infile_fstream.is_complete());   
 
@@ -94,9 +110,8 @@ VcfFileReaderBase::VcfFileReaderBase(string vcf_filename, const bool is_sorted_i
 VcfFileReader::VcfFileReader(string vcf_filename, const bool is_sorted_in) : VcfFileReaderBase(vcf_filename, is_sorted_in) {
 
   // Forward file to first variant line
-  string cur_meta_line;
 
-  while (std::getline(vcf_infile_fstream, cur_meta_line)) {
+  for (string cur_meta_line; getline(vcf_infile_fstream, cur_meta_line);) {
 
 	  if (cur_meta_line.front() == '#') {
 
@@ -162,9 +177,8 @@ bool VcfFileReader::getNextVariant(Variant ** variant) {
 GenotypedVcfFileReader::GenotypedVcfFileReader(string vcf_filename, const bool is_sorted_in) : VcfFileReaderBase(vcf_filename, is_sorted_in) {
 
     // Forward file to first variant line
-    string cur_meta_line;
 
-    while (std::getline(vcf_infile_fstream, cur_meta_line)) {
+    for (string cur_meta_line; getline(vcf_infile_fstream, cur_meta_line);) {
 
       if (meta_data.addLine(cur_meta_line)) {
 
@@ -218,7 +232,7 @@ bool GenotypedVcfFileReader::getNextVariant(Variant ** variant) {
 
 VcfFileWriter::VcfFileWriter(string vcf_filename, const VcfMetaData & meta_data_in, const bool is_sorted_in) : VcfFile(is_sorted_in) {
 
-  assert(!(vcf_outfile.is_open()));
+  assert(!vcf_outfile.is_open());
   assert(vcf_outfile_fstream.empty());
   
   if (vcf_filename.substr(vcf_filename.size() - 7, 7) == ".vcf.gz") {
@@ -232,8 +246,12 @@ VcfFileWriter::VcfFileWriter(string vcf_filename, const VcfMetaData & meta_data_
       vcf_outfile.open(vcf_filename);  
   }
 
-  assert(vcf_outfile.is_open());
-  
+  if (!vcf_outfile.is_open()) {
+
+      cerr << "\nERROR: Unable to write file " << vcf_filename << "\n" << endl;
+      exit(1);
+  }
+      
   vcf_outfile_fstream.push(boost::ref(vcf_outfile));
   assert(vcf_outfile_fstream.is_complete());   
 

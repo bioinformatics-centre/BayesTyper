@@ -100,6 +100,12 @@ int main(int argc, char const *argv[]) {
 
         sample_diplotypes_it.first->second.max_allele_end_pos = make_pair(0,0);
         sample_diplotypes_it.first->second.genome_outfile = new ofstream(string(argv[3]) + "_" + sample_id + ".fa");
+
+	    if (!sample_diplotypes_it.first->second.genome_outfile->is_open()) {
+
+	        cerr << "\nERROR: Unable to write file " << string(argv[3]) + "_" + sample_id + ".fa" << "\n" << endl;
+	        exit(1);
+	    }
     }
 
     assert(vcf_reader.metaData().sampleIds().size() == sample_diplotypes.size());
@@ -165,8 +171,8 @@ int main(int argc, char const *argv[]) {
             	Allele ref_allele = cur_var->ref();
             	Allele alt_allele = cur_var->alt(alt_idx);
 
-            	assert(!(ref_allele.isMissing()));
-            	assert(!(alt_allele.isMissing()));
+            	assert(!ref_allele.isMissing());
+            	assert(!alt_allele.isMissing());
 
                 Auxiliaries::rightTrimAllelePair(&ref_allele, &alt_allele);                
                 trimmed_alt_alleles.emplace_back(ref_allele.seq().size(), alt_allele.seq());

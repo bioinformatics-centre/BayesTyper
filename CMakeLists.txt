@@ -26,13 +26,13 @@ SET(BUILD_STATIC 0 CACHE BOOL "Build static")
 
 if(${BUILD_STATIC} EQUAL 0)
 
-	SET(CMAKE_CXX_FLAGS "--std=c++11 -lpthread -g -Wall -O3 -DBT_KMER_SIZE='${KMER_SIZE}' -DBT_VERSION='\"v1.3.1 ${GIT_LAST_COMMIT_HASH}\"'")
+	SET(CMAKE_CXX_FLAGS "--std=c++11 -lpthread -g -O3 -DBT_KMER_SIZE='${KMER_SIZE}' -DBT_VERSION='\"v1.4 ${GIT_LAST_COMMIT_HASH}\"'")
 
 else(${BUILD_STATIC} EQUAL 0)
 
 	message(STATUS "Building BayesTyper static")
 	
-	SET(CMAKE_CXX_FLAGS "--std=c++11 -pthread -O3 -static -static-libgcc -static-libstdc++ -DBT_KMER_SIZE='${KMER_SIZE}' -DBT_VERSION='\"v1.3.1\"'")
+	SET(CMAKE_CXX_FLAGS "--std=c++11 -pthread -O3 -static -static-libgcc -static-libstdc++ -DBT_KMER_SIZE='${KMER_SIZE}' -DBT_VERSION='\"v1.4\"'")
 	SET(CMAKE_EXE_LINKER_FLAGS "-Wl,--whole-archive -lpthread -Wl,--no-whole-archive")
 
 	SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a")

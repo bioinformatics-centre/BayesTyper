@@ -49,7 +49,7 @@ class VariantCluster {
 
 	public:
 
-		enum class VariantType : uchar {SNP = 0, Insertion, Deletion, Complex, Mixture, Unsupported, VARIANT_TYPE_SIZE};
+		enum class VariantType : uchar {SNV = 0, Insertion, Deletion, Complex, Mixture, Unsupported, VARIANT_TYPE_SIZE};
 
 	protected:
 
@@ -101,7 +101,6 @@ class VariantCluster {
 		uint right_flank;
 
 		string chrom_name;
-		Utils::ChromClass chrom_class;
 
 		map<uint, Variant> variants;
 		set<ContainedCluster, ContainedClusterCompare> contained_clusters;

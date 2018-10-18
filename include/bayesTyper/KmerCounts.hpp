@@ -51,8 +51,9 @@ class KmerCounts {
 
         bool isExcluded();
 
-        void addInterclusterMultiplicity(const Utils::ChromClass);
+        void addInterclusterMultiplicity(const bool, const vector<Utils::Ploidy> &);
         uchar getInterclusterMultiplicity(const Utils::Gender);
+        uchar getMaxInterclusterMultiplicity();
 
         void addClusterMultiplicity(const uchar, const bool);
 
@@ -68,10 +69,10 @@ class KmerCounts {
 
         uchar has_cluster_occ : 1, has_multicluster_occ : 1, has_multigroup_occ : 1, has_decoy_occ : 1, has_max_multiplicity : 1, is_parameter : 1;
 
-        uchar max_multiplicity;
+        uchar max_haploid_multiplicity;
 
-        uchar male_intercluster_multiplicity;
         uchar female_intercluster_multiplicity;
+        uchar male_intercluster_multiplicity;
 
         uchar updateMultiplicity(const uchar, const uchar);
 };

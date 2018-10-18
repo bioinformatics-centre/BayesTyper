@@ -50,7 +50,6 @@ THE SOFTWARE.
 #include "VariantInfo.hpp"
 #include "VariantFileParser.hpp"
 #include "OptionsContainer.hpp"
-#include "ChromosomePloidy.hpp"
 
 using namespace std;
 
@@ -60,13 +59,18 @@ static const string empty_variant_sample = ".:.:.:.:.:.";
 
 GenotypeWriter::GenotypeWriter(const string & output_prefix, const ushort num_threads, const vector<Sample> & samples_in, const Chromosomes & chromosomes, const Filters & filters) : samples(samples_in), tmp_filename(output_prefix + "_tmp.txt.gz") {
 
-    assert(!(tmp_outfile.is_open()));
+    assert(!tmp_outfile.is_open());
     assert(tmp_outfile_fstream.empty());
 
     assert(tmp_filename.substr(tmp_filename.size() - 3, 3) == ".gz");
 
     tmp_outfile.open(tmp_filename, ios::binary);
-    assert(tmp_outfile.is_open());
+
+    if (!tmp_outfile.is_open()) {
+
+        cerr << "\nERROR: Unable to write file " << tmp_filename << "\n" << endl;
+        exit(1);
+    }
 
     tmp_outfile_fstream.push(boost::iostreams::gzip_compressor());
     tmp_outfile_fstream.push(boost::ref(tmp_outfile));
@@ -145,7 +149,7 @@ void GenotypeWriter::writeAlleleSequences(const VariantInfo & variant_info, cons
 
     tmp_outfile_fstream << "\t" << max_ref_length;
 
-    assert(!(variant_info.alt_alleles.empty()));
+    assert(!variant_info.alt_alleles.empty());
 
     tmp_outfile_fstream << "\t";
 
@@ -226,7 +230,7 @@ void GenotypeWriter::writeAlleleCover(vector<ushort> * non_covered_alleles, cons
 
     assert(non_covered_alleles->size() <= num_alleles);
 
-    if (!(non_covered_alleles->empty())) {
+    if (!non_covered_alleles->empty()) {
 
         sort(non_covered_alleles->begin(), non_covered_alleles->end());        
         tmp_outfile_fstream << ";ANC=";
@@ -236,7 +240,7 @@ void GenotypeWriter::writeAlleleCover(vector<ushort> * non_covered_alleles, cons
 
 void GenotypeWriter::writeAlleleOrigin(const VariantInfo & variant_info) {
     
-    assert(!(variant_info.alt_alleles.empty()));
+    assert(!variant_info.alt_alleles.empty());
 
     tmp_outfile_fstream << ";ACO=";
 
@@ -271,7 +275,7 @@ void GenotypeWriter::writeSamples(const vector<Genotypes::SampleStats> & sample_
 
         tmp_outfile_fstream << "\t";
 
-        if (!(sample_stats.at(sample_idx).genotype_estimate.empty())) {      
+        if (!sample_stats.at(sample_idx).genotype_estimate.empty()) {      
             
             assert(sample_stats.at(sample_idx).genotype_estimate.size() <= 2);
 
@@ -365,7 +369,7 @@ void GenotypeWriter::finalise(const string & output_prefix, const Chromosomes & 
     delete genotypes_queue;
 
     tmp_outfile_fstream.reset();
-    assert(!(tmp_outfile.is_open()));
+    assert(!tmp_outfile.is_open());
 
 
     cout << "[" << Utils::getLocalTime() << "] Sorting genotyped variants ..." << endl;
@@ -373,7 +377,12 @@ void GenotypeWriter::finalise(const string & output_prefix, const Chromosomes & 
     assert(tmp_filename.substr(tmp_filename.size() - 3, 3) == ".gz");
 
     ifstream tmp_infile(tmp_filename, ios::binary);
-    assert(tmp_infile.is_open());
+    
+    if (!tmp_infile.is_open()) {
+
+        cerr << "\nERROR: Unable to open file " << tmp_filename << "\n" << endl;
+        exit(1);
+    }
 
     boost::iostreams::filtering_istream tmp_infile_fstream;
     
@@ -392,9 +401,7 @@ void GenotypeWriter::finalise(const string & output_prefix, const Chromosomes & 
         genotyped_variants_it.first->second.reserve(chrom_stat.second);
     }
 
-    string chrom_name = "";
-
-    while (getline(tmp_infile_fstream, chrom_name, '\t')) {
+    for (string chrom_name; getline(tmp_infile_fstream, chrom_name, '\t');) {
 
         auto genotyped_variants_it = genotyped_variants.find(chrom_name);
         assert(genotyped_variants_it != genotyped_variants.end());
@@ -417,7 +424,7 @@ void GenotypeWriter::finalise(const string & output_prefix, const Chromosomes & 
     }
 
     tmp_infile_fstream.reset();
-    assert(!(tmp_infile.is_open()));
+    assert(!tmp_infile.is_open());
 
     assert(remove(tmp_filename.c_str()) == 0);
 
@@ -425,7 +432,7 @@ void GenotypeWriter::finalise(const string & output_prefix, const Chromosomes & 
     ofstream variants_outfile;
     boost::iostreams::filtering_ostream variants_outfile_fstream;
 
-    assert(!(variants_outfile.is_open()));
+    assert(!variants_outfile.is_open());
     assert(variants_outfile_fstream.empty());
 
     string genotype_filename = "";
@@ -440,11 +447,14 @@ void GenotypeWriter::finalise(const string & output_prefix, const Chromosomes & 
     } else {
 
         genotype_filename = output_prefix + ".vcf";
-
         variants_outfile.open(genotype_filename);
     }
 
-    assert(variants_outfile.is_open());
+    if (!variants_outfile.is_open()) {
+
+        cerr << "\nERROR: Unable to write file " << genotype_filename << "\n" << endl;
+        exit(1);
+    }
 
     variants_outfile_fstream.push(boost::ref(variants_outfile));
     assert(variants_outfile_fstream.is_complete());    
@@ -469,8 +479,8 @@ void GenotypeWriter::finalise(const string & output_prefix, const Chromosomes & 
                 assert(genotyped_variant.position > 0);
                 assert(genotyped_variant.max_ref_length > 0);
 
-                assert(!(genotyped_variant.variant_id.empty()));
-                assert(!(genotyped_variant.genotypes.empty()));
+                assert(!genotyped_variant.variant_id.empty());
+                assert(!genotyped_variant.genotypes.empty());
 
                 variants_outfile_fstream << genotyped_variants_it->first << "\t" << genotyped_variant.position << "\t" << genotyped_variant.variant_id << "\t" << chromosomes_it->second.substr(genotyped_variant.position - 1, genotyped_variant.max_ref_length) << "\t" << genotyped_variant.genotypes << endl;
             }
@@ -482,7 +492,7 @@ void GenotypeWriter::finalise(const string & output_prefix, const Chromosomes & 
     }
 
     variants_outfile_fstream.reset();
-    assert(!(variants_outfile.is_open()));
+    assert(!variants_outfile.is_open());
 
     cout << "[" << Utils::getLocalTime() << "] Wrote " << num_genotyped_variants << " genotyped variants to " << genotype_filename << endl;       
 }
@@ -498,7 +508,7 @@ string GenotypeWriter::generateHeader(const string & genome_filename, const Chro
 
     while (chromosomes_it != chromosomes.cend()) {
 
-        if (!(chromosomes.isDecoy(chromosomes_it->first))) {
+        if (!chromosomes.isDecoy(chromosomes_it->first)) {
 
             header_ss << "##contig=<ID=" << chromosomes_it->first << ",length=" << chromosomes_it->second.size() << ">\n";
         }

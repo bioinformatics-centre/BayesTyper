@@ -35,7 +35,7 @@ THE SOFTWARE.
 Allele::Allele(const string & seq) {
 
   _seq = seq;
-  assert(!(_seq.empty()));
+  assert(!_seq.empty());
 
   if (_seq.front() == '<') {
 

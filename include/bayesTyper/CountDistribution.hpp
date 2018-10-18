@@ -53,7 +53,7 @@ class CountDistribution {
 		CountDistribution(const vector<Sample> &, const OptionsContainer &);
 
 		const vector<vector<NegativeBinomialDistribution> > & getGenomicCountDistributions() const;
-		void setGenomicCountDistributions(const vector<vector<KmerStats> > &, const string &);
+		void setGenomicCountDistributions(const vector<vector<vector<KmerStats> > > &, const string &);
 		
 		const vector<double> & getNoiseRates() const;
 		void setNoiseRates(const vector<double> &);
@@ -76,14 +76,10 @@ class CountDistribution {
 		double poissonLogProb(const uint, const double) const;
 
 		const vector<Sample> samples;	
-		const uchar num_genomic_rate_gc_bias_bins;
-		
-		const uchar max_multiplicity = Utils::uchar_overflow;
-		const uchar max_kmer_count = Utils::uchar_overflow;
 
 		vector<vector<NegativeBinomialDistribution> > genomic_count_distributions;
 
-		const vector<pair<double,double> > noise_rate_priors;
+		const vector<pair<float,float> > noise_rate_priors;
 		vector<double> noise_rates;
 
 		vector<vector<vector<vector<double> > > > genomic_count_log_pmf_cache;

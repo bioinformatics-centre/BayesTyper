@@ -54,7 +54,6 @@ THE SOFTWARE.
 
 static const uint kmer_batch_size = 1000000;
 
-
 KmerCounter::KmerCounter(const vector<Sample> & samples_in, const OptionsContainer & options_container) : samples(samples_in), num_threads(options_container.getValue<ushort>("threads")), prng_seed(options_container.getValue<uint>("random-seed")) {}
 
 void KmerCounter::findVariantClusterPathsCallback(vector<VariantClusterGroup *> * variant_cluster_groups, KmerBloom<Utils::kmer_size> * sample_kmer_bloom, const ushort max_sample_haplotype_candidates, const ushort sample_idx, const ushort thread_idx) {
@@ -72,7 +71,7 @@ void KmerCounter::findVariantClusterPaths(InferenceUnit * inference_unit, const 
  
  	cout << "[" << Utils::getLocalTime() << "] Finding variant cluster paths for " << samples.size() << " sample(s) ..." << endl;
 
-	assert(!(samples.empty()));
+	assert(!samples.empty());
 
 	KmerBloom<Utils::kmer_size> * cur_sample_kmer_bloom = nullptr;
 	KmerBloom<Utils::kmer_size> * next_sample_kmer_bloom = new KmerBloom<Utils::kmer_size>(samples.front().file);
@@ -169,14 +168,17 @@ void KmerCounter::countPathMultigroupKmers(BooleanKmerHash * multigroup_kmer_has
 	inference_unit->num_path_kmers = num_kmers;
 }
 
-void KmerCounter::countInterclusterParameterKmersCallback(BooleanKmerHash * parameter_kmer_hash, const vector<VariantFileParser::InterClusterRegion> & intercluster_regions, const float parameter_kmer_fraction, const Chromosomes & chromosomes, const ThreadedKmerBloom<Utils::kmer_size> & path_kmer_bloom, const ushort thread_idx) {
+void KmerCounter::countInterclusterParameterKmersCallback(BooleanKmerHash * parameter_kmer_hash, const vector<VariantFileParser::InterClusterRegion> & intercluster_regions, const Chromosomes & chromosomes, const ThreadedKmerBloom<Utils::kmer_size> & path_kmer_bloom, const float parameter_kmer_fraction, const ushort thread_idx) {
 
     uint intercluster_regions_idx = thread_idx;
 
     KmerPair<Utils::kmer_size> kmer_pair;
+    
+	assert(parameter_kmer_fraction > 0);
+	assert(parameter_kmer_fraction <= 1);
 
-    mt19937 prng = mt19937(prng_seed * (thread_idx + 1));
     bernoulli_distribution bernoulli_dist(parameter_kmer_fraction);
+    mt19937 prng = mt19937(prng_seed * (thread_idx + 1));
 
 	while (intercluster_regions_idx < intercluster_regions.size()) {
 
@@ -185,8 +187,8 @@ void KmerCounter::countInterclusterParameterKmersCallback(BooleanKmerHash * para
 		auto chromosomes_it = chromosomes.find(intercluster_regions.at(intercluster_regions_idx).chrom_name);
 		assert(chromosomes_it != chromosomes.cend());
 
-    	auto sequence_cit = chromosomes_it->second.cbegin() + intercluster_regions.at(intercluster_regions_idx).start;
-    	auto sequence_ceit = chromosomes_it->second.cbegin() + intercluster_regions.at(intercluster_regions_idx).end + 1;
+    	auto sequence_cit = chromosomes_it->second.cbegin() + intercluster_regions.at(intercluster_regions_idx).start_position;
+    	auto sequence_ceit = chromosomes_it->second.cbegin() + intercluster_regions.at(intercluster_regions_idx).end_position + 1;
 
 		while (sequence_cit != sequence_ceit) {
 
@@ -194,9 +196,9 @@ void KmerCounter::countInterclusterParameterKmersCallback(BooleanKmerHash * para
 
 				auto lowest_kmer = kmer_pair.getLexicographicalLowestKmer();
 				
-				if (!(path_kmer_bloom.lookup(lowest_kmer))) {
+				if (!path_kmer_bloom.lookup(lowest_kmer)) {
 
-					if (intercluster_regions.at(intercluster_regions_idx).chrom_class == Utils::ChromClass::Decoy) {
+					if (intercluster_regions.at(intercluster_regions_idx).is_decoy) {
 
 						auto hash_lock = parameter_kmer_hash->getKmerLock(lowest_kmer);
 
@@ -227,19 +229,16 @@ void KmerCounter::countInterclusterParameterKmersCallback(BooleanKmerHash * para
 	}
 }
 
-void KmerCounter::countInterclusterParameterKmers(BooleanKmerHash * parameter_kmer_hash, const vector<VariantFileParser::InterClusterRegion> & intercluster_regions, const float parameter_kmer_fraction, const Chromosomes & chromosomes, const ThreadedKmerBloom<Utils::kmer_size> & path_kmer_bloom) {
+void KmerCounter::countInterclusterParameterKmers(BooleanKmerHash * parameter_kmer_hash, const vector<VariantFileParser::InterClusterRegion> & intercluster_regions, const Chromosomes & chromosomes, const ThreadedKmerBloom<Utils::kmer_size> & path_kmer_bloom, const float parameter_kmer_fraction) {
 
     cout << "[" << Utils::getLocalTime() << "] Counting parameter kmers in inter-cluster regions ..." << endl;
-
-	assert(parameter_kmer_fraction > 0);
-	assert(parameter_kmer_fraction <= 1);
 
 	vector<thread> counting_threads;
 	counting_threads.reserve(num_threads);
 
 	for (ushort thread_idx = 0; thread_idx < num_threads; thread_idx++) {
 
-   	    counting_threads.push_back(thread(&KmerCounter::countInterclusterParameterKmersCallback, this, parameter_kmer_hash, ref(intercluster_regions), parameter_kmer_fraction, ref(chromosomes), ref(path_kmer_bloom), thread_idx));
+   	    counting_threads.push_back(thread(&KmerCounter::countInterclusterParameterKmersCallback, this, parameter_kmer_hash, ref(intercluster_regions), ref(chromosomes), ref(path_kmer_bloom), parameter_kmer_fraction, thread_idx));
     }
 
     for (auto & counting_thread: counting_threads) {
@@ -287,7 +286,7 @@ void KmerCounter::countPathKmers(ThreadedKmerBloom<Utils::kmer_size> * path_kmer
 	}
 }
 
-void KmerCounter::countInterclusterKmersCallback(KmerCountsHash * kmer_hash, ThreadedKmerBloom<Utils::kmer_size> * path_kmer_bloom, const vector<VariantFileParser::InterClusterRegion> & intercluster_regions, const Chromosomes & chromosomes, const ushort thread_idx) {
+void KmerCounter::countInterclusterKmersCallback(KmerCountsHash * kmer_hash, ThreadedKmerBloom<Utils::kmer_size> * path_kmer_bloom, const vector<VariantFileParser::InterClusterRegion> & intercluster_regions, const Chromosomes & chromosomes, const ChromosomePloidy & chrom_ploidy, const ushort thread_idx) {
 
     uint intercluster_regions_idx = thread_idx;
 
@@ -300,8 +299,17 @@ void KmerCounter::countInterclusterKmersCallback(KmerCountsHash * kmer_hash, Thr
 		auto chromosomes_it = chromosomes.find(intercluster_regions.at(intercluster_regions_idx).chrom_name);
 		assert(chromosomes_it != chromosomes.cend());
 
-    	auto sequence_cit = chromosomes_it->second.cbegin() + intercluster_regions.at(intercluster_regions_idx).start;
-    	auto sequence_ceit = chromosomes_it->second.cbegin() + intercluster_regions.at(intercluster_regions_idx).end + 1;
+    	auto sequence_cit = chromosomes_it->second.cbegin() + intercluster_regions.at(intercluster_regions_idx).start_position;
+    	auto sequence_ceit = chromosomes_it->second.cbegin() + intercluster_regions.at(intercluster_regions_idx).end_position + 1;
+
+    	auto is_decoy = intercluster_regions.at(intercluster_regions_idx).is_decoy;
+
+    	vector<Utils::Ploidy> gender_ploidy;
+
+    	if (!is_decoy) {
+
+    		gender_ploidy = chrom_ploidy.getGenderPloidy(intercluster_regions.at(intercluster_regions_idx).chrom_name);
+    	}
 
 		while (sequence_cit != sequence_ceit) {
 
@@ -316,7 +324,7 @@ void KmerCounter::countInterclusterKmersCallback(KmerCountsHash * kmer_hash, Thr
 					auto kmer_counts = kmer_hash->addKmer(lowest_kmer, true);
 					assert(kmer_counts.first);
 
-					kmer_counts.first->addInterclusterMultiplicity(intercluster_regions.at(intercluster_regions_idx).chrom_class);
+					kmer_counts.first->addInterclusterMultiplicity(is_decoy, gender_ploidy);
 				}
 			}
 
@@ -327,7 +335,7 @@ void KmerCounter::countInterclusterKmersCallback(KmerCountsHash * kmer_hash, Thr
 	}
 }
 
-void KmerCounter::countInterclusterKmers(KmerCountsHash * kmer_hash, ThreadedKmerBloom<Utils::kmer_size> * path_kmer_bloom, const string & intercluster_regions_prefix, const Chromosomes & chromosomes) {
+void KmerCounter::countInterclusterKmers(KmerCountsHash * kmer_hash, ThreadedKmerBloom<Utils::kmer_size> * path_kmer_bloom, const string & intercluster_regions_prefix, const Chromosomes & chromosomes, const ChromosomePloidy & chrom_ploidy) {
 
 	cout << "[" << Utils::getLocalTime() << "] Counting kmers in inter-cluster regions and decoy sequence(s) ..." << endl;
 
@@ -335,7 +343,12 @@ void KmerCounter::countInterclusterKmers(KmerCountsHash * kmer_hash, ThreadedKme
 
     {
 	    ifstream regions_infile(intercluster_regions_prefix + ".txt.gz", std::ios::binary);
-	    assert(regions_infile.is_open());
+
+        if (!regions_infile.is_open()) {
+
+            cerr << "\nERROR: Unable to open file " << intercluster_regions_prefix + ".txt.gz" << "\n" << endl;
+            exit(1);
+        }
 
 		boost::iostreams::filtering_istream regions_infile_fstream;
 		
@@ -346,21 +359,13 @@ void KmerCounter::countInterclusterKmers(KmerCountsHash * kmer_hash, ThreadedKme
 
 	    vector<string> line(4, "");
 
-	    while (regions_infile_fstream.good()) {
+	    while (getline(regions_infile_fstream, line.front(), '\t')) {
 
-	    	for (ushort i = 0; i < 3; i++) {
-
-		        getline(regions_infile_fstream, line.at(i), '\t');
-		    }
-
+	    	getline(regions_infile_fstream, line.at(1), '\t');
+	    	getline(regions_infile_fstream, line.at(2), '\t');
 		    getline(regions_infile_fstream, line.at(3), '\n');
 
-		    if (line.at(0).empty() or (line.at(0) == "Chrom")) {
-
-		    	continue;
-		    }
-	        
-	        intercluster_regions.emplace_back(line.at(0), static_cast<Utils::ChromClass>(stoi(line.at(1))), stoi(line.at(2)), stoi(line.at(3)));
+	        intercluster_regions.emplace_back(line.front(), static_cast<bool>(stoi(line.at(1))), stoi(line.at(2)), stoi(line.at(3)));
 		}
 	}
 
@@ -369,7 +374,7 @@ void KmerCounter::countInterclusterKmers(KmerCountsHash * kmer_hash, ThreadedKme
 
 	for (ushort thread_idx = 0; thread_idx < num_threads; thread_idx++) {
 
-   	    counting_threads.push_back(thread(&KmerCounter::countInterclusterKmersCallback, this, kmer_hash, path_kmer_bloom, ref(intercluster_regions), ref(chromosomes), thread_idx));
+   	    counting_threads.push_back(thread(&KmerCounter::countInterclusterKmersCallback, this, kmer_hash, path_kmer_bloom, ref(intercluster_regions), ref(chromosomes), ref(chrom_ploidy), thread_idx));
     }
 
     for (auto & counting_thread: counting_threads) {
@@ -431,7 +436,7 @@ void KmerCounter::parseSampleKmers(KmerCountsHash * kmer_hash, ThreadedKmerBloom
 
 		if (!kmc_table.OpenForListing(samples.at(sample_idx).file)) {
 
-			cout << "\nERROR: Could not open KMC table " << samples.at(sample_idx).file << "\n" << endl;
+			cerr << "\nERROR: Unable to open KMC table " << samples.at(sample_idx).file << "\n" << endl;
 			exit(1);
 		}
 
@@ -439,7 +444,7 @@ void KmerCounter::parseSampleKmers(KmerCountsHash * kmer_hash, ThreadedKmerBloom
 		assert(kmc_table.Info(kmc_table_info));
 
 		assert(kmc_table_info.kmer_length == Utils::kmer_size);
-		assert(!(kmc_table_info.mode));
+		assert(!kmc_table_info.mode);
 
 		cout << "[" << Utils::getLocalTime() << "] Parsing KMC table containing " << kmc_table_info.total_kmers << " kmers for sample " << samples.at(sample_idx).name << " ..." << endl;
 

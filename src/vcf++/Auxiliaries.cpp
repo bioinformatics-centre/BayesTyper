@@ -42,11 +42,11 @@ namespace Auxiliaries {
 
     uint leftTrimAllelePair(Allele * allele_1, Allele * allele_2, const bool full_trim) {
 
-        assert(!(allele_1->isID()));
-        assert(!(allele_2->isID()));
+        assert(!allele_1->isID());
+        assert(!allele_2->isID());
 
-		assert(!(allele_1->seq().empty()));
-		assert(!(allele_2->seq().empty()));
+		assert(!allele_1->seq().empty());
+		assert(!allele_2->seq().empty());
 
 		if (allele_1->isMissing() or allele_2->isMissing()) {
 
@@ -68,8 +68,8 @@ namespace Auxiliaries {
 			trimmed++;
 		}
 
-        assert(!(allele_1->seq().empty()));
-        assert(!(allele_2->seq().empty()));
+        assert(!allele_1->seq().empty());
+        assert(!allele_2->seq().empty());
 
         if (full_trim) {
 
@@ -87,11 +87,11 @@ namespace Auxiliaries {
 
     uint rightTrimAllelePair(Allele * allele_1, Allele * allele_2) {
 
-        assert(!(allele_1->isID()));
-        assert(!(allele_2->isID()));
+        assert(!allele_1->isID());
+        assert(!allele_2->isID());
 
-		assert(!(allele_1->seq().empty()));
-		assert(!(allele_2->seq().empty()));
+		assert(!allele_1->seq().empty());
+		assert(!allele_2->seq().empty());
 
 		if (allele_1->isMissing() or allele_2->isMissing()) {
 
@@ -113,8 +113,8 @@ namespace Auxiliaries {
 			trimmed++;
 		}
 
-        assert(!(allele_1->seq().empty()));
-        assert(!(allele_2->seq().empty()));
+        assert(!allele_1->seq().empty());
+        assert(!allele_2->seq().empty());
 
 		return trimmed;
     }
@@ -141,13 +141,13 @@ namespace Auxiliaries {
 
     AlleleAttributes alleleAttributes(Allele & main_allele, Allele & reference_allele) {
 
-        assert(!(main_allele.isID()));
-        assert(!(reference_allele.isID()));
+        assert(!main_allele.isID());
+        assert(!reference_allele.isID());
 
-        assert(!(main_allele.seq().empty()));
-        assert(!(reference_allele.seq().empty()));
+        assert(!main_allele.seq().empty());
+        assert(!reference_allele.seq().empty());
 
-        assert(!(reference_allele.isMissing()));
+        assert(!reference_allele.isMissing());
 
     	if (main_allele.isMissing()) {
 
@@ -163,7 +163,7 @@ namespace Auxiliaries {
     	Allele trimmed_reference_allele = reference_allele;
 
     	fullTrimAllelePair(&trimmed_main_allele, &trimmed_reference_allele);
-        assert(!(trimmed_main_allele.seq().empty()) or !(trimmed_reference_allele.seq().empty()));
+        assert(!trimmed_main_allele.seq().empty() or !trimmed_reference_allele.seq().empty());
 
         uint trimmed_main_allele_length = trimmed_main_allele.seq().size();
         uint trimmed_reference_allele_length = trimmed_reference_allele.seq().size();
@@ -204,10 +204,10 @@ namespace Auxiliaries {
 
     bool isInversion(Allele & main_allele, Allele & reference_allele, const float min_match_fraction, const uint min_size) {
 
-        assert(!(main_allele.isID()));
-        assert(!(reference_allele.isID()));
+        assert(!main_allele.isID());
+        assert(!reference_allele.isID());
 
-        assert(!(reference_allele.isMissing()));
+        assert(!reference_allele.isMissing());
 
         if (main_allele.isMissing()) {
 
@@ -320,7 +320,7 @@ namespace Auxiliaries {
 
                 if (aco_value.first != ".") {
 
-                    assert(!(variant.alt(alt_idx).isMissing()));
+                    assert(!variant.alt(alt_idx).isMissing());
 
                     auto aco_value_split = Utils::splitString(aco_value.first, ':');
                     assert(find(aco_value_split.begin(), aco_value_split.end(), ".") == aco_value_split.end());
@@ -353,7 +353,7 @@ namespace Auxiliaries {
 
     bool hasMissing(Variant & variant) {
 
-        assert(!(variant.allele(0).isMissing()));
+        assert(!variant.allele(0).isMissing());
 
         for (uint alt_idx = 0; alt_idx < variant.numAlts(); alt_idx++) {
 
@@ -385,7 +385,7 @@ namespace Auxiliaries {
         
         if (aat_value.second) {
 
-            assert(!(aat_value.first.empty()));
+            assert(!aat_value.first.empty());
 
             if (aat_value.first != ".") {
 
@@ -415,7 +415,7 @@ namespace Auxiliaries {
 
         if (rma_value.second) {
 
-            assert(!(rma_value.first.empty()));
+            assert(!rma_value.first.empty());
 
             if (rma_value.first != ".") {
 
@@ -465,11 +465,11 @@ namespace Auxiliaries {
 	            break;
 	        }
 
-            assert(!(variant->ref().isID()));
+            assert(!variant->ref().isID());
 
 	        for (uint alt_idx = 0; alt_idx < variant->numAlts(); alt_idx++) {
 
-                assert(!(variant->alt(alt_idx).isID()));
+                assert(!variant->alt(alt_idx).isID());
 
 	            if (variant->alt(alt_idx).seq().size() == 1) {
 
@@ -716,7 +716,7 @@ namespace Auxiliaries {
 
             if (acp_value.second) {
 
-                if (!(Utils::floatCompare(acp_value.first, 0))) {
+                if (!Utils::floatCompare(acp_value.first, 0)) {
 
                     non_zero_prob_allele_idxs.push_back(allele_idx);
                 }
@@ -736,7 +736,7 @@ namespace Auxiliaries {
 
             if (app_value.second) {
 
-                if (!(Utils::floatCompare(app_value.first, 0))) {
+                if (!Utils::floatCompare(app_value.first, 0)) {
 
                     non_zero_prob_allele_idxs.push_back(allele_idx);
                 }
@@ -858,11 +858,11 @@ namespace Auxiliaries {
                     Auxiliaries::fullTrimAllelePair(&cur_ref_allele_1, &cur_allele_1);
                     Auxiliaries::fullTrimAllelePair(&cur_ref_allele_2, &cur_allele_2);
 
-                    bool is_cur_ref_allele_1_homopolymer = (cur_ref_allele_1.seq().find_first_not_of(homopolymer_base) == string::npos);
-                    bool is_cur_ref_allele_2_homopolymer = (cur_ref_allele_2.seq().find_first_not_of(homopolymer_base) == string::npos);
+                    bool is_cur_ref_allele_1_homopolymer = cur_ref_allele_1.seq().find_first_not_of(homopolymer_base) == string::npos;
+                    bool is_cur_ref_allele_2_homopolymer = cur_ref_allele_2.seq().find_first_not_of(homopolymer_base) == string::npos;
                     
-                    bool is_cur_allele_1_homopolymer = (cur_allele_1.seq().find_first_not_of(homopolymer_base) == string::npos);
-                    bool is_cur_allele_2_homopolymer = (cur_allele_2.seq().find_first_not_of(homopolymer_base) == string::npos);
+                    bool is_cur_allele_1_homopolymer = cur_allele_1.seq().find_first_not_of(homopolymer_base) == string::npos;
+                    bool is_cur_allele_2_homopolymer = cur_allele_2.seq().find_first_not_of(homopolymer_base) == string::npos;
 
                     if (is_cur_ref_allele_1_homopolymer and is_cur_ref_allele_2_homopolymer and is_cur_allele_1_homopolymer and is_cur_allele_2_homopolymer) {
 
@@ -873,10 +873,10 @@ namespace Auxiliaries {
 
                         if ((cur_ref_allele_length_diff + cur_allele_length_diff) <= max_length_difference) {
 
-                            assert(!(cur_var.allele(allele_idx).isMissing()));
+                            assert(!cur_var.allele(allele_idx).isMissing());
                             homopolymer_alleles.at(allele_idx) = true;     
 
-                            assert(!(cur_var.allele(homopolymer_allele_idx).isMissing()));
+                            assert(!cur_var.allele(homopolymer_allele_idx).isMissing());
                             homopolymer_alleles.at(homopolymer_allele_idx) = true;              
                         }
                     } 
@@ -889,6 +889,8 @@ namespace Auxiliaries {
 
     vector<Contig> mergeContigs(const vector<Contig> & contigs_1, const vector<Contig> & contigs_2) {
 
+        bool incorrect_order = false;
+
         vector<Contig> contigs_merged;
         contigs_merged.reserve(contigs_1.size() + contigs_2.size());
 
@@ -897,7 +899,11 @@ namespace Auxiliaries {
 
         while (contigs_1_it != contigs_1.end()) {
 
-            assert(find(contigs_merged.begin(), contigs_merged.end(), *contigs_1_it) == contigs_merged.end());
+            if (incorrect_order or find(contigs_merged.begin(), contigs_merged.end(), *contigs_1_it) != contigs_merged.end()) {
+
+                incorrect_order = true;
+                break;
+            }
 
             auto contigs_2_eit = find(contigs_2.begin(), contigs_2.end(), *contigs_1_it);
 
@@ -905,8 +911,12 @@ namespace Auxiliaries {
 
                 while (contigs_2_bit != contigs_2_eit) {
 
-                    assert(find(contigs_merged.begin(), contigs_merged.end(), *contigs_2_bit) == contigs_merged.end());
-                    
+                    if (find(contigs_merged.begin(), contigs_merged.end(), *contigs_2_bit) != contigs_merged.end()) {
+
+                        incorrect_order = true;
+                        break;
+                    }
+
                     contigs_merged.push_back(*contigs_2_bit);
                     contigs_2_bit++;
                 }
@@ -920,10 +930,20 @@ namespace Auxiliaries {
 
         while (contigs_2_bit != contigs_2.end()) {
 
-            assert(find(contigs_merged.begin(), contigs_merged.end(), *contigs_2_bit) == contigs_merged.end());
-            
+            if (find(contigs_merged.begin(), contigs_merged.end(), *contigs_2_bit) != contigs_merged.end()) {
+
+                incorrect_order = true;
+                break;
+            }
+
             contigs_merged.push_back(*contigs_2_bit);
             contigs_2_bit++;
+        }
+
+        if (incorrect_order) {
+
+            cerr << "\nERROR: Contigs should be sorted in the same order across VCF files (both header and variants)\n" << endl;
+            exit(1);
         }
 
         assert(contigs_merged.size() <= (contigs_1.size() + contigs_2.size()));

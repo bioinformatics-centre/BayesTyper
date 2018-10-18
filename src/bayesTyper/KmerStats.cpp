@@ -53,9 +53,9 @@ void KmerStats::addValue(const pair<double, bool> & value) {
     if (value.second) {
 
         count++;
-        fraction += (static_cast<double>(!(Utils::doubleCompare(value.first, 0))) - fraction) / count;
+        fraction += (static_cast<double>(!Utils::doubleCompare(value.first, 0)) - fraction) / count;
         
-        double delta = (value.first - mean);
+        double delta = value.first - mean;
         mean += delta / count;
 
         M2 += delta * (value.first - mean);

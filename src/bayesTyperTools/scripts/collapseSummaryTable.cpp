@@ -51,51 +51,63 @@ int main(int argc, char const *argv[]) {
 
     ifstream summary_infile(argv[1]);
 
+    if (!summary_infile.is_open()) {
+
+        cerr << "\nERROR: Unable to open file " << argv[1] << "\n" << endl;
+        exit(1);
+    }
+
     auto num_count_columns = stoi(argv[3]);
     assert(num_count_columns > 0);
 
-    string line;
-    uint line_count = 0;
+    uint summary_line_count = 0;
 
     string header;
     unordered_map<string, vector<ulong> > collapsed_lines;
 
-    while (getline(summary_infile, line)) {
+    for (string summary_line; getline(summary_infile, summary_line);) {
 
-        line_count++;
+        summary_line_count++;
 
-        if (line_count == 1) {
+        if (summary_line_count == 1) {
 
             assert(header.empty());
-            header = line;
+            header = summary_line;
 
-            assert(num_count_columns <= (count(line.begin(), line.end(), '\t')));
+            assert(num_count_columns <= (count(summary_line.begin(), summary_line.end(), '\t')));
             continue;
         }
 
-        auto line_split = Utils::splitString(line, '\t', num_count_columns + 1);
-        assert(line_split.size() == static_cast<uint>(num_count_columns + 1));
+        auto summary_line_split = Utils::splitString(summary_line, '\t', num_count_columns + 1);
+        assert(summary_line_split.size() == static_cast<uint>(num_count_columns + 1));
 
-        auto collapsed_lines_it = collapsed_lines.emplace(line_split.back(), vector<ulong>(num_count_columns, 0));
+        auto collapsed_lines_it = collapsed_lines.emplace(summary_line_split.back(), vector<ulong>(num_count_columns, 0));
 
-        for (uint count_idx = 0; count_idx < (line_split.size() - 1); count_idx++) {
+        for (uint count_idx = 0; count_idx < (summary_line_split.size() - 1); count_idx++) {
 
-            collapsed_lines_it.first->second.at(count_idx) += stol(line_split.at(count_idx));
+            collapsed_lines_it.first->second.at(count_idx) += stol(summary_line_split.at(count_idx));
         }
 
-        if ((line_count % 1000000) == 0) {
+        if ((summary_line_count % 1000000) == 0) {
 
-            std::cout << "[" << Utils::getLocalTime() << "] Parsed " << line_count << " lines" << endl;
+            std::cout << "[" << Utils::getLocalTime() << "] Parsed " << summary_line_count << " lines" << endl;
         }
     }
 
     summary_infile.close();
 
-    assert(!(header.empty()));
+    assert(!header.empty());
 
     cout << "\n[" << Utils::getLocalTime() << "] Writing collapsed file ..." << endl;
 
     ofstream summary_outfile(string(argv[2]) + ".txt");
+
+    if (!summary_outfile.is_open()) {
+
+        cerr << "\nERROR: Unable to write file " << string(argv[2]) + ".txt" << "\n" << endl;
+        exit(1);
+    }
+
     summary_outfile << header << "\n";
 
     for (auto & line: collapsed_lines) {
@@ -110,7 +122,7 @@ int main(int argc, char const *argv[]) {
 
     summary_outfile.close();
 
-	cout << "[" << Utils::getLocalTime() << "] Collapsed " << line_count << " lines down to " << collapsed_lines.size() + 1 << endl;
+	cout << "[" << Utils::getLocalTime() << "] Collapsed " << summary_line_count << " lines down to " << collapsed_lines.size() + 1 << endl;
 	cout << endl;
 
 	return 0;

@@ -69,7 +69,11 @@ void OptionsContainer::parseValuePair(std::string option, std::string value_pair
     std::vector<std::string> value_pair_str_split;
     split(value_pair_str_split, value_pair_str, boost::is_any_of(","));
 
-    assert(value_pair_str_split.size() == 2);
+    if (value_pair_str_split.size() != 2) {
+
+        cerr << "\nERROR: Argument to option \"" << option << "\" should be two values (comma-seperated)\n" << endl;
+        exit(1);
+    }
 
     if (typeid(ValueType) == typeid(uint)) {
 
@@ -78,8 +82,9 @@ void OptionsContainer::parseValuePair(std::string option, std::string value_pair
 
     } else {
 
-        value_pair.first = stod(value_pair_str_split.front());
-        value_pair.second = stod(value_pair_str_split.back());
+        assert(typeid(ValueType) == typeid(float));
+        value_pair.first = stof(value_pair_str_split.front());
+        value_pair.second = stof(value_pair_str_split.back());
     }
 
     OptionValue<std::pair<ValueType,ValueType> > * option_value = new OptionValue<std::pair<ValueType,ValueType> >(value_pair);

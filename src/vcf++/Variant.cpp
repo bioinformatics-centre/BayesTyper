@@ -64,8 +64,8 @@ Variant::Variant(const vector<string> & var_line, VcfMetaData & vcf_meta_data) {
     _ids = parseField(var_line.at(2));
     _alleles.push_back(Allele(var_line.at(3)));
 
-    assert(!(_alleles.front().isID()));
-    assert(!(_alleles.front().isMissing()));
+    assert(!_alleles.front().isID());
+    assert(!_alleles.front().isMissing());
 
     auto alt_strs = Utils::splitString(var_line.at(4), ',');
 
@@ -77,7 +77,7 @@ Variant::Variant(const vector<string> & var_line, VcfMetaData & vcf_meta_data) {
 
     assert(_alleles.size() > 1);
     assert(_alleles.size() < Utils::ushort_overflow);
-    assert(!(var_line.at(5).empty()));
+    assert(!var_line.at(5).empty());
 
     if (var_line.at(5) == ".") {
 
@@ -329,7 +329,7 @@ void Variant::removeAlts(vector<uint> alt_indices, const bool convert_genotype_t
         ait++;
     }
 
-    assert(!(_alleles.empty()));
+    assert(!_alleles.empty());
 }
 
 void Variant::removeRedundantAlts() {
@@ -376,7 +376,7 @@ AttributeSet & Variant::info() {
 vector<string> Variant::parseField(const string & field_str) {
 
     vector<string> field = Utils::splitString(field_str, ';');
-    assert(!(field.empty()));
+    assert(!field.empty());
 
     auto field_it = field.begin();
     assert(field_it != field.end());
@@ -398,7 +398,7 @@ vector<string> Variant::parseField(const string & field_str) {
 
 void Variant::addElementToField(const string & element, vector<string> * field) {
 
-    assert(!(element.empty()));
+    assert(!element.empty());
     assert(element != ".");
 
     if (find(field->begin(), field->end(), element) == field->end()) {
@@ -409,7 +409,7 @@ void Variant::addElementToField(const string & element, vector<string> * field) 
 
 string Variant::writeField(const vector<string> & field) {
 
-    if (!(field.empty())) {
+    if (!field.empty()) {
 
         JoiningString field_elements(';');
 
@@ -417,7 +417,7 @@ string Variant::writeField(const vector<string> & field) {
 
         for (auto &element: field) {
 
-            assert(!(element.empty()));
+            assert(!element.empty());
             assert(element != ".");
 
             if (elements.insert(element).second) {
@@ -441,7 +441,7 @@ string Variant::vcf(VcfMetaData & vcf_meta_data) {
     vcf_line.join(to_string(_pos));
     vcf_line.join(writeField(_ids));
 
-    assert(!(ref().isID()));
+    assert(!ref().isID());
 
     vcf_line.join(ref().seq());
 
@@ -483,7 +483,7 @@ string Variant::vcf(VcfMetaData & vcf_meta_data) {
                 assert(info_descriptor.type() != Attribute::Type::Flag);
 
                 auto info_str = writeInfoAlleleAttribute(info_descriptor.id(), 0);
-                assert(!(info_str.empty()));
+                assert(!info_str.empty());
 
                 if (info_str != ".") {
 
@@ -498,7 +498,7 @@ string Variant::vcf(VcfMetaData & vcf_meta_data) {
                 assert(info_descriptor.type() != Attribute::Type::Flag);
 
                 auto info_str = writeInfoAlleleAttribute(info_descriptor.id(), 1);
-                assert(!(info_str.empty()));
+                assert(!info_str.empty());
 
                 if (info_str != ".") {
 

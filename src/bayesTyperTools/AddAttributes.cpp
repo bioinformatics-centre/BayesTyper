@@ -60,37 +60,42 @@ namespace AddAttributes {
 
         ifstream repeat_infile(repeat_file);
 
-        string line;
-        uint line_count = 0;
+	    if (!repeat_infile.is_open()) {
 
-        while (getline(repeat_infile, line)) {
+	        cerr << "\nERROR: Unable to open file " << repeat_file << "\n" << endl;
+	        exit(1);
+	    }
+    
+        uint repeat_line_count = 0;
 
-            line_count++;
+        for (string repeat_line; getline(repeat_infile, repeat_line);) {
 
-            if (line_count > 3) {
+            repeat_line_count++;
 
-                auto line_split = Utils::splitStringEmptyIgnore(line, ' ');
-                assert((line_split.size() == 15) or (line_split.size() == 16));
+            if (repeat_line_count > 3) {
 
-                string name = line_split.at(10);
-                assert(!(name.empty()));
+                auto repeat_line_split = Utils::splitStringEmptyIgnore(repeat_line, ' ');
+                assert((repeat_line_split.size() == 15) or (repeat_line_split.size() == 16));
+
+                string name = repeat_line_split.at(10);
+                assert(!name.empty());
 
                 assert(name.find(":") == string::npos);
                 assert(name.find("#") == string::npos);
 
-                assert(line_split.at(5).front() != '(');
-                assert(line_split.at(5).back() != ')');
-                assert(line_split.at(6).front() != '(');
-                assert(line_split.at(6).back() != ')');
-                assert(line_split.at(7).front() == '(');
-                assert(line_split.at(7).back() == ')');
+                assert(repeat_line_split.at(5).front() != '(');
+                assert(repeat_line_split.at(5).back() != ')');
+                assert(repeat_line_split.at(6).front() != '(');
+                assert(repeat_line_split.at(6).back() != ')');
+                assert(repeat_line_split.at(7).front() == '(');
+                assert(repeat_line_split.at(7).back() == ')');
 
-                uint query_start = stoi(line_split.at(5));
-                uint query_end = stoi(line_split.at(6));
+                uint query_start = stoi(repeat_line_split.at(5));
+                uint query_end = stoi(repeat_line_split.at(6));
 
                 assert(query_start <= query_end);
 
-                auto repeat_annotations_it = repeat_annotations.emplace(line_split.at(4), map<string, vector<pair<uint, uint> > >());
+                auto repeat_annotations_it = repeat_annotations.emplace(repeat_line_split.at(4), map<string, vector<pair<uint, uint> > >());
                 
                 auto repeat_annotations_family_it = repeat_annotations_it.first->second.emplace(name, vector<pair<uint, uint> >());
                 repeat_annotations_family_it.first->second.emplace_back(query_start, query_end);
@@ -107,7 +112,7 @@ namespace AddAttributes {
 
     uint calculateNucleotideCover(vector<pair<uint, uint> > cover) {
 
-        assert(!(cover.empty()));
+        assert(!cover.empty());
         sort(cover.begin(), cover.end(), SortCover());
 
         auto cover_it = cover.begin();
@@ -159,9 +164,9 @@ namespace AddAttributes {
 
 		cout << "[" << Utils::getLocalTime() << "] Adding the following attributes:\n" << endl;
 
-		assert(!(genome_file.empty()) or !(repeat_file.empty()) or !(indepedent_samples_regex_str.empty()) or !(trio_sample_info_str.empty()));
+		assert(!genome_file.empty() or !repeat_file.empty() or !indepedent_samples_regex_str.empty() or !trio_sample_info_str.empty());
 
-		if (!(genome_file.empty())) {
+		if (!genome_file.empty()) {
 
 			cout << "\t - Homopolymer length (HPL)" << endl;
 
@@ -177,7 +182,7 @@ namespace AddAttributes {
 			output_meta_data.infoDescriptors().emplace("HPL", Attribute::DetailedDescriptor("HPL", Attribute::Number::One, Attribute::Type::String, "Homopolymer length (<Length>:<Nucleotide>)"));
 		}
 
-		if (!(repeat_file.empty())) {
+		if (!repeat_file.empty()) {
 
 			cout << "\t - RepeatMasker annotations (RMA)" << endl;
 
@@ -186,7 +191,7 @@ namespace AddAttributes {
 			output_meta_data.infoDescriptors().emplace("RMA", Attribute::DetailedDescriptor("RMA", Attribute::Number::A, Attribute::Type::String, "RepeatMasker annotations (<family#nucleotide_cover>:...)"));
 		}
 
-		if (!(indepedent_samples_regex_str.empty())) {
+		if (!indepedent_samples_regex_str.empty()) {
 
 			cout << "\t - Absolute inbreeding coefficient (IBC)" << endl;
 
@@ -195,7 +200,7 @@ namespace AddAttributes {
 			output_meta_data.infoDescriptors().emplace("IBC", Attribute::DetailedDescriptor("IBC", Attribute::Number::One, Attribute::Type::String, "Absolute inbreeding coefficient (<Coefficient>:<Number of independent samples used>)"));
 		}
 
-		if (!(trio_sample_info_str.empty())) {
+		if (!trio_sample_info_str.empty()) {
 
  			cout << "\t - Is sample in corcordant trio (CONC)" << endl;
 
@@ -237,7 +242,7 @@ namespace AddAttributes {
                 cur_chrom = cur_var->chrom();
             }
 
-			if (!(genome_file.empty())) {
+			if (!genome_file.empty()) {
 
 				assert(genome_seqs_it != genome_seqs.end());
 				assert(genome_seqs_it->second->seq().substr(cur_var->pos() - 1, cur_var->ref().seq().size()) == cur_var->ref().seq());
@@ -246,7 +251,7 @@ namespace AddAttributes {
 				cur_var->info().setValue<string>("HPL", to_string(homopolymer_info.first) + ":" + homopolymer_info.second);
 			}
 
-			if (!(repeat_file.empty())) {
+			if (!repeat_file.empty()) {
 
 	            for (uint alt_allele_idx = 0; alt_allele_idx < cur_var->numAlts(); alt_allele_idx++) {
 
@@ -281,7 +286,7 @@ namespace AddAttributes {
 	            }
 			}
 
-			if (!(indepedent_samples_regex_str.empty())) {
+			if (!indepedent_samples_regex_str.empty()) {
 
 	            auto inbreeding_stats = Stats::calcInbreedingStats(*cur_var, indepedent_samples_regex);
 
@@ -295,7 +300,7 @@ namespace AddAttributes {
 	            }
 		    }
 
-			if (!(trio_sample_info_str.empty())) {
+			if (!trio_sample_info_str.empty()) {
 
 				for (auto & trio_info: all_trio_info) {
 
@@ -304,7 +309,7 @@ namespace AddAttributes {
 					Trio cur_trio = Trio(*cur_var, trio_info);
 					string conc_status = "NA";
 
-					if (!(cur_trio.isFiltered())) {
+					if (!cur_trio.isFiltered()) {
 
 						if (cur_trio.isInformative()) {
 

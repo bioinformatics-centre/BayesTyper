@@ -48,10 +48,10 @@ KmerCounts::KmerCounts() {
 
     is_parameter = false;
 
-    max_multiplicity = 0;
+    max_haploid_multiplicity = 0;
 
-    male_intercluster_multiplicity = 0;
     female_intercluster_multiplicity = 0;
+    male_intercluster_multiplicity = 0;
 }
 
 
@@ -95,46 +95,43 @@ bool KmerCounts::isExcluded() {
     return (has_decoy_occ or has_max_multiplicity or has_multigroup_occ);
 }
 
-void KmerCounts::addInterclusterMultiplicity(const Utils::ChromClass chrom_class) {
+void KmerCounts::addInterclusterMultiplicity(const bool is_decoy, const vector<Utils::Ploidy> & gender_ploidy) {
 
-    max_multiplicity = updateMultiplicity(max_multiplicity, 1);
+    max_haploid_multiplicity = updateMultiplicity(max_haploid_multiplicity, 1);
 
-    if (chrom_class == Utils::ChromClass::Autosomal) {
-
-        male_intercluster_multiplicity = updateMultiplicity(male_intercluster_multiplicity, 2);
-        female_intercluster_multiplicity = updateMultiplicity(female_intercluster_multiplicity, 2);
-    
-    } else if (chrom_class == Utils::ChromClass::X) {
-
-        male_intercluster_multiplicity = updateMultiplicity(male_intercluster_multiplicity, 1);
-        female_intercluster_multiplicity = updateMultiplicity(female_intercluster_multiplicity, 2);
-
-    } else if (chrom_class == Utils::ChromClass::Y) {
-
-        male_intercluster_multiplicity = updateMultiplicity(male_intercluster_multiplicity, 1);
-    
-    } else {
-
-        assert(chrom_class == Utils::ChromClass::Decoy);  
-        has_decoy_occ = true;
-    }
-
-    if (max_multiplicity > Utils::bit7_overflow) {
+    if (max_haploid_multiplicity > Utils::bit7_overflow) {
 
         has_max_multiplicity = true;
+    }
+
+    if (is_decoy) {
+
+        has_decoy_occ = true;
+
+    } else {
+
+        assert(gender_ploidy.size() == 2);
+
+        female_intercluster_multiplicity = updateMultiplicity(female_intercluster_multiplicity, static_cast<uchar>(gender_ploidy.at(static_cast<uchar>(Utils::Gender::Female))));
+        male_intercluster_multiplicity = updateMultiplicity(male_intercluster_multiplicity, static_cast<uchar>(gender_ploidy.at(static_cast<uchar>(Utils::Gender::Male))));
     }
 }
 
 uchar KmerCounts::getInterclusterMultiplicity(const Utils::Gender gender) {
 
-    if (gender == Utils::Gender::Male) {
+    if (gender == Utils::Gender::Female) {
 
-        return male_intercluster_multiplicity;
+        return female_intercluster_multiplicity;
     
     } else {
 
-        return female_intercluster_multiplicity;
+        return male_intercluster_multiplicity;
     }
+}
+
+uchar KmerCounts::getMaxInterclusterMultiplicity() {
+
+    return max(female_intercluster_multiplicity, male_intercluster_multiplicity);
 }
 
 void KmerCounts::addClusterMultiplicity(const uchar multiplicity, const bool is_multigroup_kmer) {
@@ -142,15 +139,20 @@ void KmerCounts::addClusterMultiplicity(const uchar multiplicity, const bool is_
     if (has_cluster_occ) {
 
         has_multicluster_occ = true;
-        assert(has_multigroup_occ == is_multigroup_kmer);
     }
 
     has_cluster_occ = true;
-    has_multigroup_occ = is_multigroup_kmer;
 
-    max_multiplicity = updateMultiplicity(max_multiplicity, multiplicity);     
+    if (is_multigroup_kmer) {
 
-    if (max_multiplicity > Utils::bit7_overflow) {
+        has_multigroup_occ = true;
+    }
+
+    assert(has_multigroup_occ == is_multigroup_kmer);
+
+    max_haploid_multiplicity = updateMultiplicity(max_haploid_multiplicity, multiplicity);     
+
+    if (max_haploid_multiplicity > Utils::bit7_overflow) {
 
         has_max_multiplicity = true;
     }

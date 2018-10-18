@@ -35,7 +35,7 @@ THE SOFTWARE.
 
 bool Stats::isAlleleFiltered(Sample & cur_sample, const ushort allele_idx) {
 
-    if (!(cur_sample.alleleInfo().empty())) {
+    if (!cur_sample.alleleInfo().empty()) {
 
         auto saf_value = cur_sample.alleleInfo().at(allele_idx).getValue<int>("SAF");
 
@@ -70,7 +70,7 @@ Stats::AlleleStats Stats::calcAlleleStats(Variant & variant, regex sample_id_inc
 
                 for (auto & allele_idx: cur_genotype) {
 
-                    if (!(isAlleleFiltered(cur_sample, allele_idx))) {
+                    if (!isAlleleFiltered(cur_sample, allele_idx)) {
 
                         allele_stats.allele_count_sum++;
                         allele_stats.allele_counts.at(allele_idx)++;
@@ -171,7 +171,7 @@ Stats::CallProbs Stats::calcCallProbs(Variant & variant, regex sample_id_incl_re
 
             for (uint allele_idx = 0; allele_idx < cur_sample.alleleInfo().size(); allele_idx++) {
 
-                if (!(isAlleleFiltered(cur_sample, allele_idx))) {
+                if (!isAlleleFiltered(cur_sample, allele_idx)) {
 
                     auto app_value = cur_sample.alleleInfo().at(allele_idx).getValue<float>("APP");
 
@@ -188,13 +188,13 @@ Stats::CallProbs Stats::calcCallProbs(Variant & variant, regex sample_id_incl_re
 
     for (uint allele_idx = 1; allele_idx < call_probs.allele_call_probs.size(); allele_idx++) {
 
-        if (!(variant.allele(allele_idx).isMissing())) {
+        if (!variant.allele(allele_idx).isMissing()) {
 
             max_allele_call_prob = max(max_allele_call_prob, call_probs.allele_call_probs.at(allele_idx));
         }
     }
 
-    if (!(Utils::floatCompare(max_allele_call_prob, 0))) {
+    if (!Utils::floatCompare(max_allele_call_prob, 0)) {
 
         if (Utils::floatCompare(max_allele_call_prob, 1)) {
 

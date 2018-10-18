@@ -42,7 +42,7 @@ Filters::Filters(const OptionsContainer & options_container, const vector<vector
 
     min_fraction_observed_kmers = vector<float>(genomic_count_distributions.size(), 0);
 
-    if (!(options_container.getValue<bool>("disable-observed-kmers"))) {
+    if (!options_container.getValue<bool>("disable-observed-kmers")) {
 
         for (ushort sample_idx = 0; sample_idx < genomic_count_distributions.size(); sample_idx++) {
 

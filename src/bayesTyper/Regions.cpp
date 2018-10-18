@@ -39,7 +39,7 @@ THE SOFTWARE.
 
 Regions::Regions(const string & regions_string) {
 
-    if (!(regions_string.empty())) {
+    if (!regions_string.empty()) {
 
         vector<string> regions_info_split;
         split(regions_info_split, regions_string, boost::is_any_of(","));
@@ -71,9 +71,9 @@ Regions::Regions(const string & regions_string) {
     }
 }
 
-bool Regions::overlaps(const string & chrom_name, const uint start_pos, const uint end_pos) const {
+bool Regions::overlaps(const string & chrom_name, const uint start_position, const uint end_position) const {
 
-    assert(start_pos <= end_pos);
+    assert(start_position <= end_position);
 
     if (regions.empty()) {
 
@@ -84,11 +84,11 @@ bool Regions::overlaps(const string & chrom_name, const uint start_pos, const ui
 
     if (regions_it != regions.end()) {
 
-         if (!(regions_it->second.empty())) {
+         if (!regions_it->second.empty()) {
 
             for (auto &region: regions_it->second) {
 
-                if ((end_pos >= region.first) and (start_pos <= region.second)) {
+                if ((end_position >= region.first) and (start_position <= region.second)) {
 
                     return true;
                 }

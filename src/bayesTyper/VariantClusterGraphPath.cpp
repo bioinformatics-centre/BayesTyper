@@ -89,7 +89,7 @@ void VariantClusterGraphPath::addVertex(const uint vertex_idx, const VariantClus
 void VariantClusterGraphPath::updateScore(const bool is_kmer_observed, uint cur_sequence_length) {
 
 	assert(cur_sequence_length > 0);
-	assert(!(path.empty()));
+	assert(!path.empty());
 
 	if (is_kmer_observed) {
 
@@ -98,7 +98,7 @@ void VariantClusterGraphPath::updateScore(const bool is_kmer_observed, uint cur_
 		auto path_rit = path.rbegin();
 		assert(path_rit != path.rend());
 
-	    if ((cur_sequence_length > 1) or !(path_rit->vertex->is_first_nucleotides_redundant)) {
+	    if ((cur_sequence_length > 1) or !path_rit->vertex->is_first_nucleotides_redundant) {
 
 	    	if (path_rit->num_observed_kmers < min_observed_kmers) {
 
@@ -120,7 +120,7 @@ void VariantClusterGraphPath::updateScore(const bool is_kmer_observed, uint cur_
 	    		path_rit->num_observed_kmers++;
 	    	}
 
-		    cur_sequence_length += (path_rit->vertex->sequence.size() / 2);
+		    cur_sequence_length += path_rit->vertex->sequence.size() / 2;
 
 			path_rit++;
 		}
@@ -156,7 +156,7 @@ uint VariantClusterGraphPath::getVertexScore(const vector<bool> & covered_observ
 
 		assert(vertex.num_observed_kmers <= min_observed_kmers);
 
-		if ((vertex.num_observed_kmers == min_observed_kmers) and !(covered_observed_vertices.at(vertex.index))) {
+		if ((vertex.num_observed_kmers == min_observed_kmers) and !covered_observed_vertices.at(vertex.index)) {
 
 			observed_vertex_score++;
 		}
@@ -176,12 +176,12 @@ uint VariantClusterGraphPath::getVertexScore(const vector<bool> & covered_observ
 	            break;
 	        }
 
-			if (!(covered_observed_vertices.at(path_rit->index))) {
+			if (!covered_observed_vertices.at(path_rit->index)) {
 
 				observed_vertex_score++;
 			}
 
-		    cur_sequence_length += (path_rit->vertex->sequence.size() / 2);
+		    cur_sequence_length += path_rit->vertex->sequence.size() / 2;
 			path_rit++;
 		}
 	}
@@ -218,7 +218,7 @@ void VariantClusterGraphPath::updateObservedCoveredVertices(vector<bool> * cover
 
 			covered_observed_vertices->at(path_rit->index) = true;
 
-		    cur_sequence_length += (path_rit->vertex->sequence.size() / 2);
+		    cur_sequence_length += path_rit->vertex->sequence.size() / 2;
 			path_rit++;
 		}
 	}

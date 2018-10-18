@@ -191,7 +191,12 @@ pair<ValueType, bool> getPairValue(const pair<ValueType, bool> & first_value, co
 void writeSummaryStats(const unordered_map<string, uint> & summary_stats, const string & output_name, const string & header) {
 
     ofstream stats_outfile(output_name);
-    assert(stats_outfile.is_open());
+
+    if (!stats_outfile.is_open()) {
+
+        cerr << "\nERROR: Unable to write file " << output_name << "\n" << endl;
+        exit(1);
+    }
 
     stats_outfile << header << endl;
 
@@ -300,7 +305,7 @@ int main(int argc, char const *argv[]) {
 	        homopolymer_alleles.second = true;
         }
 
-        bool has_homopolymer_allele = (find(homopolymer_alleles.first.begin(), homopolymer_alleles.first.end(), true) != homopolymer_alleles.first.end());
+        bool has_homopolymer_allele = find(homopolymer_alleles.first.begin(), homopolymer_alleles.first.end(), true) != homopolymer_alleles.first.end();
         assert(homopolymer_alleles.first.size() == cur_var->numAlls());
 
         bool has_redundant = false;

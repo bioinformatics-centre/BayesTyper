@@ -32,8 +32,6 @@ THE SOFTWARE.
 
 #include <random>
 
-#include "Eigen/Dense"
-
 #include "Utils.hpp"
 
 
@@ -42,15 +40,12 @@ class SparsityEstimator {
 	public:
 		
 		SparsityEstimator(const uint);
-		uint estimateMinimumSetCover(Utils::MatrixXuchar const &, Utils::RowVectorXbool *);
-		vector<bool> & getMinimumSet();
+		
+		unordered_set<ushort> estimateMinimumColumnCover(const Utils::MatrixXuchar &, Utils::RowVectorXbool *);
 
 	private: 
 
 		mt19937 prng;
-		uniform_int_distribution<> uniform_int_dist;
-
-	    vector<bool> in_minimum_set;
 };
 
 #endif

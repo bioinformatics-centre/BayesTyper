@@ -62,7 +62,7 @@ int main(int argc, char const *argv[]) {
 
 	if (!kmer_database.OpenForListing(argv[1])) {
 
-		cout << "ERROR: Could not open KMC database " << argv[1] << endl;
+		cerr << "\nERROR: Unable to open KMC table " << argv[1] << "\n" << endl;
 		exit(1);
 	}
 
@@ -129,8 +129,13 @@ int main(int argc, char const *argv[]) {
 	}
 
     ofstream stats_outfile(string(argv[2]) + "_kmer_stats.txt");
-    assert(stats_outfile.is_open());
 
+    if (!stats_outfile.is_open()) {
+
+        cerr << "\nERROR: Unable to write file " << string(argv[2]) + "_kmer_stats.txt" << "\n" << endl;
+        exit(1);
+    }
+    
 	stats_outfile << "NumberOfKmers\tKmerCount\tAdenineCount\tCytosineCount\tGuanineCount\tThymineCount\n";
 
 	for (auto & kmer_stat: kmer_stats) {

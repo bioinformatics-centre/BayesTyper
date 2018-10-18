@@ -46,30 +46,33 @@ THE SOFTWARE.
 
 VariantClusterGroup::VariantClusterGroup(const vector<VariantCluster *> & variant_clusters, const vector<VariantClusterGraph *> & variant_cluster_graphs, const unordered_map<uint, uint> & variant_cluster_depedencies) {
 
-	assert(!(variant_clusters.empty()));
+	assert(!variant_clusters.empty());
 	assert(variant_clusters.size() < Utils::uint_overflow);
 	assert(variant_clusters.size() == variant_cluster_graphs.size());
     assert(variant_cluster_depedencies.size() < variant_clusters.size());
 
     chrom_name = variant_clusters.front()->chrom_name;
-    chrom_class = variant_clusters.front()->chrom_class;
 
 	start_position = Utils::uint_overflow;
 	end_position = 0;
 
  	num_variants = 0;
 
-	is_snv = false;
-
-	if ((variant_clusters.size() == 1) and (variant_clusters.front()->variants.size() == 1) and (variant_clusters.front()->variants.begin()->second.type == VariantCluster::VariantType::SNP)) {
-
-		is_snv = true;
-	}
+	is_parameter_cluster = true;
 
 	unordered_map<uint, uint> variant_cluster_idx_to_vertex_id;
 	vertices.reserve(variant_clusters.size());
 
 	for (uint i = 0; i < variant_clusters.size(); i++) {
+
+		for (auto & variant: variant_clusters.at(i)->variants) {
+
+			if (variant.second.type != VariantCluster::VariantType::SNV) {
+
+				is_parameter_cluster = false;
+				break;
+			}
+		}
 
 		if (variant_cluster_depedencies.count(variant_clusters.at(i)->cluster_idx) < 1) {
 
@@ -87,7 +90,6 @@ VariantClusterGroup::VariantClusterGroup(const vector<VariantCluster *> & varian
 		assert(variant_clusters.at(i)->contained_clusters.empty());
 
 		assert(chrom_name == variant_clusters.at(i)->chrom_name);
-		assert(chrom_class == variant_clusters.at(i)->chrom_class);
 
 		assert(variant_clusters.at(i)->left_flank == variant_clusters.at(i)->variants.begin()->first);
 		assert(variant_clusters.at(i)->right_flank >= variant_clusters.at(i)->variants.rbegin()->first);
@@ -163,14 +165,13 @@ void VariantClusterGroup::classifyPathKmers(KmerCountsHash * kmer_hash, KmerBloo
 	}
 }
 
-bool VariantClusterGroup::isAutosomalSimpleSNV() const {
+bool VariantClusterGroup::isSimpleParameterCluster() const {
 
-	if (!is_snv or (chrom_class != Utils::ChromClass::Autosomal)) {
+	if (!is_parameter_cluster) {
 
 		return false;
 	}
 
-	assert(numberOfVariants() == 1);
 	assert(numberOfVariantClusters() == 1);
 	assert(numberOfVariantClusterGroupTrees() == 1);
 
@@ -181,7 +182,7 @@ void VariantClusterGroup::initGenotyper(KmerCountsHash * kmer_hash, const vector
 
 	for (auto & vertex: vertices) {
 
-		assert(!(vertex.genotyper));
+		assert(!vertex.genotyper);
 
 		vertex.genotyper = new VariantClusterGenotyper(vertex.graph, kmer_hash, samples, prng_seed + vertex.variant_cluster_idx, num_genomic_rate_gc_bias_bins);
 		vertex.genotyper->reset(kmer_subsampling_rate, max_haplotype_variant_kmers);
@@ -223,9 +224,9 @@ void VariantClusterGroup::shuffleBranchOrdering(const uint prng_seed) {
 void VariantClusterGroup::estimateGenotypes(const CountDistribution & count_distribution, const ChromosomePloidy & chrom_ploidy, const bool collect_samples) {
 
 	vector<VariantClusterHaplotypes::NestedVariantClusterInfo> nested_variant_cluster_info;
-	nested_variant_cluster_info.reserve(chrom_ploidy.getPloidy(chrom_class).size());
+	nested_variant_cluster_info.reserve(chrom_ploidy.getSamplePloidy(chrom_name).size());
 	
-	for (auto & ploidy: chrom_ploidy.getPloidy(chrom_class)) {
+	for (auto & ploidy: chrom_ploidy.getSamplePloidy(chrom_name)) {
 
 		nested_variant_cluster_info.emplace_back(ploidy);
 	}
@@ -266,7 +267,7 @@ void VariantClusterGroup::collectGenotypes(vector<Genotypes*> * variant_genotype
 	for (auto & vertex: vertices) {	
 
 		assert(vertex.genotyper);
-		auto vertex_genotypes = vertex.genotyper->getGenotypes(chrom_name, chrom_ploidy.getPloidy(chrom_class), filters);
+		auto vertex_genotypes = vertex.genotyper->getGenotypes(chrom_name, chrom_ploidy.getSamplePloidy(chrom_name), filters);
 
 		for (auto & genotypes: vertex_genotypes) {
 

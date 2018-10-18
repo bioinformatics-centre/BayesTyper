@@ -57,7 +57,7 @@ void MakeBloom::kmc2bloomFile(const string & kmc_table_prefix, const float false
 
 		if (!kmc_table.OpenForListing(kmc_table_prefix)) {
 
-			cout << "ERROR: Could not open KMC table " << kmc_table_prefix << endl;
+			cerr << "\nERROR: Unable to open KMC table " << kmc_table_prefix << "\n" << endl;
 			exit(1);
 		}
 
@@ -65,7 +65,7 @@ void MakeBloom::kmc2bloomFile(const string & kmc_table_prefix, const float false
 		assert(kmc_table.Info(kmc_table_info));
 
 		assert(kmc_table_info.kmer_length == kmer_size);
-		assert(!(kmc_table_info.mode));
+		assert(!kmc_table_info.mode);
 
 		CKmerAPI kmer(kmer_size);
 		uint32 count;
@@ -139,7 +139,7 @@ kmer_bloom_t * MakeBloom::kmc2bloom(const string & kmc_table_fn, const float fal
 
 	if (!kmc_table.OpenForListing(kmc_table_fn)) {
 
-		cout << "ERROR: Could not open KMC table " << kmc_table_fn << endl;
+		cerr << "\nERROR: Unable to open KMC table " << kmc_table_fn << "\n" << endl;
 		exit(1);
 	}
 
@@ -147,7 +147,7 @@ kmer_bloom_t * MakeBloom::kmc2bloom(const string & kmc_table_fn, const float fal
 	assert(kmc_table.Info(kmc_table_info));
 
 	assert(kmc_table_info.kmer_length == kmer_size);
-	assert(!(kmc_table_info.mode));
+	assert(!kmc_table_info.mode);
 
 	std::cout << "[" << Utils::getLocalTime() << "] Making bloom filter of " << kmc_table_info.total_kmers << " kmers with a false positive rate of " << false_positive_rate << " ...\n" << std::endl;
 
@@ -203,7 +203,7 @@ kmer_bloom_t * MakeBloom::kmc2bloomThreaded(const string & kmc_table_fn, const f
 
 	if (!kmc_table.OpenForListing(kmc_table_fn)) {
 
-		cout << "ERROR: Could not open KMC table " << kmc_table_fn << endl;
+		cerr << "\nERROR: Unable to open KMC table " << kmc_table_fn << "\n" << endl;
 		exit(1);
 	}
 
@@ -211,7 +211,7 @@ kmer_bloom_t * MakeBloom::kmc2bloomThreaded(const string & kmc_table_fn, const f
 	assert(kmc_table.Info(kmc_table_info));
 
 	assert(kmc_table_info.kmer_length == kmer_size);
-	assert(!(kmc_table_info.mode));
+	assert(!kmc_table_info.mode);
 
 	std::cout << "[" << Utils::getLocalTime() << "] Making bloom filter of " << kmc_table_info.total_kmers << " kmers with a false positive rate of " << false_positive_rate << " ...\n" << std::endl;
 

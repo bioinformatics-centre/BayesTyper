@@ -56,7 +56,7 @@ class InferenceEngine {
 
 	public:
 
-		InferenceEngine(const vector<Sample> &, const OptionsContainer &);		
+		InferenceEngine(const vector<Sample> &, const ChromosomePloidy &, const OptionsContainer &);		
 
 		void estimateNoiseParameters(CountDistribution *, InferenceUnit *, KmerCountsHash *, const string &);
 		void genotypeVariantClusterGroups(InferenceUnit *, KmerCountsHash *, const CountDistribution &, const Filters & filters, GenotypeWriter *);	

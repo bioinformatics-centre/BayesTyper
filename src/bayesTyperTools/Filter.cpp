@@ -50,7 +50,7 @@ namespace Filter {
         GenotypedVcfFileReader vcf_reader(variant_file, true);
         
         auto sample_ids = vcf_reader.metaData().sampleIds();
-        assert(!(sample_ids.empty()));
+        assert(!sample_ids.empty());
 
         if (sample_ids.size() >= min_filter_samples) {
 
@@ -70,36 +70,32 @@ namespace Filter {
 
         filter_values.min_sample_fak_values = vector<float>(sample_ids.size(), 0);
 
-        if (!(kmer_coverage_filename.empty())) {
+        if (!kmer_coverage_filename.empty()) {
 
             ifstream kmer_coverage_infile(kmer_coverage_filename);
-            assert(kmer_coverage_infile.is_open());
 
-            string line;
+            if (!kmer_coverage_infile.is_open()) {
 
-            while (kmer_coverage_infile.good()) {
+                cerr << "\nERROR: Unable to open file " << kmer_coverage_filename << "\n" << endl;
+                exit(1);
+            }
 
-                getline(kmer_coverage_infile, line);
+            for (string kmer_coverage_line; getline(kmer_coverage_infile, kmer_coverage_line);) {
 
-                if (line.empty()) {
+                auto kmer_coverage_line_split = Utils::splitString(kmer_coverage_line, '\t');
+                assert(kmer_coverage_line_split.size() == 3); 
 
-                    continue;
-                }
-
-                auto line_split = Utils::splitString(line, '\t');
-                assert(line_split.size() == 3); 
-
-                if (line_split.front() == "Sample") {
+                if (kmer_coverage_line_split.front() == "Sample") {
 
                     continue;
                 }
 
-                auto sample_ids_it = find(sample_ids.begin(), sample_ids.end(), line_split.front());
+                auto sample_ids_it = find(sample_ids.begin(), sample_ids.end(), kmer_coverage_line_split.front());
 
                 if (sample_ids_it != sample_ids.end()) {
 
                     assert(floatCompare(filter_values.min_sample_fak_values.at(sample_ids_it - sample_ids.begin()), 0));
-                    filter_values.min_sample_fak_values.at(sample_ids_it - sample_ids.begin()) = 1 - exp(-(fak_beta_value * stof(line_split.at(1))));
+                    filter_values.min_sample_fak_values.at(sample_ids_it - sample_ids.begin()) = 1 - exp(-(fak_beta_value * stof(kmer_coverage_line_split.at(1))));
 
                     assert(filter_values.min_sample_fak_values.at(sample_ids_it - sample_ids.begin()) >= 0);
                     assert(filter_values.min_sample_fak_values.at(sample_ids_it - sample_ids.begin()) <= 1);
@@ -168,7 +164,7 @@ namespace Filter {
 
                     if (cur_sample->callStatus() == Sample::CallStatus::Complete) {
 
-                        assert(!(cur_sample->genotypeEstimate().empty()));
+                        assert(!cur_sample->genotypeEstimate().empty());
                         assert(cur_sample->genotypeEstimate().size() <= 2);
 
                         if (cur_sample->genotypeEstimate().front() == cur_sample->genotypeEstimate().back()) {
@@ -204,7 +200,7 @@ namespace Filter {
 
                     auto saf_value = cur_sample->alleleInfo().at(allele_idx).getValue<int>("SAF");
                     
-                    if (!(saf_value.second)) {
+                    if (!saf_value.second) {
 
                         continue;
                     }
@@ -214,7 +210,7 @@ namespace Filter {
                     auto app_value = cur_sample->alleleInfo().at(allele_idx).getValue<float>("APP");
                     assert(app_value.second);
 
-                    if (!(Utils::floatCompare(app_value.first, 0))) {
+                    if (!Utils::floatCompare(app_value.first, 0)) {
 
                         assert(app_value.first > 0);
 
@@ -235,7 +231,7 @@ namespace Filter {
 
                         assert(Utils::floatCompare(nak_value.first, 0) == Utils::floatCompare(fak_value.first, -1));
 
-                        if (!(Utils::floatCompare(nak_value.first, 0))) {
+                        if (!Utils::floatCompare(nak_value.first, 0)) {
 
                             assert(fak_value.first >= 0);
 
@@ -248,7 +244,7 @@ namespace Filter {
                         assert(cur_saf_value >= 0);
                         assert(cur_saf_value <= 3);
 
-                        assert(!(cur_sample->alleleInfo().at(allele_idx).setValue<int>("SAF", cur_saf_value)));
+                        assert(!cur_sample->alleleInfo().at(allele_idx).setValue<int>("SAF", cur_saf_value));
                     }
                 }
 

@@ -62,8 +62,6 @@ std::pair<double, double> NegativeBinomialDistribution::methodOfMomentsEst(const
 
     var /= num_obs - 1;
 
-    cout << mean << " " << var << endl;
-
     return momentsToParameters(mean, var);
 }
 

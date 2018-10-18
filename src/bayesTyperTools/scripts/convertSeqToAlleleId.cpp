@@ -114,15 +114,15 @@ int main(int argc, char const *argv[]) {
 
             uint cur_pos = cur_var->pos();
 
-    		assert(!(cur_var->alt(alt_allele_idx).isID()));
+    		assert(!cur_var->alt(alt_allele_idx).isID());
 
             Allele cur_ref_allele = cur_var->ref();
             Allele cur_alt_allele = cur_var->alt(alt_allele_idx);
 
             Auxiliaries::rightTrimAllelePair(&cur_ref_allele, &cur_alt_allele);
 
-            assert(!(cur_ref_allele.seq().empty()));
-            assert(!(cur_alt_allele.seq().empty()));
+            assert(!cur_ref_allele.seq().empty());
+            assert(!cur_alt_allele.seq().empty());
 
             if ((cur_ref_allele.seq().size() == cur_alt_allele.seq().size()) and (cur_ref_allele.seq().size() == 1)) {
 
