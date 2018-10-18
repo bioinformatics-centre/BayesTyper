@@ -5,8 +5,8 @@ BayesTyper performs genotyping of all types of variation (including SNPs, indels
 * 18 October 2018: New release ([v1.4](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.4)) featuring:
     * **Sparsity estimation**: Fixed bug when estimating the sparsity parameter used for the population prior. This fix should result in better estimates for complex clusters.
     * **Ploidy input file**: The ploidy of each chromosome for each gender (female and male) can now be specified using `--chromosome-ploidy-file` in *bayesTyper genotype*. Ploidy levels 0, 1 (haploid) and 2 (diploid) are supported. Human ploidy levels are assumed if no file is given.
-    * **Genomic parameter estimation**: Genomic parameters are now estimated using either haploid or diploid k-mers. The ploidy level with highest number of informative k-mers is used for estimation.
-    * **Noise parameter estimation**: Noise parameters are now estimated using SNV clusters across all supported ploidy levels.
+    * **Genomic parameter estimation**: Genomic parameters are now estimated using either haploid or diploid k-mers. The ploidy level with the highest number of informative k-mers is used for estimation.
+    * **Noise parameter estimation**: Noise parameters are now estimated using SNVs across all supported ploidy levels. In addition, SNVs in clusters are now also used in parameter estimation.
     * **Error handling**: Incorrect inputs now produces more informative error messaging.
 
 * 31 July 2018: BayesTyper data bundles have been updated to fix reference naming issue when used with the snakemake workflow and to fix a fasta parsing error in `bayesTyperTools convertAllele`
@@ -58,7 +58,7 @@ Below we outline an example strategy, where candiates are obtained using
 
 The complete workflow (i.e. BAM(s) to genotypes) outlined below is further provided as a [snakemake workflow](https://github.com/bioinformatics-centre/BayesTyper/tree/master/workflows) for easy deployment of BayesTyper. Please refer to the [snakemake wiki](https://github.com/bioinformatics-centre/BayesTyper/wiki/Running-BayesTyper-using-snakemake) for detailed instructions on how to set up and execute the workflow on your data.
 
-**Important:** This workflow should work well for most cases. If you prefer to use another approach, please note that the candidate variant set *must contain* at least 1 million *candidate* SNVs that are needed for accurate estimation of parameters.
+**Important:** This workflow should work well for most cases. If you prefer to use another approach, please note that the candidate variant set should ideally contain at least 100,000 *candidate* SNVs that are not clustered with structural variants (needed for accurate estimation of parameters).
 
 **Important:** Please note that it is currently only possible to genotype 30 samples at the time using *BayesTyper*. To run more samples, please execute *BayesTyper* in batches as described in the [batching wiki](https://github.com/bioinformatics-centre/BayesTyper/wiki/Executing-BayesTyper-on-sample-batches). Batching is currently not supported by the *snakemake* workflow - please let us know if you require this feature by filing a [feature request](https://github.com/bioinformatics-centre/BayesTyper/issues).
 
