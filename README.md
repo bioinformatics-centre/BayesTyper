@@ -8,13 +8,19 @@ BayesTyper performs genotyping of all types of variation (including SNPs, indels
     * **Genomic parameter estimation**: Genomic parameters are now estimated using either haploid or diploid k-mers. The ploidy level with highest number of informative k-mers is used for estimation.
     * **Noise parameter estimation**: Noise parameters are now estimated using SNV clusters across all supported ploidy levels.
     * **Error handling**: Incorrect inputs now produces more informative error messaging.
+
 * 31 July 2018: BayesTyper data bundles have been updated to fix reference naming issue when used with the snakemake workflow and to fix a fasta parsing error in `bayesTyperTools convertAllele`
+
 * 19 June 2018: BayesTyper *canon* and *decoy* references in the data bundles have been updated
+
 * 18 June 2018: BayesTyper paper published as *Technical Report* in *Nature Genetics* ([link](https://www.nature.com/articles/s41588-018-0145-5)). 
-    * Please note that the results presented in the paper were obtained using BayesTyper [v1.2.0](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.2) 
+    * Please note that the results presented in the paper were obtained using BayesTyper [v1.2](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.2) 
     * The new BayesTyper [v >= 1.3](https://github.com/bioinformatics-centre/BayesTyper/releases/latest) requires **much less memory** and **runs faster** than stated in *Supplementary Table 2* in the manuscript with no impact on sensitivity and genotyping acceracy as compared with v1.2. Please refer to the *Computational requirements* section below and the [release notes](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.3) for version 1.3 for further details. 
-* 18 June 2018: Patch ([v1.3.1](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.3.1))  
+
+* 18 June 2018: Patch ([v1.3.1](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.3.1)) 
+
 * 15 June 2018: New release ([v1.3](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.3))
+
 * 26 February 2018: Manuscript release ([v1.2](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.2))
 
 ## Why should I use BayesTyper? ##
