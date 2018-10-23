@@ -4,7 +4,7 @@ BayesTyper performs genotyping of all types of variation (including SNPs, indels
 ## News ##
 * 18 October 2018: New release ([v1.4](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.4)) featuring:
     * **Sparsity estimation**: Fixed bug when estimating the sparsity parameter used for the population prior. This fix should result in better estimates for complex clusters.
-    * **Ploidy input file**: The ploidy of each chromosome for each gender (female and male) can now be specified using `--chromosome-ploidy-file` in *bayesTyper genotype*. Ploidy levels 0, 1 (haploid) and 2 (diploid) are supported. Human ploidy levels are assumed if no file is given.
+    * **Ploidy input file**: The ploidy of each chromosome for each gender (female and male) can now be specified using `--chromosome-ploidy-file` in *bayesTyper genotype*. Ploidy levels 0, 1 (haploid) and 2 (diploid) are supported. Human ploidy levels are assumed if no file is given (see [wiki](https://github.com/bioinformatics-centre/BayesTyper/wiki/Running-BayesTyper-on-non-human-data) for more details).
     * **Genomic parameter estimation**: Genomic parameters are now estimated using either haploid or diploid k-mers. The ploidy level with the highest number of informative k-mers is used for estimation.
     * **Noise parameter estimation**: Noise parameters are now estimated using SNVs across all supported ploidy levels. In addition, SNVs in clusters are now also used in parameter estimation.
     * **Error handling**: Incorrect inputs now produces more informative error messaging.
