@@ -2,6 +2,8 @@
 BayesTyper performs genotyping of all types of variation (including SNPs, indels and complex structural variants) based on an input set of variants and read k-mer counts. Internally, BayesTyper uses exact alignment of k-mers to a graph representation of the input variants and reference sequence in combination with a probabilistic model of k-mer counts to do genotyping.
 
 ## News ##
+* 28 January 2019: Patch ([v1.4.1](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.4.1))
+
 * 18 October 2018: New release ([v1.4](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.4)) featuring:
     * **Sparsity estimation**: Fixed bug when estimating the sparsity parameter used for the population prior. This fix should result in better estimates for complex clusters.
     * **Ploidy input file**: The ploidy of each chromosome for each gender (female and male) can now be specified using `--chromosome-ploidy-file` in *bayesTyper genotype*. Ploidy levels 0, 1 (haploid) and 2 (diploid) are supported. Human ploidy levels are assumed if no file is given (see [wiki](https://github.com/bioinformatics-centre/BayesTyper/wiki/Running-BayesTyper-on-non-human-data) for more details).
