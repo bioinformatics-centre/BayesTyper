@@ -3,7 +3,7 @@ BayesTyper performs genotyping of all types of variation (including SNPs, indels
 
 ## News ##
 * 28 January 2019: Patch ([v1.4.1](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.4.1))
-    * Updating to this patch is highly recommended since it fixes a bug resulting in the code crashing on larger datasets (see [release notes](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.4.1)).
+    * Updating to this patch is highly recommended since it fixes a bug introduced in [v1.4](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.4) that resulted in `bayesTyper genotype` occasionally crashing on larger datasets (see [release notes](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.4.1)).
 
 * 18 October 2018: New release ([v1.4](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.4)) featuring:
     * **Sparsity estimation**: Fixed bug when estimating the sparsity parameter used for the population prior. This fix should result in better estimates for complex clusters.
