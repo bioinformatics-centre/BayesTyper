@@ -405,6 +405,8 @@ void VariantFileParser::parseVariants(ProducerConsumerQueue<vector<unordered_map
         bool is_excluded = false;
 
         string gen_ref_seq = chromosomes_it->second.substr(cur_position, variant_line.at(3).size()); 
+        transform(gen_ref_seq.begin(), gen_ref_seq.end(), gen_ref_seq.begin(), ::toupper);
+
         assert(gen_ref_seq.size() == var_ref_seq.size());
 
         if (var_ref_seq.compare(gen_ref_seq) != 0) {

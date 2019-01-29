@@ -88,13 +88,12 @@ void CountDistribution::setGenomicCountDistributions(const vector<vector<vector<
 
         for (ushort bias_idx = 0; bias_idx < num_genomic_rate_gc_bias_bins; bias_idx++) {
 
-			assert(intercluster_diploid_kmer_stats.at(sample_idx).at(bias_idx).size() == static_cast<uint>(max_multiplicity + 1));
-        	assert(intercluster_diploid_kmer_stats.at(sample_idx).at(bias_idx).front().getCount() == 0);
+			assert(intercluster_diploid_kmer_stats.at(sample_idx).at(bias_idx).size() == static_cast<uint>(Utils::Ploidy::PLOIDY_SIZE));
 
         	uint max_kmer_count = 0;
         	ushort max_kmer_multiplicity = 0;
 
-			for (ushort kmer_multiplicity = 1; kmer_multiplicity <= max_multiplicity; kmer_multiplicity++) {
+			for (ushort kmer_multiplicity = 1; kmer_multiplicity < static_cast<uint>(Utils::Ploidy::PLOIDY_SIZE); kmer_multiplicity++) {
 
 				auto kmer_count = intercluster_diploid_kmer_stats.at(sample_idx).at(bias_idx).at(kmer_multiplicity).getCount();
 
@@ -127,7 +126,7 @@ void CountDistribution::setGenomicCountDistributions(const vector<vector<vector<
         	auto nb_mean = genomic_count_distributions.at(sample_idx).at(bias_idx).mean();
         	auto nb_var = genomic_count_distributions.at(sample_idx).at(bias_idx).var();
 
-            cout << "[" << Utils::getLocalTime() << "] Estimated negative binomial for sample " << samples.at(sample_idx).name << " with mean " << nb_mean << " and variance " << nb_var << " using " << max_kmer_count << " parameter kmers" << endl;
+            cout << "[" << Utils::getLocalTime() << "] Estimated negative binomial (mean = " << nb_mean << ", var = " << nb_var << ") for sample " << samples.at(sample_idx).name << " using " << max_kmer_count << " parameter kmers (ploidy = " << max_kmer_multiplicity << ")" << endl;
 
 			if (max_kmer_count < (min_nb_kmer_count * 10)) {
 

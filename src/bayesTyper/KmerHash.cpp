@@ -247,7 +247,7 @@ void ObservedKmerCountsHash<sample_bin>::writeRootSizeDistribution(const string 
 template<uchar sample_bin>
 vector<vector<vector<KmerStats> > > ObservedKmerCountsHash<sample_bin>::calculateKmerStats(const vector<Sample> & samples) {
 
-    vector<vector<vector<KmerStats> > > intercluster_diploid_kmer_stats(samples.size(), vector<vector<KmerStats> >(num_genomic_rate_gc_bias_bins, vector<KmerStats>(max_multiplicity + 1)));
+    vector<vector<vector<KmerStats> > > intercluster_diploid_kmer_stats(samples.size(), vector<vector<KmerStats> >(num_genomic_rate_gc_bias_bins, vector<KmerStats>(static_cast<uint>(Utils::Ploidy::PLOIDY_SIZE))));
 
     ulong total_count = 0;
 
@@ -301,12 +301,11 @@ vector<vector<vector<KmerStats> > > ObservedKmerCountsHash<sample_bin>::calculat
             assert(!(*hash_it).second.hasMulticlusterOccurrence());
             assert(!(*hash_it).second.hasMultigroupOccurrence());
 
-            if ((*hash_it).second.isParameter()) {
+            if ((*hash_it).second.isParameter() and ((*hash_it).second.getMaxInterclusterMultiplicity() < static_cast<uint>(Utils::Ploidy::PLOIDY_SIZE))) {
 
                 assert(!(*hash_it).second.isExcluded());
 
                 const uchar bias_idx = Nucleotide::gcBiasBin<Utils::kmer_size>((*hash_it).first, num_genomic_rate_gc_bias_bins);
-
 
                 for (ushort sample_idx = 0; sample_idx < samples.size(); sample_idx++) {
             
