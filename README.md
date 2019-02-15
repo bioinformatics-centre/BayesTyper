@@ -1,7 +1,7 @@
 # BayesTyper #
 BayesTyper performs genotyping of all types of variation (including SNPs, indels and complex structural variants) based on an input set of variants and read k-mer counts. Internally, BayesTyper uses exact alignment of k-mers to a graph representation of the input variants and reference sequence in combination with a probabilistic model of k-mer counts to do genotyping.
 
-## News ##
+## Latest News ##
 * 28 January 2019: Patch ([v1.4.1](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.4.1))
     * Updating to this patch is highly recommended since it fixes a bug introduced in [v1.4](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.4) that resulted in `bayesTyper genotype` occasionally crashing on larger datasets (see [release notes](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.4.1)).
 
@@ -11,20 +11,6 @@ BayesTyper performs genotyping of all types of variation (including SNPs, indels
     * **Genomic parameter estimation**: Genomic parameters are now estimated using either haploid or diploid k-mers. The ploidy level with the highest number of informative k-mers is used for estimation.
     * **Noise parameter estimation**: Noise parameters are now estimated using SNVs across all supported ploidy levels. In addition, SNVs in clusters are now also used in parameter estimation.
     * **Error handling**: Incorrect inputs now produces more informative error messaging.
-
-* 31 July 2018: BayesTyper data bundles have been updated to fix reference naming issue when used with the snakemake workflow and to fix a fasta parsing error in `bayesTyperTools convertAllele`
-
-* 19 June 2018: BayesTyper *canon* and *decoy* references in the data bundles have been updated
-
-* 18 June 2018: BayesTyper paper published as *Technical Report* in *Nature Genetics* ([link](https://www.nature.com/articles/s41588-018-0145-5)). 
-    * Please note that the results presented in the paper were obtained using BayesTyper [v1.2](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.2) 
-    * The new BayesTyper [v >= 1.3](https://github.com/bioinformatics-centre/BayesTyper/releases/latest) requires **much less memory** and **runs faster** than stated in *Supplementary Table 2* in the manuscript with no impact on sensitivity and genotyping acceracy as compared with v1.2. Please refer to the *Computational requirements* section below and the [release notes](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.3) for version 1.3 for further details. 
-
-* 18 June 2018: Patch ([v1.3.1](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.3.1)) 
-
-* 15 June 2018: New release ([v1.3](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.3))
-
-* 26 February 2018: Manuscript release ([v1.2](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.2))
 
 ## Why should I use BayesTyper? ##
 ### Short explanation ###
@@ -119,7 +105,7 @@ Starting from a set of indexed, aligned reads (obtained e.g. using *BWA-MEM*):
 
 \* `bayesTyper genotype` can be distributed across nodes on a cluster - between 2 and 11 nodes were used in this benchmark.
 
-The time estimates are for running `bayesTyper cluster` and `bayesTyper genotype` only. Expect <1h combined run-time per sample for counting k-mers by *KMC3* and bloom filter creation by *bayesTyperTools*. All runs were done on a 64-bit Intel Xeon 2.00 GHz machine with 128 GB of memory.
+The time estimates are for running `bayesTyper cluster` and `bayesTyper genotype` only. Expect <1h combined run-time per sample for counting k-mers by *KMC3* and bloom filter creation by *bayesTyperTools*. All runs were done on a 64-bit Intel Xeon 2.00 GHz machine with 128 GB of memory using [v1.3](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.3).
 
 ## Citing BayesTyper ##
 Sibbesen JA*, Maretty L*, The Danish Pan-Genome Consortium & Krogh A: Accurate genotyping accross variant classes and lengths using variant graphs. *Nature Genetics*, 2018. [link](https://www.nature.com/articles/s41588-018-0145-5). *Equal contributors.
