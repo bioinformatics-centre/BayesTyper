@@ -73,7 +73,7 @@ class VariantClusterGraph {
 		virtual ~VariantClusterGraph() {};
 
 		const vector<VariantInfo> & getInfo() const;
-		bool isSimpleCluster();
+		bool hasExcludedKmers();
 
 		void findSamplePaths(KmerBloom<Utils::kmer_size> *, const uint, const ushort);
 		
@@ -92,7 +92,7 @@ class VariantClusterGraph {
 		Graph graph;
 
 		ulong num_path_kmers;
-		bool is_simple_cluster;
+		bool has_excluded_kmers;
 
 		vector<VariantInfo> variant_cluster_info;
 		vector<bool> best_paths_indices;
@@ -114,7 +114,7 @@ class VariantClusterGraph {
 
     		ar & graph;
     		ar & num_path_kmers;
-    		ar & is_simple_cluster;
+    		ar & has_excluded_kmers;
     		ar & variant_cluster_info;
     		ar & best_paths_indices;
     	}

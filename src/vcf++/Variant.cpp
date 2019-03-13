@@ -317,7 +317,7 @@ void Variant::removeAlts(vector<uint> alt_indices, const bool convert_genotype_t
 
     sort(alt_indices.begin(), alt_indices.end());
     auto ait = alt_indices.rbegin();
-
+    
     while (ait != alt_indices.rend()) {
 
         for (auto &sample: _samples) {

@@ -108,6 +108,10 @@ void CountDistribution::setGenomicCountDistributions(const vector<vector<vector<
 
 				cerr << "\nERROR: Insufficient number of kmers used for negative binomial parameters estimation for sample " << samples.at(sample_idx).name << " (" << max_kmer_count << " < " << min_nb_kmer_count << "); the genome used is likely too small and/or too repetitive\n" << endl;
 				exit(1);
+			
+			} else if (max_kmer_count < (min_nb_kmer_count * 10)) {
+
+				cout << "\nWARNING: Low number of kmers used for negative binomial parameters estimation for sample " << samples.at(sample_idx).name << " (" << max_kmer_count << " < " << min_nb_kmer_count * 10 << "); mean and variance estimate might be biased\n" << endl;
 			}
 
 			assert(max_kmer_multiplicity > 0);
@@ -127,11 +131,6 @@ void CountDistribution::setGenomicCountDistributions(const vector<vector<vector<
         	auto nb_var = genomic_count_distributions.at(sample_idx).at(bias_idx).var();
 
             cout << "[" << Utils::getLocalTime() << "] Estimated negative binomial (mean = " << nb_mean << ", var = " << nb_var << ") for sample " << samples.at(sample_idx).name << " using " << max_kmer_count << " parameter kmers (ploidy = " << max_kmer_multiplicity << ")" << endl;
-
-			if (max_kmer_count < (min_nb_kmer_count * 10)) {
-
-				cout << "\nWARNING: Low number of kmers used for negative binomial parameters estimation for sample " << samples.at(sample_idx).name << " (" << max_kmer_count << " < " << min_nb_kmer_count * 10 << "); mean and variance estimate might be biased\n" << endl;
-			}
 
 	        genomic_outfile << samples.at(sample_idx).name << "\t" << nb_mean << "\t" << nb_var << endl;
         }

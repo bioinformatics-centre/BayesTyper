@@ -44,7 +44,7 @@ namespace Filter {
         float min_gpp_value;
     };
 
-    void filter(const string &, const string &, const string &, FilterValues, const uint);
+    void filter(const string &, const string &, const string &, FilterValues);
 }
 
 #endif

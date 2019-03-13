@@ -62,7 +62,7 @@ static const ushort min_num_sample_paths = 1;
 VariantClusterGraph::VariantClusterGraph(VariantCluster * variant_cluster, const string & chrom_sequence) {
 
     num_path_kmers = 0;
-    is_simple_cluster = true;
+    has_excluded_kmers = false;
 
     assert(variant_cluster->variants.size() < Utils::ushort_overflow);
     
@@ -378,12 +378,12 @@ void VariantClusterGraph::initVertex(vertex_t * cur_vertex, StringItPair vertex_
 
 const vector<VariantInfo> & VariantClusterGraph::getInfo() const {
 
-    return variant_cluster_info;  
+    return variant_cluster_info;
 }
 
-bool VariantClusterGraph::isSimpleCluster() {
+bool VariantClusterGraph::hasExcludedKmers() {
 
-    return is_simple_cluster;
+    return has_excluded_kmers;
 }
 
 void VariantClusterGraph::findSamplePaths(KmerBloom<Utils::kmer_size> * sample_kmer_bloom, const uint prng_seed, const ushort max_sample_haplotype_candidates) {
@@ -900,7 +900,7 @@ void VariantClusterGraph::classifyPathKmers(KmerCountsHash * kmer_hash, KmerBloo
     assert(num_path_kmers == 0);
     num_path_kmers += kmer_multiplicities.size();
 
-    assert(is_simple_cluster == true);
+    assert(has_excluded_kmers == false);
 
     auto kmer_multiplicities_it = kmer_multiplicities.begin();
 
@@ -930,7 +930,7 @@ void VariantClusterGraph::classifyPathKmers(KmerCountsHash * kmer_hash, KmerBloo
 
             if (kmer_counts->isExcluded()) {
 
-                is_simple_cluster = false;
+                has_excluded_kmers = true;
             }
         }
 
@@ -939,6 +939,8 @@ void VariantClusterGraph::classifyPathKmers(KmerCountsHash * kmer_hash, KmerBloo
 }
 
 VariantClusterHaplotypes VariantClusterGraph::getHaplotypeCandidates(KmerCountsHash * kmer_hash, const uchar num_genomic_rate_gc_bias_bins) {
+
+    assert(num_genomic_rate_gc_bias_bins == 1);
 
     VariantClusterHaplotypes variant_cluster_haplotypes;
 

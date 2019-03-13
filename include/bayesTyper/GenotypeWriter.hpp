@@ -83,7 +83,7 @@ class GenotypeWriter {
 		void writeAlleleField(const vector<ValueType> &);
 
 		void writeAlleleSequences(const VariantInfo &, const string &);
-		void writeQualityAndFilter(const Genotypes::VariantStats &, const ushort, const Filters &);
+		void writeQualityAndFilter(const Genotypes::VariantStats &, const Filters &);
 		void writeVariantStats(const Genotypes::VariantStats &, const ushort);
 		void writeAlleleCover(vector<ushort> *, const ushort);
 		void writeAlleleOrigin(const VariantInfo &);

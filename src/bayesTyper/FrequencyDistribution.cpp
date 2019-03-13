@@ -38,45 +38,39 @@ THE SOFTWARE.
 #include "FrequencyDistribution.hpp"
 #include "Utils.hpp"
 
-const double FrequencyDistribution::dirichlet_parameter = 1;
+const double dirichlet_parameter = 1;
 
-FrequencyDistribution::FrequencyDistribution(const ushort num_elements, const uint prng_seed) {
+FrequencyDistribution::FrequencyDistribution(const uint num_elements_in, const uint prng_seed) : num_elements(num_elements_in) {
 
     prng = mt19937(prng_seed);
-
-	observation_counts = vector<ushort>(num_elements, 0); 
-	frequencies = vector<double>(num_elements, double(1)/num_elements); 
-    non_zero_frequencies = vector<bool>(num_elements, true); 
+    reset();
 }
-
 
 void FrequencyDistribution::reset() {
 
-    auto num_elements = observation_counts.size();
-
-    observation_counts = vector<ushort>(num_elements, 0); 
-    frequencies = vector<double>(num_elements, double(1)/num_elements); 
+    observation_counts = vector<uint>(num_elements, 0); 
+    frequencies = vector<double>(num_elements, 1/static_cast<double>(num_elements)); 
     non_zero_frequencies = vector<bool>(num_elements, true); 
 }
 
+void FrequencyDistribution::initialize(const vector<uint> & non_zero_elements) {}
 
-ushort FrequencyDistribution::getNumElements() {
+void FrequencyDistribution::setSparsity(const double sparsity_in) {}
+
+uint FrequencyDistribution::getNumElements() {
 
     return frequencies.size();
 }
 
-
-void FrequencyDistribution::incrementObservationCount(const ushort element_idx) {
+void FrequencyDistribution::incrementObservationCount(const uint element_idx) {
 
 	observation_counts.at(element_idx)++;
 }
 
-
-pair<bool, double> FrequencyDistribution::getElementFrequency(const ushort element_idx) {
+pair<bool, double> FrequencyDistribution::getElementFrequency(const uint element_idx) {
 
 	return pair<bool, double>(non_zero_frequencies.at(element_idx), frequencies.at(element_idx));
 }
-
 
 void FrequencyDistribution::sampleFrequencies(const uint sum_observation_counts) {
 
@@ -99,17 +93,13 @@ void FrequencyDistribution::sampleFrequencies(const uint sum_observation_counts)
 }
 
 
-SparseFrequencyDistribution::SparseFrequencyDistribution(const ushort num_elements, uint prng_seed, double sparsity_in) : FrequencyDistribution(num_elements, prng_seed), sparsity(sparsity_in) {
+SparseFrequencyDistribution::SparseFrequencyDistribution(const double sparsity_in, const uint num_elements, const uint prng_seed) : FrequencyDistribution(num_elements, prng_seed) {
 
-    assert(sparsity > 0); 
-    assert(sparsity < 1);
+    sparsity = min(sparsity_in, 1 - Utils::double_precision * 100);
+    assert(sparsity > 0);
 
-    for (uint i = 0; i < frequencies.size(); i++) {
-
-        zero_count_indices.insert(i);
-    }
+    reset();
 }
-
 
 void SparseFrequencyDistribution::reset() {
 
@@ -118,14 +108,39 @@ void SparseFrequencyDistribution::reset() {
     plus_count_indices.clear();
     zero_count_indices.clear();
 
-    for (uint i = 0; i < frequencies.size(); i++) {
+    for (uint i = 0; i < num_elements; i++) {
 
         zero_count_indices.insert(i);
     }
 }
 
+void SparseFrequencyDistribution::initialize(const vector<uint> & non_zero_elements) {
 
-void SparseFrequencyDistribution::updateCachedSimplexProbVector(vector<double> * simplex_prob_vector, const uint total_num_observations, const ushort count_plus_size) {
+    assert(!non_zero_elements.empty());
+    non_zero_frequencies = vector<bool>(num_elements, false); 
+
+    for (auto & element_idx: non_zero_elements) {
+
+        assert(element_idx < num_elements);
+        frequencies.at(element_idx) = 1/static_cast<double>(non_zero_elements.size());
+        non_zero_frequencies.at(element_idx) = true;
+    }  
+}
+
+void SparseFrequencyDistribution::setSparsity(const double sparsity_in) {
+
+    const double sparsity_new = min(sparsity_in, 1 - Utils::double_precision * 100);
+
+    if (!Utils::doubleCompare(sparsity_new, sparsity)) {
+
+        sparsity = sparsity_new;
+        cached_simplex_prob_vectors.clear();
+    }         
+
+    assert(sparsity > 0);
+}
+
+void SparseFrequencyDistribution::updateCachedSimplexProbVector(vector<double> * simplex_prob_vector, const uint total_num_observations, const uint count_plus_size) {
 
     assert(total_num_observations > 0);
     assert(count_plus_size > 0);
@@ -148,7 +163,7 @@ void SparseFrequencyDistribution::updateCachedSimplexProbVector(vector<double> *
 
 	simplex_prob_vector->push_back(row_sum);
 
-	for (ushort j = count_plus_size + 1; j < frequencies.size() + 1; j++) {
+	for (uint j = count_plus_size + 1; j < frequencies.size() + 1; j++) {
 	
 		// Calculate cardinality of equivalence class
 		cardinal_eq_z_log = boost::math::lgamma(frequencies.size()-count_plus_size+1)-(boost::math::lgamma(j-count_plus_size+1)+boost::math::lgamma(frequencies.size() - j + 1));
@@ -180,8 +195,7 @@ void SparseFrequencyDistribution::updateCachedSimplexProbVector(vector<double> *
     assert(Utils::doubleCompare(simplex_prob_vector->back(), 1));
 }
 
-
-void SparseFrequencyDistribution::incrementObservationCount(const ushort element_idx) {
+void SparseFrequencyDistribution::incrementObservationCount(const uint element_idx) {
 
     if (observation_counts.at(element_idx) == 0) {
 
@@ -192,14 +206,13 @@ void SparseFrequencyDistribution::incrementObservationCount(const ushort element
     observation_counts.at(element_idx)++;
 }
 
-
 void SparseFrequencyDistribution::sampleFrequencies(const uint sum_observation_counts) {
 
     if (cached_simplex_prob_vectors.count(sum_observation_counts) > 0) {
 
         if (cached_simplex_prob_vectors.at(sum_observation_counts).count(plus_count_indices.size()-1) < 1) {
 
-            auto emplaced_prob_vector = cached_simplex_prob_vectors.at(sum_observation_counts).emplace(pair<ushort, vector<double> >(plus_count_indices.size()-1, vector<double>()));
+            auto emplaced_prob_vector = cached_simplex_prob_vectors.at(sum_observation_counts).emplace(pair<uint, vector<double> >(plus_count_indices.size()-1, vector<double>()));
             assert(emplaced_prob_vector.second);
 
             updateCachedSimplexProbVector(&(emplaced_prob_vector.first->second), sum_observation_counts, plus_count_indices.size());
@@ -207,15 +220,15 @@ void SparseFrequencyDistribution::sampleFrequencies(const uint sum_observation_c
     
     } else {
 
-        assert(cached_simplex_prob_vectors.emplace(pair<uint, unordered_map<ushort, vector<double> > >(sum_observation_counts, unordered_map<ushort, vector<double> >())).second);
-        auto emplaced_prob_vector = cached_simplex_prob_vectors.at(sum_observation_counts).emplace(pair<ushort, vector<double> >(plus_count_indices.size()-1, vector<double>()));
+        assert(cached_simplex_prob_vectors.emplace(pair<uint, unordered_map<uint, vector<double> > >(sum_observation_counts, unordered_map<uint, vector<double> >())).second);
+        auto emplaced_prob_vector = cached_simplex_prob_vectors.at(sum_observation_counts).emplace(pair<uint, vector<double> >(plus_count_indices.size()-1, vector<double>()));
         assert(emplaced_prob_vector.second);
 
         updateCachedSimplexProbVector(&(emplaced_prob_vector.first->second), sum_observation_counts, plus_count_indices.size());
     }
 
     auto prob_vector = &cached_simplex_prob_vectors.at(sum_observation_counts).at(plus_count_indices.size()-1);
-    ushort simplex_size = ushort(upper_bound(prob_vector->begin(), prob_vector->end(), generate_canonical<double,std::numeric_limits<double>::digits>(prng)) - prob_vector->begin()) + plus_count_indices.size();
+    uint simplex_size = uint(upper_bound(prob_vector->begin(), prob_vector->end(), generate_canonical<double,std::numeric_limits<double>::digits>(prng)) - prob_vector->begin()) + plus_count_indices.size();
 
     assert(simplex_size > 0);
     

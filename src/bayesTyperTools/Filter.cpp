@@ -43,7 +43,7 @@ static const float fak_beta_value = 0.275;
 
 namespace Filter {
 
-    void filter(const string & variant_file, const string & outfile, const string & kmer_coverage_filename, FilterValues filter_values, const uint min_filter_samples) {
+    void filter(const string & variant_file, const string & outfile, const string & kmer_coverage_filename, FilterValues filter_values) {
 
         cout << "[" << Utils::getLocalTime() << "] Running BayesTyperTools (" << BT_VERSION << ") filter ...\n" << endl;
 
@@ -52,12 +52,9 @@ namespace Filter {
         auto sample_ids = vcf_reader.metaData().sampleIds();
         assert(!sample_ids.empty());
 
-        if (sample_ids.size() >= min_filter_samples) {
+        assert(filter_values.min_homozygote >= 0);   
 
-            assert(filter_values.min_homozygote >= 0);
-
-            cout << "[" << Utils::getLocalTime() << "] Adding number of homozygote genotypes filter (< " << filter_values.min_homozygote << ")" << endl;
-        }
+        cout << "[" << Utils::getLocalTime() << "] Adding number of homozygote genotypes filter (< " << filter_values.min_homozygote << ")" << endl;
 
         assert(filter_values.min_nak_value >= 0);   
 
@@ -120,11 +117,7 @@ namespace Filter {
         auto output_meta_data = vcf_reader.metaData();
 
         output_meta_data.filterDescriptors().erase("HOM");
-
-        if (sample_ids.size() >= min_filter_samples) {
-
-            assert(output_meta_data.filterDescriptors().emplace("HOM", Attribute::Descriptor("HOM", "Less than " + to_string(filter_values.min_homozygote) + " homozygote genotypes (calculated before other filters)")).second);
-        }
+        assert(output_meta_data.filterDescriptors().emplace("HOM", Attribute::Descriptor("HOM", "Less than " + to_string(filter_values.min_homozygote) + " homozygote genotypes (calculated before other filters)")).second);
         
         assert(output_meta_data.filterDescriptors().count("AN0") > 0);
         assert(output_meta_data.formatDescriptors().count("SAF") > 0);
@@ -145,7 +138,7 @@ namespace Filter {
             num_variants++;
             Auxiliaries::resetFilters(cur_var);
             
-            if (sample_ids.size() >= min_filter_samples) {
+            if (filter_values.min_homozygote > 0) {
 
                 uint num_homozygote_genotypes = 0;
 

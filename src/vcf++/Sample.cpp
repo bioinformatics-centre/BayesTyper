@@ -417,9 +417,13 @@ void Sample::newGenotypeEstimate(const vector<ushort> & new_genotype_estimate) {
 void Sample::addAllele(const bool allele_is_missing) {
 
     num_alleles++;
-
-    allele_info.clear();
     genotype_info.clear();
+
+    if (ploidy_ != Ploidy::Zeroploid) {
+        
+        assert(ploidy_ != Ploidy::Polyploid);
+        allele_info.emplace_back(AttributeSet());
+    }
 
     if (allele_is_missing) {
 
@@ -431,9 +435,13 @@ void Sample::addAllele(const bool allele_is_missing) {
 void Sample::removeAllele(const ushort removed_allele, const bool allele_is_missing, const bool convert_genotype_to_ref) {
 
     num_alleles--;
-
-    allele_info.clear();
     genotype_info.clear();
+
+    if (ploidy_ != Ploidy::Zeroploid) {
+        
+        assert(ploidy_ != Ploidy::Polyploid);
+        allele_info.erase(allele_info.begin() + removed_allele);
+    }
 
     if (allele_is_missing) {
 

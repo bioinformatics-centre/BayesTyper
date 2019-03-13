@@ -25,9 +25,6 @@ target_link_libraries(getGenomicIntervals vcf++)
 add_executable(convertNestedGenotypes convertNestedGenotypes.cpp)
 target_link_libraries(convertNestedGenotypes vcf++)
 
-add_executable(addMaxGenotypePosterior addMaxGenotypePosterior.cpp)
-target_link_libraries(addMaxGenotypePosterior vcf++)
-
 add_executable(addEditDistanceAndCondordance addEditDistanceAndCondordance.cpp)
 target_link_libraries(addEditDistanceAndCondordance vcf++)
 
@@ -39,5 +36,8 @@ target_link_libraries(getSummary vcf++)
 
 add_executable(writeIndels writeIndels.cpp)
 target_link_libraries(writeIndels vcf++)
+
+add_executable(filterAlleleCallsetOrigin filterAlleleCallsetOrigin.cpp)
+target_link_libraries(filterAlleleCallsetOrigin vcf++)
 
 

@@ -38,16 +38,18 @@ SparsityEstimator::SparsityEstimator(const uint prng_seed) {
     prng = mt19937(prng_seed);
 }
 
-unordered_set<ushort> SparsityEstimator::estimateMinimumColumnCover(const Utils::MatrixXuchar & data_matrix, Utils::RowVectorXbool * uncovered_rows) {
+vector<uint> SparsityEstimator::estimateMinimumColumnCover(const Utils::MatrixXuchar & data_matrix, const Utils::RowVectorXbool & uncovered_rows, const bool do_weighted_sampling) {
 
-    assert(data_matrix.cols() < Utils::ushort_overflow);    
-    assert(data_matrix.rows() == uncovered_rows->size());
+    assert(data_matrix.rows() == uncovered_rows.size());
 
-    unordered_set<ushort> min_column_cover;
+    auto cur_uncovered_rows = uncovered_rows;
 
-    while (uncovered_rows->sum() > 0) {
+    vector<uint> min_column_cover;
+    min_column_cover.reserve(data_matrix.cols());
+
+    while (cur_uncovered_rows.sum() > 0) {
         
-        Utils::RowVectorXuint column_row_cover = (*uncovered_rows).cast<uint>() * data_matrix.cast<uint>();
+        Utils::RowVectorXuint column_row_cover = cur_uncovered_rows.cast<uint>() * data_matrix.cast<uint>();
         assert(column_row_cover.size() == data_matrix.cols());
 
         uint max_row_cover = column_row_cover.maxCoeff();
@@ -55,24 +57,34 @@ unordered_set<ushort> SparsityEstimator::estimateMinimumColumnCover(const Utils:
     
         DiscreteSampler column_sampler(column_row_cover.size());
 
-        vector<ushort> max_row_cover_column_indices;
+        vector<uint> max_row_cover_column_indices;
         max_row_cover_column_indices.reserve(column_row_cover.size());
         
-        for (ushort column_idx = 0; column_idx < column_row_cover.size(); column_idx++) {
+        for (uint column_idx = 0; column_idx < column_row_cover.size(); column_idx++) {
             
-            if (column_row_cover[column_idx] == max_row_cover) {
-                
-                column_sampler.addOutcome(1);
+            if (do_weighted_sampling) {
+                    
+                column_sampler.addOutcome(column_row_cover[column_idx]);
                 max_row_cover_column_indices.push_back(column_idx);
+
+            } else {
+
+                if (column_row_cover[column_idx] == max_row_cover) {
+                    
+                    column_sampler.addOutcome(1);
+                    max_row_cover_column_indices.push_back(column_idx);
+                }
             }
         }
         	
-        const ushort sampled_column_idx = max_row_cover_column_indices.at(column_sampler.sample(&prng)); 
-        assert(min_column_cover.insert(sampled_column_idx).second);
+        const uint sampled_column_idx = max_row_cover_column_indices.at(column_sampler.sample(&prng)); 
+        min_column_cover.emplace_back(sampled_column_idx);
 
-        *uncovered_rows = *uncovered_rows - (uncovered_rows->array() * (data_matrix.col(sampled_column_idx).transpose().cast<bool>().array())).matrix();
+        cur_uncovered_rows = cur_uncovered_rows - (cur_uncovered_rows.array() * (data_matrix.col(sampled_column_idx).transpose().cast<bool>().array())).matrix();
     }
 
     return min_column_cover;
 }
+
+
 

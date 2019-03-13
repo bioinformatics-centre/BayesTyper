@@ -39,9 +39,10 @@ class SparsityEstimator {
 
 	public:
 		
+		SparsityEstimator() {};
 		SparsityEstimator(const uint);
 		
-		unordered_set<ushort> estimateMinimumColumnCover(const Utils::MatrixXuchar &, Utils::RowVectorXbool *);
+		vector<uint> estimateMinimumColumnCover(const Utils::MatrixXuchar &, const Utils::RowVectorXbool &, const bool);
 
 	private: 
 

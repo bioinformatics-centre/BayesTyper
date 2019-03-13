@@ -57,6 +57,7 @@ namespace Utils {
   static const uint uint_overflow = numeric_limits<uint>::max();  
   static const ulong ulong_overflow = numeric_limits<ulong>::max();
 
+  static const ushort queue_size_thread_scaling = 2;
 
   inline bool doubleCompare(const double a, const double b) {
 

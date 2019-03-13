@@ -226,9 +226,6 @@ int main (int argc, char * const argv[]) {
 			string kmer_coverage_file;
 	        Filter::FilterValues filter_values;
 
-	        const uint min_filter_samples = 10;
-			const string min_homozygote_genotypes_option_help = "filter variants with less than <value> homozygote genotypes (calculated before other filters). Minimum " + to_string(min_filter_samples) + " samples required for this filter.";
-
 			po::options_description required_options("== Required ==", 160);
 			required_options.add_options()
 
@@ -239,7 +236,7 @@ int main (int argc, char * const argv[]) {
 			po::options_description filters_options("== Filters ==", 160);
 			filters_options.add_options()
 
-				("min-homozygote-genotypes", po::value<uint>(&filter_values.min_homozygote)->default_value(1), min_homozygote_genotypes_option_help.c_str())
+				("min-homozygote-genotypes", po::value<uint>(&filter_values.min_homozygote)->default_value(0), "filter variants with less than <value> homozygote genotypes (calculated before other filters).")
 				("min-genotype-posterior", po::value<float>(&filter_values.min_gpp_value)->default_value(0.99, "0.99"), "filter genotypes with a posterior probability (GPP) below <value>.")
 				("min-number-of-kmers", po::value<float>(&filter_values.min_nak_value)->default_value(1, "1"), "filter sampled alleles with less than <value> kmers (NAK).")
 				("kmer-coverage-file", po::value<string>(&kmer_coverage_file)->default_value("bayestyper_genomic_parameters.txt"), "sample kmer coverage file used for filtering sampled alleles with a low fraction of observed kmers (FAK).")
@@ -258,7 +255,7 @@ int main (int argc, char * const argv[]) {
 
 			po::notify(vm);
 
-			Filter::filter(variant_file, generateVariantFileOutput(output_prefix, gzip_output), kmer_coverage_file, filter_values, min_filter_samples);
+			Filter::filter(variant_file, generateVariantFileOutput(output_prefix, gzip_output), kmer_coverage_file, filter_values);
 
 		} else if (strcmp(argv[1],"annotate") == 0) {
 

@@ -43,11 +43,8 @@ class Filters {
 
 	public:
 
-		Filters(const OptionsContainer & options_container, const vector<vector<NegativeBinomialDistribution> > &, const ushort);
+		Filters(const OptionsContainer & options_container, const vector<vector<NegativeBinomialDistribution> > &);
 
-		ushort minFilterSamples() const;
-
-		ushort minHomozygoteGenotypes() const;
 		float minGenotypePosterior() const;
 		float minNumberOfKmers() const;
 		
@@ -55,9 +52,6 @@ class Filters {
 	
 	private:
 
-		ushort min_filter_samples;
-
-		ushort min_homozygote_genotypes;
 		float min_genotype_posterior;
 		float min_number_of_kmers;
 

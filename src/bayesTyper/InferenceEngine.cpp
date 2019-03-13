@@ -47,8 +47,7 @@ THE SOFTWARE.
 #include "Regions.hpp"
 
 
-static const uint min_noise_estimation_clusters = 10000;
-static const uint noise_estimation_batch_size = 100000;
+static const uint noise_variants_batch_size = 100000;
 
 static const uint variant_cluster_groups_batch_size = 1000;
 static const double genotyping_stdout_frequency = 100000;
@@ -56,68 +55,61 @@ static const double genotyping_stdout_frequency = 100000;
 static const uchar num_genomic_rate_gc_bias_bins = 1;
 
 
-InferenceEngine::InferenceEngine(const vector<Sample> & samples_in, const ChromosomePloidy & chrom_ploidy_in, const OptionsContainer & options_container) : samples(samples_in), chrom_ploidy(chrom_ploidy_in), num_threads(options_container.getValue<ushort>("threads")), prng_seed(options_container.getValue<uint>("random-seed")), num_gibbs_burn(options_container.getValue<ushort>("gibbs-burn-in")), num_gibbs_samples(options_container.getValue<ushort>("gibbs-samples")), num_gibbs_chains(options_container.getValue<ushort>("number-of-gibbs-chains")), kmer_subsampling_rate(options_container.getValue<float>("kmer-subsampling-rate")), max_haplotype_variant_kmers(options_container.getValue<uint>("max-haplotype-variant-kmers")) {}
+InferenceEngine::InferenceEngine(const vector<Sample> & samples_in, const ChromosomePloidy & chrom_ploidy_in, const OptionsContainer & options_container) : samples(samples_in), chrom_ploidy(chrom_ploidy_in), num_threads(options_container.getValue<ushort>("threads")), prng_seed(options_container.getValue<uint>("random-seed")), num_gibbs_burn(options_container.getValue<ushort>("gibbs-burn-in")), num_gibbs_samples(options_container.getValue<ushort>("gibbs-samples")), num_gibbs_chains(options_container.getValue<ushort>("number-of-gibbs-chains")), kmer_subsampling_rate(options_container.getValue<float>("kmer-subsampling-rate")), max_haplotype_variant_kmers(options_container.getValue<uint>("max-haplotype-variant-kmers")), min_cover_haplotype_init(options_container.getValue<bool>("min-cover-haplotype-init")) {}
 
 
-void InferenceEngine::initNoiseEstimationGroupsCallback(vector<VariantClusterGroup *> * variant_cluster_groups, const vector<uint> & noise_estimation_group_indices, KmerCountsHash * kmer_hash, const ushort gibbs_chain_idx, const ushort thread_idx) {
+void InferenceEngine::initNoiseEstimationGroupsCallback(vector<VariantClusterGroup *> * variant_cluster_groups, const vector<uint> & noise_group_indices, KmerCountsHash * kmer_hash, const ushort gibbs_chain_idx, const ushort thread_idx, const uint noise_group_indices_idx_end) {
 
-    const uint num_noise_estimation_groups = min(noise_estimation_batch_size, static_cast<uint>(noise_estimation_group_indices.size()));
+    uint noise_group_indices_idx = thread_idx;
 
-    uint noise_estimation_group_indices_idx = thread_idx;
+	while (noise_group_indices_idx < noise_group_indices_idx_end) {
 
-	while (noise_estimation_group_indices_idx < num_noise_estimation_groups) {
-
-		const uint variant_cluster_group_idx = noise_estimation_group_indices.at(noise_estimation_group_indices_idx);
+		const uint variant_cluster_group_idx = noise_group_indices.at(noise_group_indices_idx);
 
 		assert(variant_cluster_groups->at(variant_cluster_group_idx));
-
 		assert(variant_cluster_groups->at(variant_cluster_group_idx)->numberOfVariantClusters() == 1);
 		assert(variant_cluster_groups->at(variant_cluster_group_idx)->numberOfVariantClusterGroupTrees() == 1);
 
-		variant_cluster_groups->at(variant_cluster_group_idx)->initGenotyper(kmer_hash, samples, prng_seed * (gibbs_chain_idx + 1) + variant_cluster_group_idx, num_genomic_rate_gc_bias_bins, kmer_subsampling_rate, max_haplotype_variant_kmers);
-        
-        noise_estimation_group_indices_idx += num_threads;
+		variant_cluster_groups->at(variant_cluster_group_idx)->initGenotyper(kmer_hash, samples, prng_seed * (gibbs_chain_idx + 1) + variant_cluster_group_idx, num_genomic_rate_gc_bias_bins, kmer_subsampling_rate, max_haplotype_variant_kmers, min_cover_haplotype_init);
+ 
+        noise_group_indices_idx += num_threads;
 	}
 }
 
-void InferenceEngine::sampleNoiseCountsCallback(vector<VariantClusterGroup *> * variant_cluster_groups, const vector<uint> & noise_estimation_group_indices, CountAllocation * noise_counts_global, mutex * noise_counts_lock, const CountDistribution & count_distribution, const ushort thread_idx) {
+void InferenceEngine::sampleNoiseCountsCallback(vector<VariantClusterGroup *> * variant_cluster_groups, const vector<uint> & noise_group_indices, CountAllocation * noise_counts_global, mutex * noise_counts_lock, const CountDistribution & count_distribution, const ushort thread_idx, const uint noise_group_indices_idx_end) {
 
 	CountAllocation noise_counts_local(samples.size());
 
-    const uint num_noise_estimation_groups = min(noise_estimation_batch_size, static_cast<uint>(noise_estimation_group_indices.size()));
+    uint noise_group_indices_idx = thread_idx;
 
-    uint noise_estimation_group_indices_idx = thread_idx;
+	while (noise_group_indices_idx < noise_group_indices_idx_end) {
 
-	while (noise_estimation_group_indices_idx < num_noise_estimation_groups) {
-
-		const uint variant_cluster_group_idx = noise_estimation_group_indices.at(noise_estimation_group_indices_idx);
+		const uint variant_cluster_group_idx = noise_group_indices.at(noise_group_indices_idx);
 
 		assert(variant_cluster_groups->at(variant_cluster_group_idx));
 
 		variant_cluster_groups->at(variant_cluster_group_idx)->estimateGenotypes(count_distribution, chrom_ploidy, false);
 		variant_cluster_groups->at(variant_cluster_group_idx)->getNoiseCounts(&noise_counts_local, count_distribution);	
         
-        noise_estimation_group_indices_idx += num_threads;
+        noise_group_indices_idx += num_threads;
 	}
 	
 	lock_guard<mutex> counts_locker(*noise_counts_lock);
 	noise_counts_global->mergeInCountAllocations(noise_counts_local);	
 }
 
-void InferenceEngine::resetNoiseEstimationGroups(vector<VariantClusterGroup *> * variant_cluster_groups, const vector<uint> & noise_estimation_group_indices) {
+void InferenceEngine::resetNoiseEstimationGroupsCallback(vector<VariantClusterGroup *> * variant_cluster_groups, const vector<uint> & noise_group_indices, const ushort thread_idx, const uint noise_group_indices_idx_end) {
 
-    const uint num_noise_estimation_groups = min(noise_estimation_batch_size, static_cast<uint>(noise_estimation_group_indices.size()));
+    uint noise_group_indices_idx = thread_idx;
 
-    uint noise_estimation_group_indices_idx = 0;
+	while (noise_group_indices_idx < noise_group_indices_idx_end) {
 
-	while (noise_estimation_group_indices_idx < num_noise_estimation_groups) {
-
-		const uint variant_cluster_group_idx = noise_estimation_group_indices.at(noise_estimation_group_indices_idx);
+		const uint variant_cluster_group_idx = noise_group_indices.at(noise_group_indices_idx);
 
 		assert(variant_cluster_groups->at(variant_cluster_group_idx));
 		variant_cluster_groups->at(variant_cluster_group_idx)->resetGroup();
         
-        noise_estimation_group_indices_idx++;;
+        noise_group_indices_idx += num_threads;
 	}
 }
 
@@ -125,28 +117,28 @@ void InferenceEngine::estimateNoiseParameters(CountDistribution * count_distribu
 
 	cout << "[" << Utils::getLocalTime() << "] Estimating noise model parameters using " << num_gibbs_chains << " parallel gibbs sampling chains each with " << num_gibbs_burn + num_gibbs_samples << " iterations (" << num_gibbs_burn << " burn-in) ..." << endl;
 
-	vector<uint> noise_estimation_group_indices;
-	noise_estimation_group_indices.reserve(inference_unit->variant_cluster_groups.size());
+	uint num_noise_variants = 0;
+
+	vector<uint> noise_group_indices;
+	noise_group_indices.reserve(inference_unit->variant_cluster_groups.size());
 
 	for (uint variant_cluster_group_idx = 0; variant_cluster_group_idx < inference_unit->variant_cluster_groups.size(); variant_cluster_group_idx++) {
 
-		if (inference_unit->variant_cluster_groups.at(variant_cluster_group_idx)->isSimpleParameterCluster()) {
-		
-			noise_estimation_group_indices.push_back(variant_cluster_group_idx);
+		if (inference_unit->variant_cluster_groups.at(variant_cluster_group_idx)->numberOfVariantClusters() == 1) {
+
+			if (!inference_unit->variant_cluster_groups.at(variant_cluster_group_idx)->hasExcludedKmers()) {
+			
+				num_noise_variants += inference_unit->variant_cluster_groups.at(variant_cluster_group_idx)->numberOfVariants();
+				noise_group_indices.push_back(variant_cluster_group_idx);
+			}
 		}		
 	}
 
-	noise_estimation_group_indices.shrink_to_fit();
+	noise_group_indices.shrink_to_fit();
 
-	if (noise_estimation_group_indices.size() < min_noise_estimation_clusters) {
+    if (num_noise_variants < noise_variants_batch_size) {
 
-		cerr << "\nERROR: Insufficient number of SNV clusters available for Poisson parameter estimation (" << noise_estimation_group_indices.size() << " < " << min_noise_estimation_clusters << "); the genome used is likely too small\n" << endl;
-		exit(1);
-	}
-
-    if (noise_estimation_group_indices.size() < (min_noise_estimation_clusters * 10)) {
-
-		cout << "\nWARNING: Low number of SNV clusters available for Poisson parameter estimation (" << noise_estimation_group_indices.size() << " < " << min_noise_estimation_clusters * 10 << "); rate estimates might be biased\n" << endl;
+		cout << "\nWARNING: Low number of variants available for Poisson parameter estimation (" << num_noise_variants << " < " << noise_variants_batch_size << "); rate estimates might be biased\n" << endl;
 	}
 
 	vector<double> mean_noise_rates(samples.size(), 0);
@@ -172,14 +164,25 @@ void InferenceEngine::estimateNoiseParameters(CountDistribution * count_distribu
 
 	for (ushort gibbs_chain_idx = 0; gibbs_chain_idx < num_gibbs_chains; gibbs_chain_idx++) {
 
-	    shuffle(noise_estimation_group_indices.begin(), noise_estimation_group_indices.end(), prng);
+	    shuffle(noise_group_indices.begin(), noise_group_indices.end(), prng);
+	    
+	    uint noise_group_indices_idx_end = 0;
+	    num_noise_variants = 0;
+
+		while ((num_noise_variants < noise_variants_batch_size) and (noise_group_indices_idx_end < noise_group_indices.size())) {
+
+			num_noise_variants += inference_unit->variant_cluster_groups.at(noise_group_indices.at(noise_group_indices_idx_end))->numberOfVariants();
+			noise_group_indices_idx_end++;	
+		}
+
+		sort(noise_group_indices.begin(), noise_group_indices.begin() += noise_group_indices_idx_end);
 
 	    vector<thread> initing_threads;
 	    initing_threads.reserve(num_threads);
 
 		for (ushort thread_idx = 0; thread_idx < num_threads; thread_idx++) {
 
-		    initing_threads.push_back(thread(&InferenceEngine::initNoiseEstimationGroupsCallback, this, &(inference_unit->variant_cluster_groups), ref(noise_estimation_group_indices), kmer_hash, gibbs_chain_idx, thread_idx));
+		    initing_threads.push_back(thread(&InferenceEngine::initNoiseEstimationGroupsCallback, this, &(inference_unit->variant_cluster_groups), ref(noise_group_indices), kmer_hash, gibbs_chain_idx, thread_idx, noise_group_indices_idx_end));
 	    }
 
 		for (auto & initing_thread: initing_threads) {
@@ -201,7 +204,7 @@ void InferenceEngine::estimateNoiseParameters(CountDistribution * count_distribu
 
 			for (ushort thread_idx = 0; thread_idx < num_threads; thread_idx++) {
 
-	    	    estimation_threads.push_back(thread(&InferenceEngine::sampleNoiseCountsCallback, this, &(inference_unit->variant_cluster_groups), ref(noise_estimation_group_indices), &noise_counts, &noise_counts_lock, ref(*count_distribution), thread_idx));
+	    	    estimation_threads.push_back(thread(&InferenceEngine::sampleNoiseCountsCallback, this, &(inference_unit->variant_cluster_groups), ref(noise_group_indices), &noise_counts, &noise_counts_lock, ref(*count_distribution), thread_idx, noise_group_indices_idx_end));
 		    }
 
 	    	for (auto & estimation_thread: estimation_threads) {
@@ -223,7 +226,19 @@ void InferenceEngine::estimateNoiseParameters(CountDistribution * count_distribu
 			}
 		}
 
-		resetNoiseEstimationGroups(&(inference_unit->variant_cluster_groups), noise_estimation_group_indices);
+	    vector<thread> reset_threads;
+	    reset_threads.reserve(num_threads);
+
+		for (ushort thread_idx = 0; thread_idx < num_threads; thread_idx++) {
+
+		    reset_threads.push_back(thread(&InferenceEngine::resetNoiseEstimationGroupsCallback, this, &(inference_unit->variant_cluster_groups), ref(noise_group_indices), thread_idx, noise_group_indices_idx_end));
+	    }
+
+		for (auto & reset_thread: reset_threads) {
+	    	
+	    	reset_thread.join();
+		}
+
 		count_distribution->resetNoiseRates();
 	}
 
@@ -259,13 +274,13 @@ void InferenceEngine::genotypeVariantClusterGroupsCallback(ProducerConsumerQueue
 
 		while (variant_cluster_group_it != variant_cluster_group_batch.end_it) {
 
-			(*variant_cluster_group_it)->initGenotyper(kmer_hash, samples, prng_seed + variant_cluster_group_idx, num_genomic_rate_gc_bias_bins, kmer_subsampling_rate, max_haplotype_variant_kmers);
+			(*variant_cluster_group_it)->initGenotyper(kmer_hash, samples, prng_seed + variant_cluster_group_idx, num_genomic_rate_gc_bias_bins, kmer_subsampling_rate, max_haplotype_variant_kmers, min_cover_haplotype_init);
 			
 			for (ushort gibbs_chain_idx = 0; gibbs_chain_idx < num_gibbs_chains; gibbs_chain_idx++) {
 
 				if (gibbs_chain_idx > 0) {
 
-					(*variant_cluster_group_it)->resetGenotyper(kmer_subsampling_rate, max_haplotype_variant_kmers);
+					(*variant_cluster_group_it)->resetGenotyper(kmer_subsampling_rate, max_haplotype_variant_kmers, min_cover_haplotype_init);
 				}
 
 				(*variant_cluster_group_it)->shuffleBranchOrdering(prng_seed * (gibbs_chain_idx + 1) + variant_cluster_group_idx);

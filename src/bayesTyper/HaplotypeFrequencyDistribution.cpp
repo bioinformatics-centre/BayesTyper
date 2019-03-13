@@ -51,22 +51,15 @@ uint HaplotypeFrequencyDistribution::numMissingCount() {
 
 UniformHaplotypeFrequencyDistribution::UniformHaplotypeFrequencyDistribution(const ushort num_haplotypes) : HaplotypeFrequencyDistribution(), frequency(1 / static_cast<double>(num_haplotypes)) {}
 
-void UniformHaplotypeFrequencyDistribution::reset() {
+pair<bool, double> UniformHaplotypeFrequencyDistribution::getFrequency(const ushort haplotype_idx) {
 
-	assert(num_haplotype_count == 0);
-	assert(num_missing_count == 0);
-
-}
-
-pair<bool, double> UniformHaplotypeFrequencyDistribution::getElementFrequency(const ushort element_idx) {
-
-	assert(element_idx < Utils::ushort_overflow);
+	assert(haplotype_idx < Utils::ushort_overflow);
 	return make_pair(true, frequency);
 }
 
-void UniformHaplotypeFrequencyDistribution::incrementObservationCount(const ushort element_idx) {
+void UniformHaplotypeFrequencyDistribution::incrementCount(const ushort haplotype_idx) {
 
-	if (element_idx == Utils::ushort_overflow) {
+	if (haplotype_idx == Utils::ushort_overflow) {
 
 		num_missing_count++;
 
@@ -83,8 +76,17 @@ void UniformHaplotypeFrequencyDistribution::sampleFrequencies() {
 }
 
 
-SparseHaplotypeFrequencyDistribution::SparseHaplotypeFrequencyDistribution(FrequencyDistribution * frequency_distribution_in) : HaplotypeFrequencyDistribution(), frequency_distribution(frequency_distribution_in) {}
+SparseHaplotypeFrequencyDistribution::SparseHaplotypeFrequencyDistribution(const vector<uint> & non_zero_haplotypes, const uint num_haplotypes, const uint prng_seed) : HaplotypeFrequencyDistribution() {
+	
+	if (non_zero_haplotypes.empty()) {
 
+		frequency_distribution = new FrequencyDistribution(num_haplotypes, prng_seed);
+	
+	} else {
+
+		frequency_distribution = new SparseFrequencyDistribution(non_zero_haplotypes.size() / static_cast<double>(num_haplotypes), num_haplotypes, prng_seed);
+	}
+}
 
 SparseHaplotypeFrequencyDistribution::~SparseHaplotypeFrequencyDistribution() {
 
@@ -99,22 +101,28 @@ void SparseHaplotypeFrequencyDistribution::reset() {
 	frequency_distribution->reset();
 }
 
-pair<bool, double> SparseHaplotypeFrequencyDistribution::getElementFrequency(const ushort element_idx) {
+void SparseHaplotypeFrequencyDistribution::initialize(const vector<uint> & non_zero_haplotypes, const uint num_haplotypes) {
 
-	assert(element_idx < Utils::ushort_overflow);
-	return frequency_distribution->getElementFrequency(element_idx);
+	frequency_distribution->initialize(non_zero_haplotypes);
+	frequency_distribution->setSparsity(non_zero_haplotypes.size() / static_cast<double>(num_haplotypes));
 }
 
-void SparseHaplotypeFrequencyDistribution::incrementObservationCount(const ushort element_idx) {
+pair<bool, double> SparseHaplotypeFrequencyDistribution::getFrequency(const ushort haplotype_idx) {
 
-	if (element_idx == Utils::ushort_overflow) {
+	assert(haplotype_idx < Utils::ushort_overflow);
+	return frequency_distribution->getElementFrequency(haplotype_idx);
+}
+
+void SparseHaplotypeFrequencyDistribution::incrementCount(const ushort haplotype_idx) {
+
+	if (haplotype_idx == Utils::ushort_overflow) {
 
 		num_missing_count++;
 
 	} else {
 
 		num_haplotype_count++;
-		frequency_distribution->incrementObservationCount(element_idx);
+		frequency_distribution->incrementObservationCount(haplotype_idx);
 	}
 }
 

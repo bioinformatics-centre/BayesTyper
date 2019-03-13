@@ -54,7 +54,7 @@ THE SOFTWARE.
 using namespace std;
 
 
-static const string format_column = "GT:GPP:APP:NAK:FAK:MAC:SAF";
+static const string format_column = "GT:GQ:GPP:APP:NAK:FAK:MAC:SAF";
 static const string empty_variant_sample = ".:.:.:.:.:.";
 
 GenotypeWriter::GenotypeWriter(const string & output_prefix, const ushort num_threads, const vector<Sample> & samples_in, const Chromosomes & chromosomes, const Filters & filters) : samples(samples_in), tmp_filename(output_prefix + "_tmp.txt.gz") {
@@ -105,7 +105,7 @@ void GenotypeWriter::writeGenotypes(const Chromosomes & chromosomes, const Filte
             assert(chromosomes_it != chromosomes.cend());
 
             writeAlleleSequences(genotypes->variant_info, chromosomes_it->second);
-            writeQualityAndFilter(genotypes->variant_stats, genotypes->num_homozygote_genotypes, filters);
+            writeQualityAndFilter(genotypes->variant_stats, filters);
             writeVariantStats(genotypes->variant_stats, num_alleles);
 
             tmp_outfile_fstream << ";VCS=" << genotypes->variant_cluster_size << ";VCR=" << genotypes->variant_cluster_region << ";VCGS=" << genotypes->variant_cluster_group_size << ";VCGR=" << genotypes->variant_cluster_group_region << ";HC=" << genotypes->num_candidates;
@@ -171,7 +171,7 @@ void GenotypeWriter::writeAlleleSequences(const VariantInfo & variant_info, cons
     }  
 }
 
-void GenotypeWriter::writeQualityAndFilter(const Genotypes::VariantStats & variant_stats, const ushort num_homozygote_genotypes, const Filters & filters) {
+void GenotypeWriter::writeQualityAndFilter(const Genotypes::VariantStats & variant_stats, const Filters & filters) {
 
     if (Utils::floatCompare(variant_stats.max_alt_allele_call_probability, 1)) {
 
@@ -192,15 +192,6 @@ void GenotypeWriter::writeQualityAndFilter(const Genotypes::VariantStats & varia
     if (variant_stats.total_count == 0) {
 
         tmp_outfile_fstream << "\tAN0";
-
-        if ((samples.size() >= filters.minFilterSamples()) and (num_homozygote_genotypes < filters.minHomozygoteGenotypes())) {
-
-            tmp_outfile_fstream << ";HOM";
-        } 
-
-    } else if ((samples.size() >= filters.minFilterSamples()) and (num_homozygote_genotypes < filters.minHomozygoteGenotypes())) {
-
-        tmp_outfile_fstream << "\tHOM";
 
     } else {
 
@@ -297,8 +288,9 @@ void GenotypeWriter::writeSamples(const vector<Genotypes::SampleStats> & sample_
                 }
             }
 
-            const uint num_genotypes = (num_alleles * (num_alleles - 1)) / 2 + num_alleles;
+            tmp_outfile_fstream << ":" << sample_stats.at(sample_idx).genotype_quality;
 
+            const uint num_genotypes = (num_alleles * (num_alleles - 1)) / 2 + num_alleles;
             assert((sample_stats.at(sample_idx).genotype_posteriors.size() == num_genotypes) or (sample_stats.at(sample_idx).genotype_posteriors.size() == num_alleles));
 
             tmp_outfile_fstream << ":";
@@ -519,11 +511,6 @@ string GenotypeWriter::generateHeader(const string & genome_filename, const Chro
     header_ss << graph_options_header;
     header_ss << genotype_options_header;
 
-    if (samples.size() >= filters.minFilterSamples()) {
-
-        header_ss << "##FILTER=<ID=HOM,Description=\"Less than " + to_string(filters.minHomozygoteGenotypes()) + " homozygote genotypes (calculated before other filters)\">\n";
-    }
-
     header_ss << "##FILTER=<ID=AN0,Description=\"No called genotypes (AN = 0)\">\n";
     
     header_ss << "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Alternative allele counts in called genotypes\">\n";
@@ -541,6 +528,7 @@ string GenotypeWriter::generateHeader(const string & genome_filename, const Chro
     header_ss << "##INFO=<ID=ACO,Number=A,Type=String,Description=\"Alternative allele call-set origin(s) (<call-set>:...)\">\n";
 
     header_ss << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n";
+    header_ss << "##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype quality (phred-scaled 1 - max(GPP))\">\n";
     header_ss << "##FORMAT=<ID=GPP,Number=G,Type=Float,Description=\"Genotype posterior probabilities\">\n";
     header_ss << "##FORMAT=<ID=APP,Number=R,Type=Float,Description=\"Allele posterior probabilities\">\n";
     header_ss << "##FORMAT=<ID=NAK,Number=R,Type=Float,Description=\"Mean number of allele kmers across gibbs samples ('-1': Not sampled)\">\n";

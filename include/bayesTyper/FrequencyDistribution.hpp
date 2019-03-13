@@ -41,22 +41,24 @@ class FrequencyDistribution {
 
 	public:
 
-		FrequencyDistribution(const ushort, const uint);
+		FrequencyDistribution(const uint, const uint);
+		virtual ~FrequencyDistribution() {};
 
 		virtual void reset();
+		virtual void initialize(const vector<uint> &);
+		virtual void setSparsity(const double);
 
-		pair<bool, double> getElementFrequency(const ushort);
-		ushort getNumElements();
+		pair<bool, double> getElementFrequency(const uint);
+		uint getNumElements();
 
-		virtual ~FrequencyDistribution() {};
-		virtual void incrementObservationCount(const ushort);		
+		virtual void incrementObservationCount(const uint);		
 		virtual void sampleFrequencies(const uint);
 
 	protected:
 
-		static const double dirichlet_parameter;
+		const uint num_elements;
 
-		vector<ushort> observation_counts;
+		vector<uint> observation_counts;
 		vector<double> frequencies;	
 		vector<bool> non_zero_frequencies;
 
@@ -69,23 +71,25 @@ class SparseFrequencyDistribution : public FrequencyDistribution {
 
 	public:
 		
-		SparseFrequencyDistribution(const ushort, const uint, const double);
+		SparseFrequencyDistribution(const double, const uint, const uint);
 
 		void reset();
+		void initialize(const vector<uint> &);
+		void setSparsity(const double);
 
-		void incrementObservationCount(const ushort);		
+		void incrementObservationCount(const uint);		
 		void sampleFrequencies(const uint);
 
 	private:
 
-		void updateCachedSimplexProbVector(vector<double> *, const uint, const ushort);
+		void updateCachedSimplexProbVector(vector<double> *, const uint, const uint);
 
-		const double sparsity;
+		double sparsity;
 		
-		unordered_map<uint, unordered_map<ushort, vector<double> > > cached_simplex_prob_vectors; 
+		unordered_map<uint, unordered_map<uint, vector<double> > > cached_simplex_prob_vectors; 
 
-	    unordered_set<ushort> plus_count_indices;
-    	unordered_set<ushort> zero_count_indices; 
+	    unordered_set<uint> plus_count_indices;
+    	unordered_set<uint> zero_count_indices; 
 
 		uniform_int_distribution<> uniform_int_dist;
 };

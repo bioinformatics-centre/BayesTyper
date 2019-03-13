@@ -62,8 +62,6 @@ class Genotypes {
 		ushort num_candidates;
 		vector<ushort> non_covered_alleles;
 
-		ushort num_homozygote_genotypes;
-
 		struct VariantStats {
 
 			uint total_count;
@@ -83,7 +81,7 @@ class Genotypes {
 		struct SampleStats {
 
 		    vector<ushort> genotype_estimate;
-		    bool is_homozygote;
+		    uint genotype_quality;
 
 		    vector<float> genotype_posteriors;
 
@@ -92,7 +90,7 @@ class Genotypes {
 
 			vector<ushort> allele_filters;
 
-			SampleStats(const ushort num_alleles, const uint num_genotypes) : is_homozygote(false), genotype_posteriors(num_genotypes, 0), allele_posteriors(num_alleles, 0), allele_filters(num_alleles, 0) {
+			SampleStats(const ushort num_alleles, const uint num_genotypes) : genotype_quality(0), genotype_posteriors(num_genotypes, 0), allele_posteriors(num_alleles, 0), allele_filters(num_alleles, 0) {
 
 				genotype_estimate.reserve(2);
 			}

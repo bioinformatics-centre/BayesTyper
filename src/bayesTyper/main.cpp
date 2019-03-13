@@ -72,8 +72,6 @@ namespace po = boost::program_options;
 static const ushort max_num_samples = 30;
 static const uint max_parameter_kmers = 1000000;
 
-static const ushort min_filter_samples = 10;
-
 static const string intercluster_regions_file_prefix = "intercluster_regions";
 static const string multigroup_kmers_file_prefix = "multigroup_kmers";
 static const string parameter_kmers_file_prefix = "parameter_kmers";
@@ -128,15 +126,15 @@ int main (int argc, char * const argv[]) {
 				("output-prefix,o", po::value<string>()->default_value("bayestyper")->notifier(bind(&OptionsContainer::parseValue<string>, &options_container, "output-prefix", placeholders::_1)), "output prefix.")
 		    	("random-seed,r", po::value<uint>()->default_value(time(nullptr), "unix time")->notifier(bind(&OptionsContainer::parseValue<uint>, &options_container, "random-seed", placeholders::_1)), "seed for pseudo-random number generator.")
 				("threads,p", po::value<ushort>()->default_value(1)->notifier(bind(&OptionsContainer::parseValue<ushort>, &options_container, "threads", placeholders::_1)), "number of threads used (+= 2 I/O threads).")
+				("min-number-of-unit-variants,u", po::value<uint>()->default_value(5000000)->notifier(bind(&OptionsContainer::parseValue<uint>, &options_container, "min-number-of-unit-variants", placeholders::_1)), "minimum number of variants per inference unit.")
 			;
 
-			po::options_description parameters_options("== Parameters ==", 160);
+			po::options_description parameters_options("== Cluster ==", 160);
 			parameters_options.add_options()
 
-				("min-number-of-unit-variants", po::value<uint>()->default_value(5000000)->notifier(bind(&OptionsContainer::parseValue<uint>, &options_container, "min-number-of-unit-variants", placeholders::_1)), "minimum number of variants per inference unit.")
 				("max-allele-length", po::value<uint>()->default_value(500000)->notifier(bind(&OptionsContainer::parseValue<uint>, &options_container, "max-allele-length", placeholders::_1)), "exclude alleles (reference and alternative) longer than <length>.")
 				("copy-number-variant-threshold", po::value<float>()->default_value(0.5, "0.5")->notifier(bind(&OptionsContainer::parseValue<float>, &options_container, "copy-number-variant-threshold", placeholders::_1)), "minimum fraction of identical kmers required between an allele and the downstream reference sequence in order for it to be classified as a copy number.")
-				("max-number-of-sample-haplotype-candidates", po::value<ushort>()->default_value(16)->notifier(bind(&OptionsContainer::parseValue<ushort>, &options_container, "max-number-of-sample-haplotype-candidates", placeholders::_1)), "maximum number of haplotype candidates per sample.")
+				("max-number-of-sample-haplotype-candidates", po::value<ushort>()->default_value(32)->notifier(bind(&OptionsContainer::parseValue<ushort>, &options_container, "max-number-of-sample-haplotype-candidates", placeholders::_1)), "maximum number of haplotype candidates per sample.")
 			;
 
 			po::options_description desc("## BayesTyper cluster options ##");
@@ -364,9 +362,6 @@ int main (int argc, char * const argv[]) {
 
 			const string cluster_data_dir_option_help = "cluster data directory containing " + intercluster_regions_file_prefix + ".txt.gz, " + multigroup_kmers_file_prefix + ".bloom[Meta|Data] & " + parameter_kmers_file_prefix + ".fa.gz (BayesTyper cluster output).";
 
-			const string min_homozygote_genotypes_option_help = "filter variants with less than <value> homozygote genotypes (calculated before other filters). Minimum " + to_string(min_filter_samples) + " samples required for this filter.";
-
-
 			OptionsContainer options_container("genotype", BT_VERSION, Utils::getLocalTime());
 
 			po::options_description required_options("== Required ==", 160);
@@ -389,7 +384,7 @@ int main (int argc, char * const argv[]) {
 				("chromosome-ploidy-file,y", po::value<string>()->default_value("")->notifier(bind(&OptionsContainer::parseValue<string>, &options_container, "chromosome-ploidy-file", placeholders::_1)), "chromosome gender ploidy file (see github documentation for format specifications). Human ploidy levels will be assumed if no file is given.")
 			;
 
-			po::options_description genotyping_parameters_options("== Genotyping parameters ==", 160);
+			po::options_description genotyping_parameters_options("== Genotyping ==", 160);
 			genotyping_parameters_options.add_options()
 
 				("gibbs-burn-in", po::value<ushort>()->default_value(100)->notifier(bind(&OptionsContainer::parseValue<ushort>, &options_container, "gibbs-burn-in", placeholders::_1)), "number of burn-in iterations.")
@@ -397,13 +392,13 @@ int main (int argc, char * const argv[]) {
 				("number-of-gibbs-chains", po::value<ushort>()->default_value(20)->notifier(bind(&OptionsContainer::parseValue<ushort>, &options_container, "number-of-gibbs-chains", placeholders::_1)), "number of parallel Gibbs sampling chains.")
 				("kmer-subsampling-rate", po::value<float>()->default_value(0.1, "0.1")->notifier(bind(&OptionsContainer::parseValue<float>, &options_container, "kmer-subsampling-rate", placeholders::_1)), "subsampling rate for subsetting kmers used for genotype inference (a new subset is sampled for each Gibbs sampling chain).")
 				("max-haplotype-variant-kmers", po::value<uint>()->default_value(500)->notifier(bind(&OptionsContainer::parseValue<uint>, &options_container, "max-haplotype-variant-kmers", placeholders::_1)), "maximum number of kmers used for genotype inference after subsampling across a haplotype candidate for each variant (a new subset is sampled for each Gibbs sampling chain).")
+				("min-cover-haplotype-init", po::value<bool>()->default_value(false)->implicit_value(true)->notifier(bind(&OptionsContainer::parseValue<bool>, &options_container, "min-cover-haplotype-init", placeholders::_1)), "")
 				("noise-rate-prior", po::value<string>()->default_value("1,1")->notifier(bind(&OptionsContainer::parseValuePair<float>, &options_container, "noise-rate-prior", placeholders::_1)), "parameters for Poisson noise rate gamma prior (<shape>,<scale>). All samples will use the same parameters.")
 			;
 
-			po::options_description filter_parameters_options("== Filter parameters ==", 160);
+			po::options_description filter_parameters_options("== Filter ==", 160);
 			filter_parameters_options.add_options()
 
-				("min-homozygote-genotypes", po::value<ushort>()->default_value(1)->notifier(bind(&OptionsContainer::parseValue<ushort>, &options_container, "min-homozygote-genotypes", placeholders::_1)), min_homozygote_genotypes_option_help.c_str())
 				("min-genotype-posterior", po::value<float>()->default_value(0.99, "0.99")->notifier(bind(&OptionsContainer::parseValue<float>, &options_container, "min-genotype-posterior", placeholders::_1)), "filter genotypes with a posterior probability (GPP) below <value>.")
 				("min-number-of-kmers", po::value<float>()->default_value(1, "1")->notifier(bind(&OptionsContainer::parseValue<float>, &options_container, "min-number-of-kmers", placeholders::_1)), "filter sampled alleles with less than <value> kmers (NAK).")
 				("disable-observed-kmers", po::value<bool>()->default_value(false)->implicit_value(true)->notifier(bind(&OptionsContainer::parseValue<bool>, &options_container, "disable-observed-kmers", placeholders::_1)), "disable filtering of sampled alleles with a low fraction of observed kmers (FAK).")
@@ -631,7 +626,7 @@ int main (int argc, char * const argv[]) {
 
 	      	cout << "\n" << endl;
 
-			Filters filters(options_container, count_distribution.getGenomicCountDistributions(), min_filter_samples);
+			Filters filters(options_container, count_distribution.getGenomicCountDistributions());
 			GenotypeWriter genotype_writer(output_prefix, num_threads, samples, chromosomes, filters);
 
 			inference_engine.genotypeVariantClusterGroups(&inference_unit, kmer_hash, count_distribution, filters, &genotype_writer);

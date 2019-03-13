@@ -32,11 +32,8 @@ THE SOFTWARE.
 
 static const float observed_kmer_beta_value = 0.275;
 
-Filters::Filters(const OptionsContainer & options_container, const vector<vector<NegativeBinomialDistribution> > & genomic_count_distributions, const ushort min_filter_samples_in) {
+Filters::Filters(const OptionsContainer & options_container, const vector<vector<NegativeBinomialDistribution> > & genomic_count_distributions) {
 
-    min_filter_samples = min_filter_samples_in;
-
-    min_homozygote_genotypes = options_container.getValue<ushort>("min-homozygote-genotypes");
     min_genotype_posterior = options_container.getValue<float>("min-genotype-posterior");
     min_number_of_kmers = options_container.getValue<float>("min-number-of-kmers");
 
@@ -54,16 +51,6 @@ Filters::Filters(const OptionsContainer & options_container, const vector<vector
             assert(min_fraction_observed_kmers.at(sample_idx) <= 1);
         }
     }
-}
-
-ushort Filters::minFilterSamples() const {
-
-    return min_filter_samples;
-}
-
-ushort Filters::minHomozygoteGenotypes() const {
-
-    return min_homozygote_genotypes;
 }
 
 float Filters::minGenotypePosterior() const {

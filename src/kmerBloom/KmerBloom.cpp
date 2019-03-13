@@ -51,7 +51,7 @@ std::vector<std::string> split(const std::string &s, char delim) {
 }
 
 template <uchar kmer_size>
-KmerBloom<kmer_size>::KmerBloom(const uint64_t num_kmers_in, const float fpr) : num_kmers(num_kmers_in) {
+KmerBloom<kmer_size>::KmerBloom(const uint64_t num_kmers_in, const float fpr) : num_kmers(max(num_kmers_in, static_cast<uint64_t>(1))) {
 
 	num_bloom_bits = calcOptNumBloomBits(fpr, num_kmers);
 	uint opt_num_hashes = calcOptNumHashes(num_bloom_bits, num_kmers);

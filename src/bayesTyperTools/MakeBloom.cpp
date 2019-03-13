@@ -217,11 +217,11 @@ kmer_bloom_t * MakeBloom::kmc2bloomThreaded(const string & kmc_table_fn, const f
 
 	kmer_bloom_t * kmer_bloom = new kmer_bloom_t(kmc_table_info.total_kmers, false_positive_rate);
 
-  uint num_batches = 2 * num_threads;
+  uint num_batches = Utils::queue_size_thread_scaling * num_threads;
   uint batch_size = 1000000;
 
-  ProducerConsumerQueue<kmer_batch_t*> kmer_queue(15000);
-  ProducerConsumerQueue<kmer_batch_t*> used_kmer_queue(15000);
+  ProducerConsumerQueue<kmer_batch_t*> kmer_queue(Utils::queue_size_thread_scaling * num_threads);
+  ProducerConsumerQueue<kmer_batch_t*> used_kmer_queue(Utils::queue_size_thread_scaling * num_threads);
 
   for (uint batch_idx = 0; batch_idx < num_batches; ++batch_idx) {
 

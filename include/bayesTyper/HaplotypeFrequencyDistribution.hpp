@@ -44,9 +44,10 @@ class HaplotypeFrequencyDistribution {
 		uint numMissingCount();
 
 		virtual void reset() = 0;
+		virtual void initialize(const vector<uint> &, const uint) = 0;
 
-		virtual pair<bool, double> getElementFrequency(const ushort) = 0;
-		virtual void incrementObservationCount(const ushort) = 0;
+		virtual pair<bool, double> getFrequency(const ushort) = 0;
+		virtual void incrementCount(const ushort) = 0;
 
 		virtual void sampleFrequencies() = 0;
 
@@ -63,10 +64,11 @@ class UniformHaplotypeFrequencyDistribution : public HaplotypeFrequencyDistribut
 		UniformHaplotypeFrequencyDistribution(const ushort);
 		~UniformHaplotypeFrequencyDistribution() {};
 
-		void reset();
+		void reset() {};
+		void initialize(const vector<uint> &, const uint) {};
 
-		pair<bool, double> getElementFrequency(const ushort);
-		void incrementObservationCount(const ushort);
+		pair<bool, double> getFrequency(const ushort);
+		void incrementCount(const ushort);
 
 		void sampleFrequencies();
 
@@ -79,19 +81,21 @@ class SparseHaplotypeFrequencyDistribution : public HaplotypeFrequencyDistributi
 
 	public:
 
-		SparseHaplotypeFrequencyDistribution(FrequencyDistribution *);
+		SparseHaplotypeFrequencyDistribution(const vector<uint> &, const uint, const uint);
 		~SparseHaplotypeFrequencyDistribution();
 
 		void reset();
+		void initialize(const vector<uint> &, const uint);
 
-		pair<bool, double> getElementFrequency(const ushort);
-		void incrementObservationCount(const ushort);
+		pair<bool, double> getFrequency(const ushort);
+		void incrementCount(const ushort);
 
 		void sampleFrequencies();
 
-	private:
+	protected:
 
 		FrequencyDistribution * frequency_distribution;
 };
 
 #endif	
+

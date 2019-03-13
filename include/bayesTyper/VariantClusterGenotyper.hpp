@@ -54,6 +54,7 @@ THE SOFTWARE.
 #include "Sample.hpp"
 #include "KmerStats.hpp"
 #include "Filters.hpp"
+#include "SparsityEstimator.hpp"
 
 
 using namespace std;
@@ -68,7 +69,7 @@ class VariantClusterGenotyper {
 		VariantClusterGenotyper(VariantClusterGraph *, KmerCountsHash *, const vector<Sample> &, const uint, const uchar);
 		~VariantClusterGenotyper();
 
-		void reset(const float, const uint);
+		void reset(const float, const uint, const bool);
 
 		void sampleDiplotypes(const CountDistribution &, const vector<VariantClusterHaplotypes::NestedVariantClusterInfo> &, const bool);
 		void getNoiseCounts(CountAllocation *, const CountDistribution &);
@@ -85,7 +86,7 @@ class VariantClusterGenotyper {
 		void updateMulticlusterDiplotypeLogProb(const CountDistribution &, const ushort);
 		double calcDiplotypeLogProb(const CountDistribution &, const ushort, const pair<ushort, ushort> &);
 
-		void sampleDiplotype(const CountDistribution &, const ushort, const Utils::Ploidy);
+		void sampleDiplotype(const vector<ushort> &, const CountDistribution &, const ushort, const Utils::Ploidy);
 
 		ushort haplotypeToAlleleIndex(const ushort, const ushort);
 		vector<ushort> getNonCoveredAlleles(const ushort);
@@ -99,7 +100,10 @@ class VariantClusterGenotyper {
 		bool use_multicluster_kmers; 
 
 		VariantClusterHaplotypes variant_cluster_haplotypes;
-		
+
+		SparsityEstimator sparsity_estimator;
+		Utils::RowVectorXbool non_zero_kmer_counts;
+
 		vector<VariantInfo> variant_cluster_info;
 		vector<vector<AlleleKmerStats> > allele_kmer_stats;
 
