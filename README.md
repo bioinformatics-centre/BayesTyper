@@ -2,6 +2,19 @@
 BayesTyper performs genotyping of all types of variation (including SNPs, indels and complex structural variants) based on an input set of variants and read k-mer counts. Internally, BayesTyper uses exact alignment of k-mers to a graph representation of the input variants and reference sequence in combination with a probabilistic model of k-mer counts to do genotyping.
 
 ## Latest News ##
+
+* 1 April 2019: New release ([v1.5](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.5)) featuring:
+   * **Noise parameter estimation:** Changed noise parameter estimation so that all variation types (except nested) are now used. This allows BayesTyper to run on variant sets containing few or even no SNVs. In addition, the minimum requirement on the number of variants needed for noise estimation have been removed and replaced with a warning.
+   * **Noise genotyping mode:** Added new genotyping mode (`--noise-genotyping`) where noise parameters and genotypes are estimated jointly instead of sequentially. This allows for uncertainty in the noise estimates to be directly propagated into the genotype posteriors. For larger genomes the noise estimates are generally fairly stable, however for smaller genomes with few variants this is often not the case. Also, all variants even nested are used for noise estimation in this mode. Note, that this mode will in most cases be slower and require more memory than the default.
+   * **Seeding and threading:** Fixed seeding so that identical results (within floating-point error) are attained between different runs independently of the number of threads used. Before the same number of threads were needed in order to get identical results using the same seed.
+   * **Genotype quality:** Added genotype quality (GQ) as a sample attribute to the `bayesTyper genotype` output. The quality is calculated from the maximum genotype posterior probability (GPP) and is Phred-scaled.   
+   * **Filters:** Removed the `--min-homozygote-genotypes` filter from `bayesTyper genotype`. Due to several improvements to BayesTyper over the last couple of releases this filter is not as important as it used to be. Note, that it is still possible to apply the filter using `bayesTyperTools filter`.
+   * **Haplotype option:** Renamed the option for setting the maximum number of haplotype candidates per sample to `--max-number-of-sample-haplotypes` and increased its default value to 32. A higher value has been shown to give better results when genotyping a small number of samples. Note, that this increase might result in longer computation time especially for more complex variant clusters. 
+   * **Prior option:** Changed the default parameters of the gamma distributed noise rate prior (`--noise-rate-prior`) to better reflect the expected Illumina error rate. 
+   * **Insertion alleles:** Added support for insertions in `bayesTyperTools convertAllele`. The sequences stored in the variant attributes SEQ or SVINSSEQ are now used as the inserted sequence for \<INS\> alleles. In addition, a fasta file containing the inserted sequences can be given with \>"name" matching \<"name"\>. Furthermore, support for partial insertions (Manta output) where the center and length is unknown has been added.
+   * **Scripts:** Removed `addMaxGenotypePosterior` since it is no longer relevant now that genotype qualities are calculated during genotyping. Added `filterAlleleCallsetOrigin` script that can filter alleles based on their origin (ACO).
+   * **General:** Made smaller improvements to the inference algorithm. Converted some common asserts related to input data to more readable error messages. 
+
 * 28 January 2019: Patch ([v1.4.1](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.4.1))
     * Updating to this patch is highly recommended since it fixes a bug introduced in [v1.4](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.4) that resulted in `bayesTyper genotype` occasionally crashing on larger datasets (see [release notes](https://github.com/bioinformatics-centre/BayesTyper/releases/tag/v1.4.1)).
 
@@ -47,13 +60,11 @@ Below we outline an example strategy, where candiates are obtained using
 
 The complete workflow (i.e. BAM(s) to genotypes) outlined below is further provided as a [snakemake workflow](https://github.com/bioinformatics-centre/BayesTyper/tree/master/workflows) for easy deployment of BayesTyper. Please refer to the [snakemake wiki](https://github.com/bioinformatics-centre/BayesTyper/wiki/Running-BayesTyper-using-snakemake) for detailed instructions on how to set up and execute the workflow on your data.
 
-**Important:** This workflow should work well for most cases. If you prefer to use another approach, please note that the candidate variant set should ideally contain at least 100,000 *candidate* SNVs that are not clustered with structural variants (needed for accurate estimation of parameters).
-
 **Important:** Please note that it is currently only possible to genotype 30 samples at the time using *BayesTyper*. To run more samples, please execute *BayesTyper* in batches as described in the [batching wiki](https://github.com/bioinformatics-centre/BayesTyper/wiki/Executing-BayesTyper-on-sample-batches). Batching is currently not supported by the *snakemake* workflow - please let us know if you require this feature by filing a [feature request](https://github.com/bioinformatics-centre/BayesTyper/issues).
 
 **Important:** Bayestyper supports uncompressed and gzip compressed vcf files. Please note that bgzip compression is currently **not** supported.
 
-**Important:** If you intend to run on **non-human** data, please refer to the [Running on non-human data wiki](https://github.com/bioinformatics-centre/BayesTyper/wiki/Running-BayesTyper-on-non-human-data) for more information. 
+**Important:** If you intend to genotype other organisms than human, please refer to the [other organism wiki](https://github.com/bioinformatics-centre/BayesTyper/wiki/Running-BayesTyper-on-other-organisms) for more information. 
 
 ### 1. Generation of variant candidates ###
 Starting from a set of indexed, aligned reads (obtained e.g. using *BWA-MEM*):
