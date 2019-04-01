@@ -122,9 +122,8 @@ class VariantClusterGroup {
 
 		bool hasExcludedKmers() const;
 
-		void initGenotyper(KmerCountsHash *, const vector<Sample> &, const uint, const uchar, const float, const uint, const bool);
-
-		void resetGenotyper(const float, const uint, const bool);
+		void initGenotyper(KmerCountsHash *, const vector<Sample> &, const uint, const uchar, const float, const uint);
+		void clearGenotyperCache();
 		void resetGroup();
 
 		void shuffleBranchOrdering(const uint);

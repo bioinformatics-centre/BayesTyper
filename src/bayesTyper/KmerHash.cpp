@@ -74,31 +74,35 @@ void writeSizeDistribution(const string & distribution_filename, const map<ulong
     distribution_outfile.close();
 }
 
+template<class T>
+KmerHash<T>::KmerHash(const ulong expected_total_size, const ushort num_threads) {
 
-BooleanKmerHash::BooleanKmerHash(const ulong expected_total_size, const ushort num_threads) {
-
-    _hash = new ThreadedHybridHash<bool, Utils::kmer_size * 2>(hash_root_size, expected_total_size, num_threads);
+    _hash = new ThreadedHybridHash<T, Utils::kmer_size * 2>(hash_root_size, expected_total_size, num_threads);
 }
 
-BooleanKmerHash::~BooleanKmerHash() {
+template<class T>
+KmerHash<T>::~KmerHash() {
 
     delete _hash;
 }
 
-unique_lock<mutex> BooleanKmerHash::getKmerLock(const bitset<Utils::kmer_size * 2> & kmer) {
+template<class T>
+unique_lock<mutex> KmerHash<T>::getKmerLock(const bitset<Utils::kmer_size * 2> & kmer) {
 
     return move(_hash->lockKey(kmer));
 }
 
-pair<bool *, bool> BooleanKmerHash::addKmer(const bitset<Utils::kmer_size * 2> & kmer) {
+template<class T>
+pair<T *, bool> KmerHash<T>::addKmer(const bitset<Utils::kmer_size * 2> & kmer) {
 
-    auto hash_insert = _hash->insert(kmer, false, true);
+    auto hash_insert = _hash->insert(kmer, T(0), true);
     assert(hash_insert.first != _hash->end());
    
     return make_pair(&((*hash_insert.first).second), hash_insert.second);
 }
 
-bool * BooleanKmerHash::findKmer(const bitset<Utils::kmer_size * 2> & kmer) {
+template<class T>
+T * KmerHash<T>::findKmer(const bitset<Utils::kmer_size * 2> & kmer) {
 
     auto hash_it = _hash->find(kmer);
 
@@ -112,22 +116,26 @@ bool * BooleanKmerHash::findKmer(const bitset<Utils::kmer_size * 2> & kmer) {
     }
 }
 
-void BooleanKmerHash::shuffle(const uint prng_seed) {
+template<class T>
+void KmerHash<T>::shuffle(const uint prng_seed) {
 
     _hash->shuffle(prng_seed);
 }
 
-ulong BooleanKmerHash::size() {
+template<class T>
+ulong KmerHash<T>::size() {
 
     return _hash->size();
 }
 
-void BooleanKmerHash::writeRootSizeDistribution(const string & output_prefix) {
+template<class T>
+void KmerHash<T>::writeRootSizeDistribution(const string & output_prefix) {
 
     writeSizeDistribution(output_prefix + ".txt", _hash->getRootSizeDistribution());
 }
 
-ulong BooleanKmerHash::writeKmersToFasta(const string & output_prefix, const bool value, const uint max_kmers) {
+template<class T>
+ulong KmerHash<T>::writeKmersToFasta(const string & output_prefix, bool (*write_value)(T), const uint max_kmers) {
 
     ulong num_kmers_written = 0;
 
@@ -152,7 +160,7 @@ ulong BooleanKmerHash::writeKmersToFasta(const string & output_prefix, const boo
 
     while (hash_it != _hash->end()) {
 
-        if ((*hash_it).second == value) {
+        if (write_value((*hash_it).second)) {
 
             kmers_outfile_fstream << Nucleotide::bitToNt<Utils::kmer_size>((*hash_it).first) << endl;
             num_kmers_written++;
@@ -169,7 +177,8 @@ ulong BooleanKmerHash::writeKmersToFasta(const string & output_prefix, const boo
     return num_kmers_written; 
 }
 
-ulong BooleanKmerHash::addKmersToBloomFilter(KmerBloom<Utils::kmer_size> * kmer_bloom_filter, const bool value) {
+template<class T>
+ulong KmerHash<T>::addKmersToBloomFilter(KmerBloom<Utils::kmer_size> * kmer_bloom_filter, bool (*add_value)(T)) {
 
     ulong num_kmers_added = 0;
 
@@ -177,7 +186,7 @@ ulong BooleanKmerHash::addKmersToBloomFilter(KmerBloom<Utils::kmer_size> * kmer_
 
     while (hash_it != _hash->end()) {
 
-        if ((*hash_it).second == value) {
+        if (add_value((*hash_it).second)) {
 
             kmer_bloom_filter->addKmer((*hash_it).first);
             num_kmers_added++;
@@ -247,7 +256,7 @@ void ObservedKmerCountsHash<sample_bin>::writeRootSizeDistribution(const string 
 template<uchar sample_bin>
 vector<vector<vector<KmerStats> > > ObservedKmerCountsHash<sample_bin>::calculateKmerStats(const vector<Sample> & samples) {
 
-    vector<vector<vector<KmerStats> > > intercluster_diploid_kmer_stats(samples.size(), vector<vector<KmerStats> >(num_genomic_rate_gc_bias_bins, vector<KmerStats>(static_cast<uint>(Utils::Ploidy::PLOIDY_SIZE))));
+    vector<vector<vector<KmerStats> > > intercluster_kmer_stats(samples.size(), vector<vector<KmerStats> >(num_genomic_rate_gc_bias_bins, vector<KmerStats>(Utils::uchar_overflow + 1)));
 
     ulong total_count = 0;
 
@@ -301,15 +310,13 @@ vector<vector<vector<KmerStats> > > ObservedKmerCountsHash<sample_bin>::calculat
             assert(!(*hash_it).second.hasMulticlusterOccurrence());
             assert(!(*hash_it).second.hasMultigroupOccurrence());
 
-            if ((*hash_it).second.isParameter() and ((*hash_it).second.getMaxInterclusterMultiplicity() < static_cast<uint>(Utils::Ploidy::PLOIDY_SIZE))) {
-
-                assert(!(*hash_it).second.isExcluded());
+            if ((*hash_it).second.isParameter()) {
 
                 const uchar bias_idx = Nucleotide::gcBiasBin<Utils::kmer_size>((*hash_it).first, num_genomic_rate_gc_bias_bins);
 
                 for (ushort sample_idx = 0; sample_idx < samples.size(); sample_idx++) {
             
-                    intercluster_diploid_kmer_stats.at(sample_idx).at(bias_idx).at((*hash_it).second.getInterclusterMultiplicity(samples.at(sample_idx).gender)).addValue(make_pair((*hash_it).second.getSampleCount(sample_idx), true));
+                    intercluster_kmer_stats.at(sample_idx).at(bias_idx).at((*hash_it).second.getInterclusterMultiplicity(samples.at(sample_idx).gender)).addValue(make_pair((*hash_it).second.getSampleCount(sample_idx), true));
                 }
             }
         }
@@ -329,9 +336,11 @@ vector<vector<vector<KmerStats> > > ObservedKmerCountsHash<sample_bin>::calculat
     
     cout << "\n\t- " << non_cluster_count << " have no match to a variant cluster (includes parameter kmers)" << endl;
     
-    return intercluster_diploid_kmer_stats;
+    return intercluster_kmer_stats;
 }
 
+template class KmerHash<bool>;
+template class KmerHash<uchar>;
 
 template class ObservedKmerCountsHash<3>;
 template class ObservedKmerCountsHash<10>;

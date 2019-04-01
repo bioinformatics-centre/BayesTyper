@@ -151,7 +151,9 @@ int main (int argc, char * const argv[]) {
 			string output_prefix;
 
 			string mei_file;
+			string alt_file;
 			bool keep_imprecise;
+			bool keep_partial;
 
 			po::options_description required_options("== Required ==", 160);
 			required_options.add_options()
@@ -164,8 +166,10 @@ int main (int argc, char * const argv[]) {
 			po::options_description alleles_options("== Alleles ==", 160);
 			alleles_options.add_options()
 
+				("alt-file", po::value<string>(&alt_file)->default_value(""), "alternative allele file (fasta format). Sequence name in fasta (>\"name\") should match <\"name\">.")
 				("mei-file", po::value<string>(&mei_file)->default_value(""), "mobile element insertion(s) file (fasta format). Sequence name in fasta (>\"name\") should match <INS:ME:\"name\">.")
 				("keep-imprecise", po::value<bool>(&keep_imprecise)->default_value(false)->implicit_value(true), "do not filter imprecise variants")
+				("keep-partial", po::value<bool>(&keep_partial)->default_value(false)->implicit_value(true), "keep partial insertions where the center and length is unknown (Manta output supported). The known left and right side is connected with ten N's.")
 			;
 
 			po::options_description desc("## BayesTyperTools convertAllele ##");
@@ -181,7 +185,7 @@ int main (int argc, char * const argv[]) {
 
 			po::notify(vm);
 
-			ConvertAllele::convertAllele(variant_file, genome_file, generateVariantFileOutput(output_prefix, gzip_output), mei_file, keep_imprecise);
+			ConvertAllele::convertAllele(variant_file, genome_file, generateVariantFileOutput(output_prefix, gzip_output), alt_file, mei_file, keep_imprecise, keep_partial);
 
 		} else if (strcmp(argv[1],"combine") == 0) {
 

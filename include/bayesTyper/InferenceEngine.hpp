@@ -58,8 +58,10 @@ class InferenceEngine {
 
 		InferenceEngine(const vector<Sample> &, const ChromosomePloidy &, const OptionsContainer &);		
 
-		void estimateNoiseParameters(CountDistribution *, InferenceUnit *, KmerCountsHash *, const string &);
-		void genotypeVariantClusterGroups(InferenceUnit *, KmerCountsHash *, const CountDistribution &, const Filters & filters, GenotypeWriter *);	
+		void estimateNoise(CountDistribution *, InferenceUnit *, KmerCountsHash *, const string &);
+		void estimateGenotypes(InferenceUnit *, KmerCountsHash *, const CountDistribution &, const Filters & filters, GenotypeWriter *);	
+		void estimateNoiseAndGenotypes(InferenceUnit *, CountDistribution *, KmerCountsHash *, const Filters &, GenotypeWriter *, const string &);
+
 
 	private: 
 
@@ -74,7 +76,6 @@ class InferenceEngine {
 		const ushort num_gibbs_chains;
 		const float kmer_subsampling_rate;
 		const uint max_haplotype_variant_kmers;
-		const bool min_cover_haplotype_init;
 
 		struct VariantClusterGroupBatch {
 
@@ -88,11 +89,12 @@ class InferenceEngine {
 			VariantClusterGroupBatch(const uint first_variant_cluster_group_idx_in, const uint num_variants_in, const vector<VariantClusterGroup*>::iterator start_it_in, const vector<VariantClusterGroup*>::iterator end_it_in) : first_variant_cluster_group_idx(first_variant_cluster_group_idx_in), num_variants(num_variants_in), start_it(start_it_in), end_it(end_it_in) {}
 		};
 
-		void initNoiseEstimationGroupsCallback(vector<VariantClusterGroup *> *, const vector<uint> &, KmerCountsHash *, const ushort, const ushort, const uint);
-		void sampleNoiseCountsCallback(vector<VariantClusterGroup *> *, const vector<uint> &, CountAllocation *, mutex *, const CountDistribution &, const ushort, const uint);
-		void resetNoiseEstimationGroupsCallback(vector<VariantClusterGroup *> *, const vector<uint> &, const ushort, const uint);
+		void initGenotypersCallback(vector<VariantClusterGroup *> *, const vector<uint> &, const uint, KmerCountsHash *, const ushort, const ushort);
+		void sampleGenotypesCallback(vector<VariantClusterGroup *> *, const vector<uint> &, const uint, const CountDistribution &, const bool, CountAllocation *, mutex *, const ushort);
+		void resetGroupsCallback(vector<VariantClusterGroup *> *, const vector<uint> &, const uint, const ushort);
+		void collectGenotypesCallback(vector<VariantClusterGroup *> *, const vector<uint> &, const uint, const Filters & filters, GenotypeWriter *, const ushort);
 
-		void genotypeVariantClusterGroupsCallback(ProducerConsumerQueue<VariantClusterGroupBatch> *, KmerCountsHash *, const CountDistribution &, const Filters & filters, GenotypeWriter *, uint *, mutex *);
+		void estimateGenotypesCallback(ProducerConsumerQueue<VariantClusterGroupBatch> *, KmerCountsHash *, const CountDistribution &, const Filters & filters, GenotypeWriter *, uint *, mutex *);
 };
 
 #endif

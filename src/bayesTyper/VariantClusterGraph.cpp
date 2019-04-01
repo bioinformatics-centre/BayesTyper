@@ -386,7 +386,7 @@ bool VariantClusterGraph::hasExcludedKmers() {
     return has_excluded_kmers;
 }
 
-void VariantClusterGraph::findSamplePaths(KmerBloom<Utils::kmer_size> * sample_kmer_bloom, const uint prng_seed, const ushort max_sample_haplotype_candidates) {
+void VariantClusterGraph::findSamplePaths(KmerBloom<Utils::kmer_size> * sample_kmer_bloom, const uint prng_seed, const ushort max_sample_haplotypes) {
     
     mt19937 prng = mt19937(prng_seed);
 
@@ -451,8 +451,8 @@ void VariantClusterGraph::findSamplePaths(KmerBloom<Utils::kmer_size> * sample_k
             path->addVertex(*vit.first, graph[*vit.first], sample_kmer_bloom);
         }
 
-        filterPaths(&(vertex_best_sample_paths_it->second), max_sample_haplotype_candidates, false);
-        assert(!vertex_best_sample_paths_it->second.empty() and (vertex_best_sample_paths_it->second.size() <= max_sample_haplotype_candidates));  
+        filterPaths(&(vertex_best_sample_paths_it->second), max_sample_haplotypes, false);
+        assert(!vertex_best_sample_paths_it->second.empty() and (vertex_best_sample_paths_it->second.size() <= max_sample_haplotypes));  
 
         vertex_t max_visited_vertices = *vit.first;
         eit_out = boost::out_edges(*vit.first, graph);
@@ -475,8 +475,8 @@ void VariantClusterGraph::findSamplePaths(KmerBloom<Utils::kmer_size> * sample_k
     assert(vertex_best_sample_paths.size() == visited_vertices.size());
     assert(vertex_best_sample_paths.size() == boost::num_vertices(graph));
 
-    filterPaths(&(vertex_best_sample_paths_it->second), max_sample_haplotype_candidates, true);
-    assert(!vertex_best_sample_paths_it->second.empty() and (vertex_best_sample_paths_it->second.size() <= max_sample_haplotype_candidates));  
+    filterPaths(&(vertex_best_sample_paths_it->second), max_sample_haplotypes, true);
+    assert(!vertex_best_sample_paths_it->second.empty() and (vertex_best_sample_paths_it->second.size() <= max_sample_haplotypes));  
 
     addPathIndices(&(vertex_best_sample_paths_it->second));
 }

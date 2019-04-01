@@ -46,27 +46,28 @@ THE SOFTWARE.
 
 using namespace std;
 
-class BooleanKmerHash {
+template<class T>
+class KmerHash {
 
     private:
 
-        ThreadedHybridHash<bool, Utils::kmer_size * 2> * _hash;
+        ThreadedHybridHash<T, Utils::kmer_size * 2> * _hash;
 
     public:
 
-        BooleanKmerHash(const ulong, const ushort);
-        ~BooleanKmerHash();
+        KmerHash(const ulong, const ushort);
+        ~KmerHash();
 
         unique_lock<mutex> getKmerLock(const bitset<Utils::kmer_size * 2> &);
-        pair<bool *, bool> addKmer(const bitset<Utils::kmer_size * 2> &);
-        bool * findKmer(const bitset<Utils::kmer_size * 2> &);
+        pair<T *, bool> addKmer(const bitset<Utils::kmer_size * 2> &);
+        T * findKmer(const bitset<Utils::kmer_size * 2> &);
 
         void shuffle(const uint);
         ulong size();
 
         void writeRootSizeDistribution(const string &);
-        ulong writeKmersToFasta(const string &, const bool, const uint);
-        ulong addKmersToBloomFilter(KmerBloom<Utils::kmer_size> *, const bool);
+        ulong writeKmersToFasta(const string &, bool (*)(T), const uint);
+        ulong addKmersToBloomFilter(KmerBloom<Utils::kmer_size> *, bool (*)(T));
 };
 
 class KmerCountsHash {

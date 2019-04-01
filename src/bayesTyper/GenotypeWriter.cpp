@@ -349,7 +349,7 @@ void GenotypeWriter::addGenotypes(vector<Genotypes *> * variant_genotypes) {
     genotypes_queue->push(variant_genotypes);
 }
 
-void GenotypeWriter::finalise(const string & output_prefix, const Chromosomes & chromosomes, const string & graph_options_header, const OptionsContainer & options_container, const Filters & filters) {
+uint GenotypeWriter::finalise(const string & output_prefix, const Chromosomes & chromosomes, const string & graph_options_header, const OptionsContainer & options_container, const Filters & filters) {
 
     genotypes_queue->pushedLast();
 
@@ -364,7 +364,7 @@ void GenotypeWriter::finalise(const string & output_prefix, const Chromosomes & 
     assert(!tmp_outfile.is_open());
 
 
-    cout << "[" << Utils::getLocalTime() << "] Sorting genotyped variants ..." << endl;
+    cout << "\n[" << Utils::getLocalTime() << "] Sorting genotyped variants ..." << endl;
 
     assert(tmp_filename.substr(tmp_filename.size() - 3, 3) == ".gz");
 
@@ -453,7 +453,7 @@ void GenotypeWriter::finalise(const string & output_prefix, const Chromosomes & 
 
     variants_outfile_fstream << generateHeader(options_container.getValue<string>("genome-file"), chromosomes, graph_options_header, options_container.getHeader(), filters);
 
-    ulong num_genotyped_variants = 0;
+    uint num_genotyped_variants = 0;
 
     auto chromosomes_it = chromosomes.cbegin();
 
@@ -486,7 +486,9 @@ void GenotypeWriter::finalise(const string & output_prefix, const Chromosomes & 
     variants_outfile_fstream.reset();
     assert(!variants_outfile.is_open());
 
-    cout << "[" << Utils::getLocalTime() << "] Wrote " << num_genotyped_variants << " genotyped variants to " << genotype_filename << endl;       
+    cout << "[" << Utils::getLocalTime() << "] Wrote genotyped variants to " << genotype_filename << endl;       
+
+    return num_genotyped_variants;
 }
 
 string GenotypeWriter::generateHeader(const string & genome_filename, const Chromosomes & chromosomes, const string & graph_options_header, const string & genotype_options_header, const Filters & filters) {

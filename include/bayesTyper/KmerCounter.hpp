@@ -57,8 +57,8 @@ class KmerCounter {
 		KmerCounter(const vector<Sample> &, const OptionsContainer &);
 
 		void findVariantClusterPaths(InferenceUnit *, const ushort);	
-		void countPathMultigroupKmers(BooleanKmerHash *, ThreadedKmerBloom<Utils::kmer_size> *, InferenceUnit *);
-		void countInterclusterParameterKmers(BooleanKmerHash *, const vector<VariantFileParser::InterClusterRegion> &, const Chromosomes &, const ThreadedKmerBloom<Utils::kmer_size> &, const float);
+		void countPathMultigroupKmers(KmerHash<bool> *, ThreadedKmerBloom<Utils::kmer_size> *, InferenceUnit *);
+		void countInterclusterParameterKmers(KmerHash<bool> *, const vector<VariantFileParser::InterClusterRegion> &, const Chromosomes &, const ThreadedKmerBloom<Utils::kmer_size> &, const float);
 
 		void countPathKmers(ThreadedKmerBloom<Utils::kmer_size> *, InferenceUnit *);
 		void countInterclusterKmers(KmerCountsHash *, ThreadedKmerBloom<Utils::kmer_size> *, const string &, const Chromosomes &, const ChromosomePloidy &);
@@ -85,8 +85,8 @@ class KmerCounter {
 		};
 
 		void findVariantClusterPathsCallback(vector<VariantClusterGroup *> *, KmerBloom<Utils::kmer_size> *, const ushort, const ushort, const ushort);
-		void countPathMultigroupKmersCallback(BooleanKmerHash *, ThreadedKmerBloom<Utils::kmer_size> *, vector<VariantClusterGroup *> *, mutex *, ulong *, const ushort);
-		void countInterclusterParameterKmersCallback(BooleanKmerHash *, const vector<VariantFileParser::InterClusterRegion> &, const Chromosomes &, const ThreadedKmerBloom<Utils::kmer_size> &, const float, const ushort);
+		void countPathMultigroupKmersCallback(KmerHash<bool> *, ThreadedKmerBloom<Utils::kmer_size> *, vector<VariantClusterGroup *> *, mutex *, ulong *, const ushort);
+		void countInterclusterParameterKmersCallback(KmerHash<bool> *, const vector<VariantFileParser::InterClusterRegion> &, const Chromosomes &, const ThreadedKmerBloom<Utils::kmer_size> &, const float, const ushort);
 
 		void countPathKmersCallback(ThreadedKmerBloom<Utils::kmer_size> *, vector<VariantClusterGroup *> *, const ushort);
 		void countInterclusterKmersCallback(KmerCountsHash *, ThreadedKmerBloom<Utils::kmer_size> *, const vector<VariantFileParser::InterClusterRegion> &, const Chromosomes &, const ChromosomePloidy &, const ushort);

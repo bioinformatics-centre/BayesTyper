@@ -87,7 +87,7 @@ VariantClusterGenotyper::VariantClusterGenotyper(VariantClusterGraph * variant_c
 
     variant_cluster_haplotypes.kmer_stats_cache = vector<VariantClusterHaplotypes::KmerStatsCache>(samples.size(), variant_cluster_info.size());
 
-	non_zero_kmer_counts = Utils::RowVectorXbool::Zero(variant_cluster_haplotypes.kmers.size());
+	Utils::RowVectorXbool non_zero_kmer_counts = Utils::RowVectorXbool::Zero(variant_cluster_haplotypes.kmers.size());
 
 	for (uint kmer_idx = 0; kmer_idx < variant_cluster_haplotypes.kmers.size(); kmer_idx++) {
 
@@ -96,8 +96,8 @@ VariantClusterGenotyper::VariantClusterGenotyper(VariantClusterGraph * variant_c
 			non_zero_kmer_counts(kmer_idx) = true;	
 		} 
 	}
-	
-	sparsity_estimator = SparsityEstimator(prng_seed);
+
+	SparsityEstimator sparsity_estimator = SparsityEstimator(prng_seed);
 
 	auto minimum_haplotype_cover = sparsity_estimator.estimateMinimumColumnCover(variant_cluster_haplotypes.haplotype_kmer_multiplicities, non_zero_kmer_counts, false);
 	assert(minimum_haplotype_cover.size() <= variant_cluster_haplotypes.haplotypes.size());
@@ -110,7 +110,7 @@ VariantClusterGenotyper::~VariantClusterGenotyper() {
 	delete haplotype_frequency_distribution;
 }
 
-void VariantClusterGenotyper::reset(const float kmer_subsampling_rate, const uint max_haplotype_variant_kmers, const bool min_cover_haplotype_init) {
+void VariantClusterGenotyper::reset(const float kmer_subsampling_rate, const uint max_haplotype_variant_kmers) {
 
 	use_multicluster_kmers = false;
 
@@ -126,14 +126,15 @@ void VariantClusterGenotyper::reset(const float kmer_subsampling_rate, const uin
 	}
 
 	haplotype_frequency_distribution->reset();
+}
 
-	if (min_cover_haplotype_init) {
+void VariantClusterGenotyper::clearCache() {
 
-		auto minimum_haplotype_cover = sparsity_estimator.estimateMinimumColumnCover(variant_cluster_haplotypes.haplotype_kmer_multiplicities, non_zero_kmer_counts, true);
-		assert(minimum_haplotype_cover.size() <= variant_cluster_haplotypes.haplotypes.size());
+	for (ushort sample_idx = 0; sample_idx < samples.size(); sample_idx++) {
 
-		haplotype_frequency_distribution->initialize(minimum_haplotype_cover, variant_cluster_haplotypes.haplotypes.size());	
-	} 
+		unique_diplotype_log_probabilities.at(sample_idx).clear();
+		multicluster_diplotype_log_probabilities.at(sample_idx).clear();
+	}
 }
 
 void VariantClusterGenotyper::updateNestedPloidy(Utils::Ploidy * nested_ploidy) {
@@ -755,15 +756,7 @@ void VariantClusterGenotyper::sampleDiplotype(const vector<ushort> & non_zero_ha
 
 void VariantClusterGenotyper::getNoiseCounts(CountAllocation * noise_counts, const CountDistribution & count_distribution) {
 
-	assert(!use_multicluster_kmers);
-
-	assert(variant_cluster_haplotypes.multicluster_kmer_indices.empty());
-	assert(variant_cluster_haplotypes.multicluster_kmer_subset_indices.empty());
-
 	for (ushort sample_idx = 0; sample_idx < samples.size(); sample_idx++) {
-
-		unique_diplotype_log_probabilities.at(sample_idx).clear();
-		assert(multicluster_diplotype_log_probabilities.at(sample_idx).empty());
 
 		for (auto & kmer_idx: variant_cluster_haplotypes.unique_kmer_subset_indices) {
 

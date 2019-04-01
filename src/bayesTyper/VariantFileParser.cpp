@@ -284,7 +284,11 @@ void VariantFileParser::parseVariants(ProducerConsumerQueue<vector<unordered_map
                     assert((prev_var_end_position + 1) <= static_cast<int>(prev_chromosomes_it->second.size()));
                     addSequenceToInterclusterRegions(prev_chrom_name, chromosomes.isDecoy(prev_chrom_name), prev_var_end_position + 1, prev_chromosomes_it->second.size() - 1);
 
-                    assert(intercluster_chromosomes.insert(prev_chrom_name).second);
+                    if (!intercluster_chromosomes.insert(prev_chrom_name).second) {
+
+                        cerr << "\nERROR: Variants need to be sorted by contig; variants on contig \"" << prev_chrom_name << "\" is unordered\n" << endl;
+                        exit(1);                        
+                    }
 
                 } else {
 
@@ -302,10 +306,15 @@ void VariantFileParser::parseVariants(ProducerConsumerQueue<vector<unordered_map
 
             variant_depedencies.clear();
 
-        } else {
+        } else if (prev_position > cur_position) {
 
-            assert(prev_position < cur_position);
-        }
+            cerr << "\nERROR: Variants need to be sorted by position; \"" << prev_position << "\" is before \"" << cur_position << "\" on contig \"" << cur_chrom_name << "\"\n" << endl;
+            exit(1);  
+            
+        } else if (prev_position == cur_position) {
+
+            cerr << "\nERROR: Variants on the same position need to be multi-allelic; multiple variants observed on position \"" << prev_position << "\" on contig \"" << cur_chrom_name << "\"\n" << endl;
+        } 
 
         prev_chrom_name = cur_chrom_name;
 

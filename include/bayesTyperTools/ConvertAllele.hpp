@@ -38,7 +38,7 @@ THE SOFTWARE.
 
 namespace ConvertAllele {
 
-	void convertAllele(const string &, const string &, const string &, const string &, const bool);
+	void convertAllele(const string &, const string &, const string &, const string &, const string &, const bool, const bool);
 }
 
 #endif

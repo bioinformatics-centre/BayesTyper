@@ -135,11 +135,11 @@ string VariantClusterGroup::region() const {
 	return chrom_name + ":" + to_string(start_position) + "-" + to_string(end_position);
 }
 
-void VariantClusterGroup::findSamplePaths(KmerBloom<Utils::kmer_size> * sample_kmer_bloom, const uint prng_seed, const ushort max_sample_haplotype_candidates) {
+void VariantClusterGroup::findSamplePaths(KmerBloom<Utils::kmer_size> * sample_kmer_bloom, const uint prng_seed, const ushort max_sample_haplotypes) {
 
 	for (auto & vertex: vertices) {
 
-		vertex.graph->findSamplePaths(sample_kmer_bloom, prng_seed + vertex.variant_cluster_idx, max_sample_haplotype_candidates);
+		vertex.graph->findSamplePaths(sample_kmer_bloom, prng_seed + vertex.variant_cluster_idx, max_sample_haplotypes);
 	}
 }
 
@@ -172,24 +172,26 @@ bool VariantClusterGroup::hasExcludedKmers() const {
 	return false;
 }
 
-void VariantClusterGroup::initGenotyper(KmerCountsHash * kmer_hash, const vector<Sample> & samples, const uint prng_seed, const uchar num_genomic_rate_gc_bias_bins, const float kmer_subsampling_rate, const uint max_haplotype_variant_kmers, const bool min_cover_haplotype_init) {
+void VariantClusterGroup::initGenotyper(KmerCountsHash * kmer_hash, const vector<Sample> & samples, const uint prng_seed, const uchar num_genomic_rate_gc_bias_bins, const float kmer_subsampling_rate, const uint max_haplotype_variant_kmers) {
 
 	for (auto & vertex: vertices) {
 
-		assert(!vertex.genotyper);
+		if (!vertex.genotyper) {
 
-		vertex.genotyper = new VariantClusterGenotyper(vertex.graph, kmer_hash, samples, prng_seed + vertex.variant_cluster_idx, num_genomic_rate_gc_bias_bins);
-		vertex.genotyper->reset(kmer_subsampling_rate, max_haplotype_variant_kmers, min_cover_haplotype_init);
+			vertex.genotyper = new VariantClusterGenotyper(vertex.graph, kmer_hash, samples, prng_seed + vertex.variant_cluster_idx, num_genomic_rate_gc_bias_bins);
+		}
+
+		vertex.genotyper->reset(kmer_subsampling_rate, max_haplotype_variant_kmers);
 	}
 }
 
-void VariantClusterGroup::resetGenotyper(const float kmer_subsampling_rate, const uint max_haplotype_variant_kmers, const bool min_cover_haplotype_init) {
+void VariantClusterGroup::clearGenotyperCache() {
 
 	for (auto & vertex: vertices) {
 
 		assert(vertex.genotyper);
-		vertex.genotyper->reset(kmer_subsampling_rate, max_haplotype_variant_kmers, min_cover_haplotype_init);
-	}
+		vertex.genotyper->clearCache();
+	}	
 }
 
 void VariantClusterGroup::resetGroup() {

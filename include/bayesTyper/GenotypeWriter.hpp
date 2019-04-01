@@ -62,7 +62,7 @@ class GenotypeWriter {
 		GenotypeWriter(const string &, const ushort, const vector<Sample> &, const Chromosomes &, const Filters &);
 
 		void addGenotypes(vector<Genotypes *> *);
-		void finalise(const string &, const Chromosomes &, const string &, const OptionsContainer &, const Filters &);
+		uint finalise(const string &, const Chromosomes &, const string &, const OptionsContainer &, const Filters &);
 
 	private:
 

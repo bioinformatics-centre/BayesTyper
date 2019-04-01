@@ -47,7 +47,7 @@ THE SOFTWARE.
 
 namespace ConvertAllele {
 
-    void convertAllele(const string & variant_file, const string & genome_file, const string & outfile, const string & mei_file, const bool keep_imprecise) {
+    void convertAllele(const string & variant_file, const string & genome_file, const string & outfile, const string & alt_file, const string & mei_file, const bool keep_imprecise, const bool keep_partial) {
 
         cout << "[" << Utils::getLocalTime() << "] Running BayesTyperTools (" << BT_VERSION << ") convertAllele ...\n" << endl;
 
@@ -62,6 +62,25 @@ namespace ConvertAllele {
         }
 
         cout << "[" << Utils::getLocalTime() << "] Parsed " << genome_seqs.size() << " chromosome(s)" << endl;
+
+        unordered_map<string, pair<FastaRecord*, FastaRecord*> > alt_seqs;
+
+        if (!alt_file.empty()) {
+
+            FastaReader alt_reader(alt_file);
+
+            while (alt_reader.getNextRecord(&cur_fasta_rec)) {
+
+                FastaRecord * cur_fasta_rec_rv = new FastaRecord(cur_fasta_rec->id(), Auxiliaries::reverseComplementSequence(cur_fasta_rec->seq()));
+
+                cur_fasta_rec->convertToUppercase();
+                cur_fasta_rec_rv->convertToUppercase();
+
+                assert(alt_seqs.emplace("<" + cur_fasta_rec->id() + ">", make_pair(cur_fasta_rec, cur_fasta_rec_rv)).second);
+            }
+        } 
+
+        cout << "[" << Utils::getLocalTime() << "] Parsed " << alt_seqs.size() << " alternative allele sequence(s)" << endl;
 
         unordered_map<string, pair<FastaRecord*, FastaRecord*> > mei_seqs;
 
@@ -121,15 +140,12 @@ namespace ConvertAllele {
                 cur_chrom = cur_var->chrom();
             }
 
-            if (!keep_imprecise) {
+            if (!keep_imprecise and cur_var->info().hasValue("IMPRECISE")) {
 
-                if (cur_var->info().getValue<string>("IMPRECISE").second) {
+                skipped_imprecise_variants++;
+                delete cur_var;
 
-                    skipped_imprecise_variants++;
-                    delete cur_var;
-
-                    continue;
-                }
+                continue;
             }
 
             if (cur_var->ref().seq() == "N") {
@@ -331,12 +347,34 @@ namespace ConvertAllele {
                             cur_var->alt(alt_allele_idx).seq() = Auxiliaries::reverseComplementSequence(end_variant_seq);                                
                         }
 
+                    } else if (cur_var->alt(alt_allele_idx).seq() == "<INS>") {
+
+                        if (cur_var->info().hasValue("SEQ")) {                       
+
+                            cur_var->alt(alt_allele_idx).seq() = anchor_nt + cur_var->info().getValue<string>("SEQ").first;                              
+                        
+                        } else if (cur_var->info().hasValue("SVINSSEQ")) {                       
+
+                            cur_var->alt(alt_allele_idx).seq() = anchor_nt + cur_var->info().getValue<string>("SVINSSEQ").first;                              
+
+                        } else if (keep_partial and cur_var->info().hasValue("LEFT_SVINSSEQ") and cur_var->info().hasValue("RIGHT_SVINSSEQ")) {
+
+                            cur_var->alt(alt_allele_idx).seq() = anchor_nt + cur_var->info().getValue<string>("LEFT_SVINSSEQ").first + "NNNNNNNNNN" + cur_var->info().getValue<string>("RIGHT_SVINSSEQ").first;                              
+
+                        } else {
+
+                            is_excluded = true;
+                            excluded_alt_indices.push_back(alt_allele_idx);
+                        }
+
+                    } else if (alt_seqs.count(cur_var->alt(alt_allele_idx).seq()) > 0) {
+
+                        cur_var->alt(alt_allele_idx).seq() = anchor_nt + alt_seqs.at(cur_var->alt(alt_allele_idx).seq()).first->seq();                              
+
                     } else if (regex_match(cur_var->alt(alt_allele_idx).seq(), me_match_res, me_regex)) {
 
                         assert(cur_var->numAlts() == 1);
                         assert(cur_var->numAlts() == cur_num_alts);                        
-
-                        assert(cur_var->ref().seq() == anchor_nt);
 
                         assert(me_match_res.size() == 2);
                         auto me_type = me_match_res[1].str();

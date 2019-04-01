@@ -69,7 +69,8 @@ class VariantClusterGenotyper {
 		VariantClusterGenotyper(VariantClusterGraph *, KmerCountsHash *, const vector<Sample> &, const uint, const uchar);
 		~VariantClusterGenotyper();
 
-		void reset(const float, const uint, const bool);
+		void reset(const float, const uint);
+		void clearCache();
 
 		void sampleDiplotypes(const CountDistribution &, const vector<VariantClusterHaplotypes::NestedVariantClusterInfo> &, const bool);
 		void getNoiseCounts(CountAllocation *, const CountDistribution &);
@@ -100,9 +101,6 @@ class VariantClusterGenotyper {
 		bool use_multicluster_kmers; 
 
 		VariantClusterHaplotypes variant_cluster_haplotypes;
-
-		SparsityEstimator sparsity_estimator;
-		Utils::RowVectorXbool non_zero_kmer_counts;
 
 		vector<VariantInfo> variant_cluster_info;
 		vector<vector<AlleleKmerStats> > allele_kmer_stats;
